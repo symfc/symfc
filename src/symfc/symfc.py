@@ -94,7 +94,7 @@ class SymOpReps:
         for r, t in zip(rotations, translations):
             for i, (r_inv, t_inv) in enumerate(zip(rotations, translations)):
                 if np.array_equal(r @ r_inv, identity):
-                    diff = r_inv @ t - t_inv
+                    diff = r_inv @ t + t_inv
                     diff -= np.rint(diff)
                     if np.linalg.norm(self._lattice @ np.abs(diff)) < tol:
                         rotations_inv.append(r_inv)
