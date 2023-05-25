@@ -87,15 +87,18 @@ def test_fc_SnO2_223_wrt_ALM(sbs_sno2_223: SymBasisSets):
     This test is skipped when ALM is not installed.
 
     """
-    fc_compact = _compare_fc_with_alm(
-        "phonopy_SnO2_223_rd.yaml.xz", sbs_sno2_223.basis_sets
-    )
-    ph = phonopy.load(cwd / "phonopy_SnO2_223_rd.yaml.xz", produce_fc=False)
-    ph.force_constants = fc_compact
-    ph.save(
-        "phonopy_SnO2_223_fc.yaml",
-        settings={"force_sets": False, "displacements": False, "force_constants": True},
-    )
+    _ = _compare_fc_with_alm("phonopy_SnO2_223_rd.yaml.xz", sbs_sno2_223.basis_sets)
+    # ph = phonopy.load(cwd / "phonopy_SnO2_223_rd.yaml.xz", produce_fc=False)
+    # ph.force_constants = fc_compact
+    # save_settings = {
+    #     "force_sets": False,
+    #     "displacements": False,
+    #     "force_constants": True,
+    # }
+    # ph.save(
+    #     "phonopy_SnO2_223_fc.yaml",
+    #     settings=save_settings
+    # )
 
 
 def _compare_fc_with_alm(filename, basis_sets) -> np.ndarray:
