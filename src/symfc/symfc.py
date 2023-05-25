@@ -312,17 +312,17 @@ class SymBasisSets:
             shape=(N * 3, N * 3), dtype='double'
 
         """
-        size_R = self._reps[0].row.shape[0]
-        size = size_R**2 * len(self._reps)
+        size = 0
+        for rmat in self._reps:
+            size += rmat.row.shape[0] ** 2
         dtype = self._reps[0].row.dtype
         row = np.zeros(size, dtype=dtype)
         col = np.zeros(size, dtype=dtype)
         data = np.zeros(size, dtype=self._reps[0].data.dtype)
         p = 3 * self._natom
+        count = 0
         for i, rmat in enumerate(self._reps):
             print(f"  {i + 1}/{len(self._reps)}")
-            i_shift = size_R**2 * i
-            count = 0
             for r, s, data_l in zip(rmat.row, rmat.col, rmat.data):  # left r
                 i_row_R = r // 3
                 j_row_R = r % 3
@@ -333,13 +333,9 @@ class SymBasisSets:
                     j_col_R = v % 3
                     k_col_R = w // 3
                     l_col_R = w % 3
-                    row[i_shift + count] = (
-                        i_row_R * 3 * p + i_col_R * 9 + j_row_R * 3 + j_col_R
-                    )
-                    col[i_shift + count] = (
-                        k_row_R * 3 * p + k_col_R * 9 + l_row_R * 3 + l_col_R
-                    )
-                    data[i_shift + count] = data_l * data_r
+                    row[count] = i_row_R * 3 * p + i_col_R * 9 + j_row_R * 3 + j_col_R
+                    col[count] = k_row_R * 3 * p + k_col_R * 9 + l_row_R * 3 + l_col_R
+                    data[count] = data_l * data_r
                     count += 1
 
         data /= len(self._reps)
@@ -351,8 +347,9 @@ class SymBasisSets:
         See the details about this method in _step1_kron_py_for_c.
 
         """
-        size_R = self._reps[0].row.shape[0]
-        size = size_R**2 * len(self._reps)
+        size = 0
+        for rmat in self._reps:
+            size += rmat.row.shape[0] ** 2
         dtype = self._reps[0].row.dtype
         row = np.zeros(size, dtype=dtype)
         col = np.zeros(size, dtype=dtype)
@@ -363,8 +360,8 @@ class SymBasisSets:
         assert self._reps[0].col.flags.contiguous
         assert self._reps[0].data.dtype == np.dtype("double")
         assert self._reps[0].data.flags.contiguous
-        for i, rmat in enumerate(self._reps):
-            i_shift = size_R**2 * i
+        i_shift = 0
+        for rmat in self._reps:
             symfcc.kron_nn33(
                 row[i_shift:],
                 col[i_shift:],
@@ -374,6 +371,7 @@ class SymBasisSets:
                 rmat.data,
                 3 * self._natom,
             )
+            i_shift += rmat.row.shape[0] ** 2
         data /= len(self._reps)
 
         return row, col, data
