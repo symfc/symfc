@@ -33,20 +33,12 @@ def test_fc_basis_sets(lang):
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
 
 
-@pytest.mark.parametrize("lang", ["C"])
-def test_fc_NaCl222(lang):
+def test_fc_NaCl222(sbs_nacl222: SymBasisSets):
     """Test force constants by NaCl 64 atoms supercell."""
+    basis_sets = sbs_nacl222.basis_sets
     ph = phonopy.load(cwd / "phonopy_NaCl222_rd.yaml.xz", produce_fc=False)
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]
-    sym_op_reps = SymOpReps(
-        ph.supercell.cell.T,
-        ph.supercell.scaled_positions.T,
-        ph.supercell.numbers,
-        log_level=1,
-    )
-    sbs = SymBasisSets(sym_op_reps.representations, log_level=1, lang=lang)
-    basis_sets = sbs.basis_sets
 
     # To save and load basis_sets.
     # np.savetxt(
@@ -78,3 +70,22 @@ def test_fc_NaCl222(lang):
 
     ph_ref = phonopy.load(cwd / "phonopy_NaCl222_fc.yaml.xz", produce_fc=False)
     np.testing.assert_allclose(ph_ref.force_constants, fc_compact, atol=1e-6)
+
+
+def test_fc_NaCl222_wrt_ALM(sbs_nacl222: SymBasisSets):
+    """Test force constants by NaCl 64 atoms supercell and compared with ALM.
+
+    This test is skipped when ALM is not installed.
+
+    """
+    pytest.importorskip("alm")
+
+    ph = phonopy.load(cwd / "phonopy_NaCl222_rd.yaml.xz", fc_calculator="alm")
+    f = ph.dataset["forces"]
+    d = ph.dataset["displacements"]
+    basis_sets = sbs_nacl222.basis_sets
+    Bf = np.einsum("ijklm,nkm->injl", basis_sets, d).reshape(basis_sets.shape[0], -1)
+    c = -f.ravel() @ np.linalg.pinv(Bf)
+    fc = np.einsum("i,ijklm->jklm", c, basis_sets)
+    fc_compact = fc[ph.primitive.p2s_map]
+    np.testing.assert_allclose(ph.force_constants, fc_compact, atol=1e-6)
