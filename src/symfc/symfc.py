@@ -55,40 +55,59 @@ class SymOpReps:
         return self._reps
 
     def _run(self):
-        symops = spglib.get_symmetry(
-            (self._lattice.T, self._positions.T, self._numbers)
-        )
-        rotations = symops["rotations"]
-        translations = symops["translations"]
-        rotations_inv = self._get_rotations_inv(rotations)
+        rotations_inv, translations_inv = self._get_symops_inv()
         if self._log_level:
             print(" finding permutations ...")
         permutations_inv = compute_all_sg_permutations(
-            self._positions.T, rotations_inv, translations, self._lattice, 1e-5
+            self._positions.T, rotations_inv, translations_inv, self._lattice, 1e-5
         )
         if self._log_level:
             print(" setting representations (first order) ...")
         self._compute_reps(permutations_inv, rotations_inv)
 
-    def _get_rotations_inv(self, rotations) -> np.ndarray:
-        """Return a list of inverse rotation matrices.
+    def _get_symops_inv(self, tol=1e-8) -> tuple[np.ndarray, np.ndarray]:
+        """Return inverse symmetry operations.
 
-        Parameters
-        ----------
-        rotations : array_like
-            A set of rotation matrices. It is assumed that inverse matrices are
+        It is assumed that inverse symmetry operations are included in given
+        symmetry operations up to lattice translation.
+
+        Returns
+        -------
+        rotations_inv : array_like
+            A set of rotation matrices of inverse space group operations.
+            (n_symops, 3, 3), dtype='intc', order='C'
+        translations_inv : array_like
+            A set of translation vectors. It is assumed that inverse matrices are
             included in this set.
+            (n_symops, 3), dtype='double'.
 
         """
+        symops = spglib.get_symmetry(
+            (self._lattice.T, self._positions.T, self._numbers)
+        )
+        rotations = symops["rotations"]
+        translations = symops["translations"]
         rotations_inv = []
+        translations_inv = []
         identity = np.eye(3, dtype=int)
-        for r in rotations:
-            for r_inv in rotations:
+        indices_found = [False] * len(rotations)
+        for r, t in zip(rotations, translations):
+            for i, (r_inv, t_inv) in enumerate(zip(rotations, translations)):
                 if np.array_equal(r @ r_inv, identity):
-                    rotations_inv.append(r_inv)
-                    break
+                    diff = r_inv @ t - t_inv
+                    diff -= np.rint(diff)
+                    if np.linalg.norm(self._lattice @ np.abs(diff)) < tol:
+                        rotations_inv.append(r_inv)
+                        translations_inv.append(t_inv)
+                        indices_found[i] = True
+                        break
         assert len(rotations) == len(rotations_inv)
-        return np.array(rotations_inv, dtype=rotations.dtype)
+        assert len(translations) == len(translations_inv)
+        assert all(indices_found)
+        return (
+            np.array(rotations_inv, dtype=rotations.dtype),
+            np.array(translations_inv, dtype=translations.dtype),
+        )
 
     def _compute_reps(self, permutations, rotations, tol=1e-10) -> None:
         """Construct representation matrices of rotations.
