@@ -33,7 +33,6 @@ def test_fc_basis_sets(lang):
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
 
 
-@pytest.mark.slow
 def test_fc_NaCl_222(bs_nacl_222: np.ndarray):
     """Test force constants by NaCl 64 atoms supercell."""
     basis_sets = bs_nacl_222
