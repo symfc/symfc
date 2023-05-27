@@ -33,6 +33,7 @@ def test_fc_basis_sets(lang):
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
 
 
+@pytest.mark.slow
 def test_fc_NaCl_222(bs_nacl_222: np.ndarray):
     """Test force constants by NaCl 64 atoms supercell."""
     basis_sets = bs_nacl_222
@@ -81,6 +82,7 @@ def test_fc_NaCl_222_wrt_ALM(bs_nacl_222: np.ndarray):
     _compare_fc_with_alm("phonopy_NaCl_222_rd.yaml.xz", bs_nacl_222)
 
 
+@pytest.mark.big
 def test_fc_SnO2_223_wrt_ALM(bs_sno2_223: np.ndarray):
     """Test force constants by SnO2 72 atoms supercell and compared with ALM.
 
@@ -90,6 +92,7 @@ def test_fc_SnO2_223_wrt_ALM(bs_sno2_223: np.ndarray):
     _ = _compare_fc_with_alm("phonopy_SnO2_223_rd.yaml.xz", bs_sno2_223)
 
 
+@pytest.mark.big
 def test_fc_SiO2_222_wrt_ALM(bs_sio2_222: np.ndarray):
     """Test force constants by SiO2 72 atoms supercell and compared with ALM.
 
@@ -102,6 +105,7 @@ def test_fc_SiO2_222_wrt_ALM(bs_sio2_222: np.ndarray):
     # )
 
 
+@pytest.mark.big
 def test_fc_GaN_442_wrt_ALM(bs_gan_442: np.ndarray):
     """Test force constants by GaN 128 atoms supercell and compared with ALM.
 
