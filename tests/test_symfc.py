@@ -81,6 +81,7 @@ def test_fc_NaCl_222_wrt_ALM(bs_nacl_222: np.ndarray):
     _compare_fc_with_alm("phonopy_NaCl_222_rd.yaml.xz", bs_nacl_222)
 
 
+@pytest.mark.big
 def test_fc_SnO2_223_wrt_ALM(bs_sno2_223: np.ndarray):
     """Test force constants by SnO2 72 atoms supercell and compared with ALM.
 
@@ -90,6 +91,7 @@ def test_fc_SnO2_223_wrt_ALM(bs_sno2_223: np.ndarray):
     _ = _compare_fc_with_alm("phonopy_SnO2_223_rd.yaml.xz", bs_sno2_223)
 
 
+@pytest.mark.big
 def test_fc_SiO2_222_wrt_ALM(bs_sio2_222: np.ndarray):
     """Test force constants by SiO2 72 atoms supercell and compared with ALM.
 
@@ -102,6 +104,7 @@ def test_fc_SiO2_222_wrt_ALM(bs_sio2_222: np.ndarray):
     # )
 
 
+@pytest.mark.big
 def test_fc_GaN_442_wrt_ALM(bs_gan_442: np.ndarray):
     """Test force constants by GaN 128 atoms supercell and compared with ALM.
 
