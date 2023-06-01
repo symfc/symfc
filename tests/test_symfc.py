@@ -91,6 +91,15 @@ def test_fc_SnO2_223_wrt_ALM(bs_sno2_223: np.ndarray):
     _ = _compare_fc_with_alm("phonopy_SnO2_223_rd.yaml.xz", bs_sno2_223)
 
 
+def test_fc_SnO2_222_wrt_ALM(bs_sno2_222: np.ndarray):
+    """Test force constants by SnO2 48 atoms supercell and compared with ALM.
+
+    This test is skipped when ALM is not installed.
+
+    """
+    _ = _compare_fc_with_alm("phonopy_SnO2_222_rd.yaml.xz", bs_sno2_222)
+
+
 @pytest.mark.big
 def test_fc_SiO2_222_wrt_ALM(bs_sio2_222: np.ndarray):
     """Test force constants by SiO2 72 atoms supercell and compared with ALM.
@@ -104,6 +113,18 @@ def test_fc_SiO2_222_wrt_ALM(bs_sio2_222: np.ndarray):
     # )
 
 
+def test_fc_SiO2_221_wrt_ALM(bs_sio2_221: np.ndarray):
+    """Test force constants by SiO2 36 atoms supercell and compared with ALM.
+
+    This test is skipped when ALM is not installed.
+
+    """
+    _ = _compare_fc_with_alm("phonopy_SiO2_221_rd.yaml.xz", bs_sio2_221)
+    # _write_phonopy_fc_yaml(
+    #     "phonopy_SiO2_221_fc.yaml", "phonopy_SiO2_221_rd.yaml.xz", fc_compact
+    # )
+
+
 @pytest.mark.big
 def test_fc_GaN_442_wrt_ALM(bs_gan_442: np.ndarray):
     """Test force constants by GaN 128 atoms supercell and compared with ALM.
@@ -111,9 +132,21 @@ def test_fc_GaN_442_wrt_ALM(bs_gan_442: np.ndarray):
     This test is skipped when ALM is not installed.
 
     """
-    fc_compact = _compare_fc_with_alm("phonopy_GaN_442_rd.yaml.xz", bs_gan_442)
+    _ = _compare_fc_with_alm("phonopy_GaN_442_rd.yaml.xz", bs_gan_442)
+    # _write_phonopy_fc_yaml(
+    #     "phonopy_GaN_442_fc.yaml", "phonopy_GaN_442_rd.yaml.xz", fc_compact
+    # )
+
+
+def test_fc_GaN_222_wrt_ALM(bs_gan_222: np.ndarray):
+    """Test force constants by GaN 32 atoms supercell and compared with ALM.
+
+    This test is skipped when ALM is not installed.
+
+    """
+    fc_compact = _compare_fc_with_alm("phonopy_GaN_222_rd.yaml.xz", bs_gan_222)
     _write_phonopy_fc_yaml(
-        "phonopy_GaN_442_fc.yaml", "phonopy_GaN_442_rd.yaml.xz", fc_compact
+        "phonopy_GaN_222_fc.yaml", "phonopy_GaN_222_rd.yaml.xz", fc_compact
     )
 
 
