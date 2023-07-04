@@ -9,8 +9,11 @@ from symfc.symfc import SymBasisSets, SymOpReps
 cwd = Path(__file__).parent
 
 
-@pytest.mark.parametrize("lang", ["Py", "Py_for_C", "C"])
-def test_fc_basis_sets(lang):
+@pytest.mark.parametrize(
+    "lang,use_exact_projection_matrix",
+    [("Py", False), ("Py_for_C", False), ("C", False), ("C", True)],
+)
+def test_fc_basis_sets(lang, use_exact_projection_matrix):
     """Test symmetry adapted basis sets of FC."""
     basis_ref = [
         [-0.28867513, 0, 0, 0.28867513, 0, 0],
@@ -27,7 +30,12 @@ def test_fc_basis_sets(lang):
 
     sym_op_reps = SymOpReps(lattice, positions, types, log_level=1)
     rep = sym_op_reps.representations
-    sbs = SymBasisSets(rep, log_level=1, lang=lang)
+    sbs = SymBasisSets(
+        rep,
+        use_exact_projection_matrix=use_exact_projection_matrix,
+        log_level=1,
+        lang=lang,
+    )
     basis = sbs.basis_sets_matrix_form
     np.testing.assert_allclose(basis[0], basis_ref, atol=1e-6)
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
