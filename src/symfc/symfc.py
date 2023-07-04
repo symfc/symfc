@@ -519,7 +519,7 @@ def _kron_c(reps, natom) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
                 3 * natom,
             )
         elif col_dtype is np.dtype("int_") and row_dtype is np.dtype("int_"):
-            symfcc.kron_nn33_int(
+            symfcc.kron_nn33_long(
                 row[i_shift:],
                 col[i_shift:],
                 data[i_shift:],
