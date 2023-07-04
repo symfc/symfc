@@ -483,31 +483,53 @@ def _kron_c(reps, natom) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
     See the details about this method in _step1_kron_py_for_c.
 
+    Note
+    ----
+    At some version of scipy, dtype of coo_array.col and coo_array.row changed.
+    Here the dtype is assumed 'intc' (old) or 'int_' (new).
+
     """
     size = 0
     for rmat in reps:
         size += rmat.row.shape[0] ** 2
-    dtype = reps[0].row.dtype
-    row = np.zeros(size, dtype=dtype)
-    col = np.zeros(size, dtype=dtype)
-    data = np.zeros(size, dtype=reps[0].data.dtype)
-    assert reps[0].row.dtype == np.dtype("intc")
+    row_dtype = reps[0].row.dtype
+    col_dtype = reps[0].col.dtype
+    data_dtype = reps[0].data.dtype
+    row = np.zeros(size, dtype=row_dtype)
+    col = np.zeros(size, dtype=col_dtype)
+    data = np.zeros(size, dtype=data_dtype)
+    row_dtype = reps[0].row.dtype
+    col_dtype = reps[0].col.dtype
+    assert row_dtype is np.dtype("intc") or row_dtype is np.dtype("int_")
     assert reps[0].row.flags.contiguous
-    assert reps[0].col.dtype == np.dtype("intc")
+    assert col_dtype is np.dtype("intc") or col_dtype is np.dtype("int_")
     assert reps[0].col.flags.contiguous
-    assert reps[0].data.dtype == np.dtype("double")
+    assert data_dtype == np.dtype("double")
     assert reps[0].data.flags.contiguous
     i_shift = 0
     for rmat in reps:
-        symfcc.kron_nn33(
-            row[i_shift:],
-            col[i_shift:],
-            data[i_shift:],
-            rmat.row,
-            rmat.col,
-            rmat.data,
-            3 * natom,
-        )
+        if col_dtype is np.dtype("intc") and row_dtype is np.dtype("intc"):
+            symfcc.kron_nn33_int(
+                row[i_shift:],
+                col[i_shift:],
+                data[i_shift:],
+                rmat.row,
+                rmat.col,
+                rmat.data,
+                3 * natom,
+            )
+        elif col_dtype is np.dtype("int_") and row_dtype is np.dtype("int_"):
+            symfcc.kron_nn33_int(
+                row[i_shift:],
+                col[i_shift:],
+                data[i_shift:],
+                rmat.row,
+                rmat.col,
+                rmat.data,
+                3 * natom,
+            )
+        else:
+            raise RuntimeError("Incompatible data type of rows and cols of coo_array.")
         i_shift += rmat.row.shape[0] ** 2
     data /= len(reps)
 

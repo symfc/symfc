@@ -40,7 +40,8 @@
 #include <stdio.h>
 
 /* Build dynamical matrix */
-static PyObject* py_kron_nn33(PyObject* self, PyObject* args);
+static PyObject* py_kron_nn33_long(PyObject* self, PyObject* args);
+static PyObject* py_kron_nn33_int(PyObject* self, PyObject* args);
 struct module_state {
     PyObject* error;
 };
@@ -55,8 +56,10 @@ static PyObject* error_out(PyObject* m) {
 
 static PyMethodDef _symfc_methods[] = {
     {"error_out", (PyCFunction)error_out, METH_NOARGS, NULL},
-    {"kron_nn33", py_kron_nn33, METH_VARARGS,
-     "Transform n3n3 indices to nn33 indices."},
+    {"kron_nn33_long", py_kron_nn33_long, METH_VARARGS,
+     "Compute kron and transform n3n3 indices to nn33 indices."},
+    {"kron_nn33_int", py_kron_nn33_int, METH_VARARGS,
+     "Compute kron and transform n3n3 indices to nn33 indices."},
     {NULL, NULL, 0, NULL}};
 
 static int _symfc_traverse(PyObject* m, visitproc visit, void* arg) {
@@ -95,7 +98,7 @@ PyObject* PyInit__symfc(void) {
     return module;
 }
 
-static PyObject* py_kron_nn33(PyObject* self, PyObject* args) {
+static PyObject* py_kron_nn33_int(PyObject* self, PyObject* args) {
     PyArrayObject* py_row;
     PyArrayObject* py_col;
     PyArrayObject* py_data;
@@ -124,6 +127,59 @@ static PyObject* py_kron_nn33(PyObject* self, PyObject* args) {
     data_R = (double*)PyArray_DATA(py_data_R);
     row = (int*)PyArray_DATA(py_row);
     col = (int*)PyArray_DATA(py_col);
+    data = (double*)PyArray_DATA(py_data);
+
+    count = 0;
+    for (i = 0; i < size_R; i++) {
+        i_row_R = row_R[i] / 3;
+        j_row_R = row_R[i] % 3;
+        k_row_R = col_R[i] / 3;
+        l_row_R = col_R[i] % 3;
+        for (j = 0; j < size_R; j++) {
+            i_col_R = row_R[j] / 3;
+            j_col_R = row_R[j] % 3;
+            k_col_R = col_R[j] / 3;
+            l_col_R = col_R[j] % 3;
+            row[count] =
+                i_row_R * 3 * size_3n + i_col_R * 9 + j_row_R * 3 + j_col_R;
+            col[count] =
+                k_row_R * 3 * size_3n + k_col_R * 9 + l_row_R * 3 + l_col_R;
+            data[count] = data_R[i] * data_R[j];
+            count++;
+        }
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject* py_kron_nn33_long(PyObject* self, PyObject* args) {
+    PyArrayObject* py_row;
+    PyArrayObject* py_col;
+    PyArrayObject* py_data;
+    PyArrayObject* py_row_R;
+    PyArrayObject* py_col_R;
+    PyArrayObject* py_data_R;
+    long* row_R;
+    long* col_R;
+    double* data_R;
+    long* row;
+    long* col;
+    double* data;
+    long size_3n;
+
+    long size_R, count, i, j;
+    long i_row_R, j_row_R, k_row_R, l_row_R, i_col_R, j_col_R, k_col_R, l_col_R;
+
+    if (!PyArg_ParseTuple(args, "OOOOOOl", &py_row, &py_col, &py_data,
+                          &py_row_R, &py_col_R, &py_data_R, &size_3n)) {
+        return NULL;
+    }
+
+    size_R = PyArray_DIMS(py_row_R)[0];
+    row_R = (long*)PyArray_DATA(py_row_R);
+    col_R = (long*)PyArray_DATA(py_col_R);
+    data_R = (double*)PyArray_DATA(py_data_R);
+    row = (long*)PyArray_DATA(py_row);
+    col = (long*)PyArray_DATA(py_col);
     data = (double*)PyArray_DATA(py_data);
 
     count = 0;
