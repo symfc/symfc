@@ -486,7 +486,7 @@ def _kron_c(reps, natom) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     Note
     ----
     At some version of scipy, dtype of coo_array.col and coo_array.row changed.
-    Here the dtype is assumed 'intc' (old) or 'int_' (new).
+    Here the dtype is assumed 'intc' (<1.11) or 'int_' (>=1.11).
 
     """
     size = 0
@@ -562,6 +562,12 @@ def _get_projector_constraints(natom):
         data += [1, -1]
         n += 1
 
+    # Temporary fix
+    # scipy.sparse.linalg.inv (finally splu) doesn't accept
+    # "int_" (or list[int]) row and col values at scipy 1.11.1.
+    dtype = "intc"
+    row = np.array(row, dtype=dtype)
+    col = np.array(col, dtype=dtype)
     C = csr_array((data, (row, col)), shape=(size_sq, n))
     Cinv = scipy.sparse.linalg.inv((C.T).dot(C))
     proj = scipy.sparse.eye(size_sq) - (C.dot(Cinv)).dot(C.T)
