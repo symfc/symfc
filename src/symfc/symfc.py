@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import itertools
 import time
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 import scipy
@@ -12,7 +12,12 @@ from phonopy.structure.cells import compute_all_sg_permutations
 from phonopy.utils import similarity_transformation
 from scipy.sparse import coo_array, csr_array
 
-import symfc._symfc as symfcc
+from symfc.matrix_funcs import (
+    convert_basis_sets_matrix_form,
+    kron_c,
+    to_serial,
+    transform_n3n3_serial_to_nn33_serial,
+)
 
 
 class SymOpReps:
@@ -194,15 +199,7 @@ class SymBasisSets:
         """Retrun a list of FC basis in 3Nx3N matrix."""
         if self._basis_sets is None:
             return None
-
-        b_mat_all = []
-        for b in self._basis_sets:
-            b_seq = b.transpose((0, 2, 1, 3))
-            b_mat = b_seq.reshape(
-                (b_seq.shape[0] * b_seq.shape[1], b_seq.shape[2] * b_seq.shape[3])
-            )
-            b_mat_all.append(b_mat)
-        return b_mat_all
+        return convert_basis_sets_matrix_form(self._basis_sets)
 
     @property
     def basis_sets(self) -> Optional[np.ndarray]:
@@ -278,11 +275,11 @@ class SymBasisSets:
             sp = scipy.sparse.kron(r, r)
             # serial id in [N,3,N,3] --> serial id in [N,N,3,3]
             row_ids = [
-                _transform_n3n3_serial_to_nn33_serial(serial, self._natom)
+                transform_n3n3_serial_to_nn33_serial(serial, self._natom)
                 for serial in sp.row
             ]
             col_ids = [
-                _transform_n3n3_serial_to_nn33_serial(serial, self._natom)
+                transform_n3n3_serial_to_nn33_serial(serial, self._natom)
                 for serial in sp.col
             ]
             row += row_ids
@@ -360,9 +357,11 @@ class SymBasisSets:
         See the details about this method in _step1_kron_py_for_c.
 
         """
-        return _kron_c(self._reps, self._natom)
+        return kron_c(self._reps, self._natom)
 
-    def _step2(self, proj_R: csr_array, sparse: bool, tol: float) -> np.ndarray:
+    def _step2(
+        self, proj_R: Union[csr_array, coo_array], sparse: bool, tol: float
+    ) -> np.ndarray:
         """Compute identiy irreps of projection matrix of rotations.
 
         Select eigenvectors with non-zero eigenvalue (that should be equal to 1) of
@@ -387,15 +386,11 @@ class SymBasisSets:
                 print("  (using np.linalg.eigh) ...")
             vals, vecs = np.linalg.eigh(proj_R.toarray())
 
-        nonzero_cols = np.where(np.isclose(vals, 1.0))[0]
+        nonzero_cols = np.where(np.isclose(vals, 1.0, rtol=0, atol=tol))[0]
         vecs = vecs[:, nonzero_cols]
 
         if self._log_level:
             print(f" eigenvalues of projector = {vals}")
-        if len(np.where(vals > tol)[0]) + len(np.where(vals < -tol)[0]) != len(
-            nonzero_cols
-        ):
-            raise ValueError("Projector matrix error")
 
         return vecs
 
@@ -424,7 +419,7 @@ class SymBasisSets:
             if self._log_level:
                 print("  - using exact projection matrix ... ")
 
-            proj_const = _get_projector_constraints(self._natom)
+            proj_const = get_projector_constraints(self._natom)
 
             # checking commutativity of two projectors
             comm = proj_R.dot(proj_const) - proj_const.dot(proj_R)
@@ -478,89 +473,35 @@ class SymBasisSets:
             print("  - elapsed time (reshape) =", t2 - t1, "(s)")
 
 
-def _kron_c(reps, natom) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Compute kron(r, r) in NN33 order in C.
-
-    See the details about this method in _step1_kron_py_for_c.
-
-    Note
-    ----
-    At some version of scipy, dtype of coo_array.col and coo_array.row changed.
-    Here the dtype is assumed 'intc' (<1.11) or 'int_' (>=1.11).
-
-    """
-    size = 0
-    for rmat in reps:
-        size += rmat.row.shape[0] ** 2
-    row_dtype = reps[0].row.dtype
-    col_dtype = reps[0].col.dtype
-    data_dtype = reps[0].data.dtype
-    row = np.zeros(size, dtype=row_dtype)
-    col = np.zeros(size, dtype=col_dtype)
-    data = np.zeros(size, dtype=data_dtype)
-    row_dtype = reps[0].row.dtype
-    col_dtype = reps[0].col.dtype
-    assert row_dtype is np.dtype("intc") or row_dtype is np.dtype("int_")
-    assert reps[0].row.flags.contiguous
-    assert col_dtype is np.dtype("intc") or col_dtype is np.dtype("int_")
-    assert reps[0].col.flags.contiguous
-    assert data_dtype == np.dtype("double")
-    assert reps[0].data.flags.contiguous
-    i_shift = 0
-    for rmat in reps:
-        if col_dtype is np.dtype("intc") and row_dtype is np.dtype("intc"):
-            symfcc.kron_nn33_int(
-                row[i_shift:],
-                col[i_shift:],
-                data[i_shift:],
-                rmat.row,
-                rmat.col,
-                rmat.data,
-                3 * natom,
-            )
-        elif col_dtype is np.dtype("int_") and row_dtype is np.dtype("int_"):
-            symfcc.kron_nn33_long(
-                row[i_shift:],
-                col[i_shift:],
-                data[i_shift:],
-                rmat.row,
-                rmat.col,
-                rmat.data,
-                3 * natom,
-            )
-        else:
-            raise RuntimeError("Incompatible data type of rows and cols of coo_array.")
-        i_shift += rmat.row.shape[0] ** 2
-    data /= len(reps)
-
-    return row, col, data
-
-
-def _get_projector_constraints(natom):
+def get_projector_constraints(
+    natom: int, with_permutation: bool = True, with_translation: bool = True
+):
     """Construct matrices of sum rule and permutation."""
     size = 3 * natom
     size_sq = size**2
 
     n, row, col, data = 0, [], [], []
     # sum rules
-    for i in range(natom):
-        for alpha, beta in itertools.product(range(3), range(3)):
-            for j in range(natom):
-                row.append(_to_serial(i, alpha, j, beta, natom))
-                col.append(n)
-                data.append(1.0)
-            n += 1
+    if with_translation:
+        for i in range(natom):
+            for alpha, beta in itertools.product(range(3), range(3)):
+                for j in range(natom):
+                    row.append(to_serial(i, alpha, j, beta, natom))
+                    col.append(n)
+                    data.append(1.0)
+                n += 1
 
     # permutation
-    for ia, jb in itertools.combinations(range(size), 2):
-        i, a = ia // 3, ia % 3
-        j, b = jb // 3, jb % 3
-        id1 = _to_serial(i, a, j, b, natom)
-        id2 = _to_serial(j, b, i, a, natom)
-        row += [id1, id2]
-        col += [n, n]
-        data += [1, -1]
-        n += 1
+    if with_permutation:
+        for ia, jb in itertools.combinations(range(size), 2):
+            i, a = ia // 3, ia % 3
+            j, b = jb // 3, jb % 3
+            id1 = to_serial(i, a, j, b, natom)
+            id2 = to_serial(j, b, i, a, natom)
+            row += [id1, id2]
+            col += [n, n]
+            data += [1, -1]
+            n += 1
 
     # Temporary fix
     # scipy.sparse.linalg.inv (finally splu) doesn't accept
@@ -599,8 +540,8 @@ def _get_projector_permutations(natom):
     for ia, jb in itertools.combinations(range(size), 2):
         i, a = ia // 3, ia % 3
         j, b = jb // 3, jb % 3
-        id1 = _to_serial(i, a, j, b, natom)
-        id2 = _to_serial(j, b, i, a, natom)
+        id1 = to_serial(i, a, j, b, natom)
+        id2 = to_serial(j, b, i, a, natom)
         row += [id1, id2, id1, id2]
         col += [id1, id2, id2, id1]
         data += [0.5, 0.5, -0.5, -0.5]
@@ -608,57 +549,3 @@ def _get_projector_permutations(natom):
     mat = csr_array((data, (row, col)), shape=(size_sq, size_sq))
     proj = scipy.sparse.eye(size_sq) - mat
     return proj
-
-
-def _get_permutation_compression_matrix(natom: int):
-    """Return compression matrix by permutation matrix.
-
-    Matrix shape is ((N*3)((N*3)+1)/2, NN33).
-    Non-zero only ijab and jiba column elements for ijab rows.
-    Rows upper right NN33 matrix elements are selected for rows.
-
-    """
-    row, col, data = [], [], []
-    size = natom**2 * 9
-
-    count = 0
-    for i_i in range(natom):
-        for i_j in range(natom):
-            if i_i > i_j:
-                continue
-            for i_a in range(3):
-                for i_b in range(3):
-                    if i_i == i_j and i_a > i_b:
-                        continue
-                    row.append(count)
-                    col.append(_to_serial(i_i, i_a, i_j, i_b, natom))
-                    data.append(1)
-                    if i_i == i_j and i_a == i_b:
-                        pass
-                    else:
-                        row.append(count)
-                        col.append(_to_serial(i_j, i_b, i_i, i_a, natom))
-                        data.append(1)
-                    count += 1
-    if (natom * 3) % 2 == 1:
-        assert (natom * 3) * ((natom * 3 + 1) // 2) == count, f"{natom}, {count}"
-    else:
-        assert ((natom * 3) // 2) * (natom * 3 + 1) == count, f"{natom}, {count}"
-    return coo_array((data, (row, col)), shape=(count, size), dtype="byte")
-
-
-def _to_serial(i: int, a: int, j: int, b: int, natom: int) -> int:
-    """Return serial id of (N, N, 3, 3)."""
-    return (i * 9 * natom) + (j * 9) + (a * 3) + b
-
-
-def _transform_n3n3_serial_to_nn33_serial(n3n3_serial, natom) -> int:
-    return _to_serial(*_transform_n3n3_serial(n3n3_serial, natom))
-
-
-def _transform_n3n3_serial(serial_id: int, natom: int) -> tuple[int, int, int, int]:
-    b = serial_id % 3
-    j = (serial_id // 3) % natom
-    a = (serial_id // (3 * natom)) % 3
-    i = serial_id // (9 * natom)
-    return i, a, j, b, natom
