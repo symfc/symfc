@@ -475,33 +475,29 @@ class SymBasisSets:
 
 def get_projector_constraints(
     natom: int, with_permutation: bool = True, with_translation: bool = True
-):
+) -> csr_array:
     """Construct matrices of sum rule and permutation."""
-    size = 3 * natom
-    size_sq = size**2
+    size_sq = (3 * natom) ** 2
+    C = _get_projector_constraints_array(
+        natom, with_permutation=with_permutation, with_translation=with_translation
+    )
+    Cinv = scipy.sparse.linalg.inv((C.T).dot(C))
+    proj = scipy.sparse.eye(size_sq) - (C.dot(Cinv)).dot(C.T)
+    return proj
 
+
+def _get_projector_constraints_array(
+    natom: int, with_permutation: bool = True, with_translation: bool = True
+) -> csr_array:
+    size_sq = (3 * natom) ** 2
     n, row, col, data = 0, [], [], []
     # sum rules
     if with_translation:
-        for i in range(natom):
-            for alpha, beta in itertools.product(range(3), range(3)):
-                for j in range(natom):
-                    row.append(to_serial(i, alpha, j, beta, natom))
-                    col.append(n)
-                    data.append(1.0)
-                n += 1
+        n = _get_projector_constraints_sum_rule(row, col, data, natom, n)
 
     # permutation
     if with_permutation:
-        for ia, jb in itertools.combinations(range(size), 2):
-            i, a = ia // 3, ia % 3
-            j, b = jb // 3, jb % 3
-            id1 = to_serial(i, a, j, b, natom)
-            id2 = to_serial(j, b, i, a, natom)
-            row += [id1, id2]
-            col += [n, n]
-            data += [1, -1]
-            n += 1
+        n = _get_projector_constraints_permutations(row, col, data, natom, n)
 
     # Temporary fix
     # scipy.sparse.linalg.inv (finally splu) doesn't accept
@@ -509,13 +505,56 @@ def get_projector_constraints(
     dtype = "intc"
     row = np.array(row, dtype=dtype)
     col = np.array(col, dtype=dtype)
-    C = csr_array((data, (row, col)), shape=(size_sq, n))
-    Cinv = scipy.sparse.linalg.inv((C.T).dot(C))
-    proj = scipy.sparse.eye(size_sq) - (C.dot(Cinv)).dot(C.T)
+    return csr_array((data, (row, col)), shape=(size_sq, n))
+
+
+def get_projector_constraints_sum_rule_array(natom: int):
+    """Construct matrices of sum rule only."""
+    size_sq = (3 * natom) ** 2
+    n, row, col, data = 0, [], [], []
+    n = _get_projector_constraints_sum_rule(row, col, data, natom, n)
+    dtype = "intc"
+    row = np.array(row, dtype=dtype)
+    col = np.array(col, dtype=dtype)
+    return csr_array((data, (row, col)), shape=(size_sq, n))
+
+
+def _get_projector_constraints_sum_rule(
+    row: list, col: list, data: list, natom: int, n: int
+) -> int:
+    for i in range(natom):
+        for alpha, beta in itertools.product(range(3), range(3)):
+            for j in range(natom):
+                row.append(to_serial(i, alpha, j, beta, natom))
+                col.append(n)
+                data.append(1.0)
+            n += 1
+    return n
+
+
+def _get_projector_constraints_permutations(
+    row: list, col: list, data: list, natom: int, n: int
+) -> int:
+    for ia, jb in itertools.combinations(range(natom * 3), 2):
+        i, a = ia // 3, ia % 3
+        j, b = jb // 3, jb % 3
+        id1 = to_serial(i, a, j, b, natom)
+        id2 = to_serial(j, b, i, a, natom)
+        row += [id1, id2]
+        col += [n, n]
+        data += [1, -1]
+        n += 1
+    return n
+
+
+def _get_projector_sum_rule(natom) -> csr_array:
+    size_sq = 9 * natom * natom
+    C = _get_projector_sum_rule_array(natom)
+    proj = scipy.sparse.eye(size_sq) - C
     return proj
 
 
-def _get_projector_sum_rule(natom):
+def _get_projector_sum_rule_array(natom: int) -> csr_array:
     size_sq = 9 * natom * natom
 
     row, col, data = [], [], []
@@ -527,12 +566,18 @@ def _get_projector_sum_rule(natom):
         col += (col1 + 9 * natom * i).tolist()
         data += (csr.data / natom).tolist()
 
-    mat = csr_array((data, (row, col)), shape=(size_sq, size_sq))
-    proj = scipy.sparse.eye(size_sq) - mat
+    return csr_array((data, (row, col)), shape=(size_sq, size_sq))
+
+
+def _get_projector_permutations(natom: int) -> csr_array:
+    size = 3 * natom
+    size_sq = size**2
+    C = _get_projector_permutations_array(natom)
+    proj = scipy.sparse.eye(size_sq) - C
     return proj
 
 
-def _get_projector_permutations(natom):
+def _get_projector_permutations_array(natom: int) -> csr_array:
     size = 3 * natom
     size_sq = size**2
 
@@ -545,7 +590,4 @@ def _get_projector_permutations(natom):
         row += [id1, id2, id1, id2]
         col += [id1, id2, id2, id1]
         data += [0.5, 0.5, -0.5, -0.5]
-
-    mat = csr_array((data, (row, col)), shape=(size_sq, size_sq))
-    proj = scipy.sparse.eye(size_sq) - mat
-    return proj
+    return csr_array((data, (row, col)), shape=(size_sq, size_sq))
