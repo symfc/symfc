@@ -441,6 +441,9 @@ class SymBasisSets:
             comm = proj_R.dot(proj_perm) - proj_perm.dot(proj_R)
             if np.all(np.abs(comm.data) < tol) is False:
                 raise ValueError("Two projectors do not satisfy " "commutation rule.")
+            comm = proj_sum.dot(proj_perm) - proj_perm.dot(proj_sum)
+            if np.all(np.abs(comm.data) < tol) is False:
+                raise ValueError("Two projectors do not satisfy " "commutation rule.")
 
             n_repeat = 30
             U = proj_sum.dot(nonzero_proj_R)
@@ -508,8 +511,16 @@ def _get_projector_constraints_array(
     return csr_array((data, (row, col)), shape=(size_sq, n))
 
 
-def get_projector_constraints_sum_rule_array(natom: int):
-    """Construct matrices of sum rule only."""
+def get_projector_constraints_sum_rule_array(natom: int) -> csr_array:
+    """Construct matrices of sum rule only.
+
+    Returns
+    -------
+    csr_array
+        Each column contains N of 1 and others are zero.
+        shape=((3N)**2, 9N)
+
+    """
     size_sq = (3 * natom) ** 2
     n, row, col, data = 0, [], [], []
     n = _get_projector_constraints_sum_rule(row, col, data, natom, n)
@@ -530,6 +541,26 @@ def _get_projector_constraints_sum_rule(
                 data.append(1.0)
             n += 1
     return n
+
+
+def get_projector_constraints_permutations_array(natom: int) -> csr_array:
+    """Construct matrices of permutations only.
+
+    Returns
+    -------
+    csr_array
+        Each colum contains one 1 and one -1, and others are all zero.
+        Diagonal elements in (NN33, NN33) representation are zero.
+        shape=((3N)**2, 3N(3N-1))
+
+    """
+    size_sq = (3 * natom) ** 2
+    n, row, col, data = 0, [], [], []
+    n = _get_projector_constraints_permutations(row, col, data, natom, n)
+    dtype = "intc"
+    row = np.array(row, dtype=dtype)
+    col = np.array(col, dtype=dtype)
+    return csr_array((data, (row, col)), shape=(size_sq, n))
 
 
 def _get_projector_constraints_permutations(
