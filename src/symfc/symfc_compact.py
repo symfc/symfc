@@ -4,7 +4,7 @@ from typing import Optional
 
 import numpy as np
 import scipy
-from scipy.sparse import coo_array
+from scipy.sparse import coo_array, csr_array
 
 from symfc.matrix_funcs import convert_basis_sets_matrix_form, kron_c, to_serial
 from symfc.symfc import get_projector_constraints_sum_rule_array
@@ -63,13 +63,18 @@ class SymBasisSetsCompact:
         return self._basis_sets
 
     def _run(self, tol: float = 1e-8):
+        vecs, perm_mat = self._step1(tol=tol)
+        self._step2(vecs, perm_mat, tol=tol)
+
+    def _step1(self, tol: float = 1e-8) -> tuple[csr_array, csr_array]:
         row, col, data = kron_c(self._reps, self._natom)
         size_sq = (3 * self._natom) ** 2
-        proj_spg = coo_array(
+        proj_spg = csr_array(
             (data, (row, col)), shape=(size_sq, size_sq), dtype="double"
         )
         perm_mat = _get_permutation_compression_matrix(self._natom)
-        perm_spg_mat = (perm_mat.T @ proj_spg) @ perm_mat
+        perm_spg_mat = proj_spg @ perm_mat
+        perm_spg_mat = perm_mat.T @ perm_spg_mat
         rank = int(round(perm_spg_mat.diagonal(k=0).sum()))
         print(f"Solving eigenvalue problem of projection matrix (rank={rank}).")
         vals, vecs = scipy.sparse.linalg.eigsh(perm_spg_mat, k=rank, which="LM")
@@ -79,7 +84,10 @@ class SymBasisSetsCompact:
         vals = vals[nonzero_elems]
         if self._log_level:
             print(f" eigenvalues of projector = {vals}")
+        return vecs, perm_mat
 
+    def _step2(self, vecs: csr_array, perm_mat: csr_array, tol: float = 1e-8):
+        size_sq = (3 * self._natom) ** 2
         # Note: proj_trans and (perm_mat @ perm_mat.T) are considered not commute.
         C = get_projector_constraints_sum_rule_array(self._natom)
         proj_trans = np.eye(size_sq) - (C @ C.T) / self._natom
@@ -103,7 +111,7 @@ class SymBasisSetsCompact:
 
 def _get_permutation_compression_matrix(
     natom: int, val: float = np.sqrt(2) / 2
-) -> coo_array:
+) -> csr_array:
     """Return compression matrix by permutation matrix.
 
     Matrix shape is (NN33,(N*3)((N*3)+1)/2).
@@ -134,41 +142,4 @@ def _get_permutation_compression_matrix(
         assert (natom * 3) * ((natom * 3 + 1) // 2) == n, f"{natom}, {n}"
     else:
         assert ((natom * 3) // 2) * (natom * 3 + 1) == n, f"{natom}, {n}"
-    return coo_array((data, (row, col)), shape=(size, n), dtype="double")
-
-
-# def _get_projector_constraints_sum_rule_perm_array(natom: int) -> coo_array:
-#     perm_serial_table = _get_perm_serial_table(natom)
-#     assert len(perm_serial_table) == (natom * 3) * ((natom * 3) + 1) // 2, len(
-#         perm_serial_table
-#     )
-#     col, row, data = [], [], []
-#     n = 0
-#     for i in range(natom):
-#         for alpha, beta in itertools.product(range(3), range(3)):
-#             for j in range(natom):
-#                 ia = i * 3 + alpha
-#                 jb = j * 3 + beta
-#                 if ia > jb:
-#                     row.append(perm_serial_table[(jb, ia)])
-#                 else:
-#                     row.append(perm_serial_table[(ia, jb)])
-#                 col.append(n)
-#                 if ia == jb:
-#                     data.append(1)
-#                 else:
-#                     data.append(2)
-#             n += 1
-
-#     dtype = "intc"
-#     row = np.array(row, dtype=dtype)
-#     col = np.array(col, dtype=dtype)
-#     return coo_array(
-#         (data, (row, col)), shape=(len(perm_serial_table), n), dtype="double"
-#     )
-
-
-def _get_perm_serial_table(natom: int) -> dict:
-    """Return upper right triangle NN33-1D index mapping table."""
-    combination = itertools.combinations_with_replacement(range(natom * 3), 2)
-    return {pair: i for i, pair in enumerate(combination)}
+    return csr_array((data, (row, col)), shape=(size, n), dtype="double")
