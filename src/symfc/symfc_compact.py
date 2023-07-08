@@ -84,9 +84,10 @@ class SymBasisSetsCompact:
         print(f"Solving eigenvalue problem of projection matrix (rank={rank}).")
         vals, vecs = scipy.sparse.linalg.eigsh(perm_spg_mat, k=rank, which="LM")
         nonzero_elems = np.nonzero(np.abs(vals) > tol)[0]
-        np.testing.assert_allclose(vals[nonzero_elems], 1.0, rtol=0, atol=tol)
-        vecs = vecs[:, nonzero_elems]
         vals = vals[nonzero_elems]
+        # Check non-zero values are all ones. This is a weak check of commutativity.
+        np.testing.assert_allclose(vals, 1.0, rtol=0, atol=tol)
+        vecs = vecs[:, nonzero_elems]
         if self._log_level:
             print(f" eigenvalues of projector = {vals}")
         return vecs
