@@ -37,6 +37,7 @@ def test_fc_basis_sets_compact():
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
 
 
+@pytest.mark.big
 def test_fc_NaCl_222(bs_nacl_222_compact: np.ndarray):
     """Test force constants by NaCl 64 atoms supercell and compared with ALM.
 
