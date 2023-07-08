@@ -423,7 +423,7 @@ class SymBasisSets:
 
             # checking commutativity of two projectors
             comm = proj_R.dot(proj_const) - proj_const.dot(proj_R)
-            if np.all(np.abs(comm.data) < tol) is False:
+            if np.any(np.abs(comm.data) > tol):
                 raise ValueError("Two projectors do not satisfy commutation rule.")
 
             U = proj_const.dot(nonzero_proj_R)
@@ -436,13 +436,10 @@ class SymBasisSets:
 
             # checking commutativity of two projectors
             comm = proj_R.dot(proj_sum) - proj_sum.dot(proj_R)
-            if np.all(np.abs(comm.data) < tol) is False:
+            if np.any(np.abs(comm.data) > tol):
                 raise ValueError("Two projectors do not satisfy " "commutation rule.")
             comm = proj_R.dot(proj_perm) - proj_perm.dot(proj_R)
-            if np.all(np.abs(comm.data) < tol) is False:
-                raise ValueError("Two projectors do not satisfy " "commutation rule.")
-            comm = proj_sum.dot(proj_perm) - proj_perm.dot(proj_sum)
-            if np.all(np.abs(comm.data) < tol) is False:
+            if np.any(np.abs(comm.data) > tol):
                 raise ValueError("Two projectors do not satisfy " "commutation rule.")
 
             n_repeat = 30

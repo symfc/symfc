@@ -80,50 +80,16 @@ class SymBasisSetsCompact:
         if self._log_level:
             print(f" eigenvalues of projector = {vals}")
 
-        # pattern 1
-        # C = get_projector_constraints_sum_rule_array(self._natom)
-        # # For this C, C.T @ C = self._natom * np.eye(C.shape[1])
-        # proj_trans = scipy.sparse.eye(size_sq) - (C @ C.T) / self._natom
-
-        # # # checking commutativity of two projectors that are symmetric matrices.
-        # # prod_mat = proj_spg @ proj_trans
-        # # # When A, B are symmetric matrices, BA = B^T.A^T = (AB)^T.
-        # # comm = prod_mat - prod_mat.T
-        # # if np.all(np.abs(comm.data) < tol) is False:
-        # #     raise ValueError("Two projectors do not satisfy commutation rule.")
-
-        # U = proj_trans @ (perm_mat @ vecs)
-        # U, s, _ = np.linalg.svd(U, full_matrices=False)
-        # U = U[:, np.where(np.abs(s) > tol)[0]]
-
-        # if self._log_level:
-        #     print(f"  - svd eigenvalues = {np.abs(s)}")
-        #     print(f"  - basis size = {U.shape}")
-
-        # fc_basis = [b.reshape((self._natom, self._natom, 3, 3)) for b in U.T]
-
-        # pattern 2
-        # C = _get_projector_constraints_sum_rule_perm_array(self._natom)
-        # Cinv = scipy.sparse.linalg.inv(C.T @ C)
-        # proj_trans_perm = scipy.sparse.eye(C.shape[0]) - ((C @ Cinv) @ C.T)
-        # U = proj_trans_perm @ vecs
-        # U, s, _ = np.linalg.svd(U, full_matrices=False)
-        # U = U[:, np.where(np.abs(s) > tol)[0]]
-
-        # if self._log_level:
-        #     print(f"  - svd eigenvalues = {np.abs(s)}")
-        #     print(f"  - basis size = {U.shape}")
-
-        # fc_basis = [
-        #     b.reshape((self._natom, self._natom, 3, 3)) for b in (perm_mat @ U).T
-        # ]
-
-        # pattern 3
+        # Note: proj_trans and (perm_mat @ perm_mat.T) are considered not commute.
         C = get_projector_constraints_sum_rule_array(self._natom)
-        proj_trans = scipy.sparse.eye(size_sq) - (C @ C.T) / self._natom
+        proj_trans = np.eye(size_sq) - (C @ C.T) / self._natom
         U = perm_mat.T @ (proj_trans @ (perm_mat @ vecs))
+        # for i in range(30):
+        #     U = perm_mat.T @ (proj_trans @ (perm_mat @ U))
         U, s, _ = np.linalg.svd(U, full_matrices=False)
-        U = U[:, np.where(np.abs(s) > 0.9)[0]]
+        # Instead of making singular value small by repeating, just removing
+        # non one eigenvalues.
+        U = U[:, np.where(np.abs(s) > 1 - tol)[0]]
 
         if self._log_level:
             print(f"  - svd eigenvalues = {np.abs(s)}")
@@ -132,24 +98,6 @@ class SymBasisSetsCompact:
         fc_basis = [
             b.reshape((self._natom, self._natom, 3, 3)) for b in (perm_mat @ U).T
         ]
-
-        # pattern 4
-        # C = get_projector_constraints_sum_rule_array(self._natom)
-        # D = perm_mat.T @ C
-        # Dinv = np.linalg.inv((D.T @ D).toarray())
-        # proj_trans = scipy.sparse.eye(D.shape[0]) - (D @ (Dinv @ D.T))
-        # U = proj_trans @ vecs
-        # U, s, _ = np.linalg.svd(U, full_matrices=False)
-        # U = U[:, np.where(np.abs(s) > 0.9)[0]]
-
-        # if self._log_level:
-        #     print(f"  - svd eigenvalues = {np.abs(s)}")
-        #     print(f"  - basis size = {U.shape}")
-
-        # fc_basis = [
-        #     b.reshape((self._natom, self._natom, 3, 3)) for b in (perm_mat @ U).T
-        # ]
-
         self._basis_sets = np.array(fc_basis, dtype="double", order="C")
 
 

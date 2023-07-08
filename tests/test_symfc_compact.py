@@ -82,12 +82,10 @@ def test_fc_NaCl_222_wrt_ALM(bs_nacl_222_compact: np.ndarray):
     This test is skipped when ALM is not installed.
 
     """
-    fc_compact = _compare_fc_with_alm(
-        "phonopy_NaCl_222_rd.yaml.xz", bs_nacl_222_compact
-    )
-    _write_phonopy_fc_yaml(
-        "phonopy_NaCl_222_fc.yaml", "phonopy_NaCl_222_rd.yaml.xz", fc_compact
-    )
+    _ = _compare_fc_with_alm("phonopy_NaCl_222_rd.yaml.xz", bs_nacl_222_compact)
+    # _write_phonopy_fc_yaml(
+    #     "phonopy_NaCl_222_fc.yaml", "phonopy_NaCl_222_rd.yaml.xz", fc_compact
+    # )
 
 
 @pytest.mark.big
