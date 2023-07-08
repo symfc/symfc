@@ -64,7 +64,8 @@ class SymBasisSetsCompact:
 
     def _run(self, tol: float = 1e-8):
         vecs, perm_mat = self._step1(tol=tol)
-        self._step2(vecs, perm_mat, tol=tol)
+        U = self._step2(vecs, perm_mat)
+        self._step3(U, perm_mat, tol=tol)
 
     def _step1(self, tol: float = 1e-8) -> tuple[csr_array, csr_array]:
         row, col, data = kron_c(self._reps, self._natom)
@@ -86,12 +87,15 @@ class SymBasisSetsCompact:
             print(f" eigenvalues of projector = {vals}")
         return vecs, perm_mat
 
-    def _step2(self, vecs: csr_array, perm_mat: csr_array, tol: float = 1e-8):
-        size_sq = (3 * self._natom) ** 2
+    def _step2(self, vecs: csr_array, perm_mat: csr_array) -> csr_array:
+        proj_trans = self._get_projector_sum_rule()
+        U = perm_mat @ vecs
+        U = proj_trans @ U
+        U = perm_mat.T @ U
+        return U
+
+    def _step3(self, U: csr_array, perm_mat: csr_array, tol: float = 1e-8):
         # Note: proj_trans and (perm_mat @ perm_mat.T) are considered not commute.
-        C = get_projector_constraints_sum_rule_array(self._natom)
-        proj_trans = np.eye(size_sq) - (C @ C.T) / self._natom
-        U = perm_mat.T @ (proj_trans @ (perm_mat @ vecs))
         # for i in range(30):
         #     U = perm_mat.T @ (proj_trans @ (perm_mat @ U))
         U, s, _ = np.linalg.svd(U, full_matrices=False)
@@ -107,6 +111,11 @@ class SymBasisSetsCompact:
             b.reshape((self._natom, self._natom, 3, 3)) for b in (perm_mat @ U).T
         ]
         self._basis_sets = np.array(fc_basis, dtype="double", order="C")
+
+    def _get_projector_sum_rule(self) -> csr_array:
+        size_sq = (3 * self._natom) ** 2
+        C = get_projector_constraints_sum_rule_array(self._natom)
+        return np.eye(size_sq) - (C @ C.T) / self._natom
 
 
 def _get_permutation_compression_matrix(
