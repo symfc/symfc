@@ -4,14 +4,26 @@ from typing import Optional
 
 import numpy as np
 import scipy
-from scipy.sparse import coo_array
+from scipy.sparse import coo_array, csr_array
 
 from symfc.matrix_funcs import convert_basis_sets_matrix_form, kron_c, to_serial
 from symfc.symfc import get_projector_constraints_sum_rule_array
 
 
 class SymBasisSetsCompact:
-    """Compact symmetry adapted basis sets for force constants."""
+    """Compact symmetry adapted basis sets for force constants.
+
+    The strategy is as follows:
+    Construct compression matrix using permutation symmetry C.
+    The matrix shape is (NN33, N(N+1)/2).
+    This matrix expands elements of upper right triagle to
+    full elements NN33 of matrix. (C @ C.T) is made to be identity matrix.
+    The projection matrix of space group operations is multipiled by C
+    from both side, and the resultant matrix is diagonalized.
+    The eigenvectors thus obtained are tricky further applying constraints
+    of translational symmetry.
+
+    """
 
     def __init__(
         self,
@@ -51,49 +63,64 @@ class SymBasisSetsCompact:
         return self._basis_sets
 
     def _run(self, tol: float = 1e-8):
+        vecs, perm_mat = self._step1(tol=tol)
+        U = self._step2(vecs, perm_mat)
+        self._step3(U, perm_mat, tol=tol)
+
+    def _step1(self, tol: float = 1e-8) -> tuple[csr_array, csr_array]:
         row, col, data = kron_c(self._reps, self._natom)
         size_sq = (3 * self._natom) ** 2
-        proj_spg = coo_array(
+        proj_spg = csr_array(
             (data, (row, col)), shape=(size_sq, size_sq), dtype="double"
         )
         perm_mat = _get_permutation_compression_matrix(self._natom)
-        perm_spg_mat = (perm_mat.T @ proj_spg) @ perm_mat
+        perm_spg_mat = proj_spg @ perm_mat
+        perm_spg_mat = perm_mat.T @ perm_spg_mat
         rank = int(round(perm_spg_mat.diagonal(k=0).sum()))
-        print("Solving eigenvalue problem of projection matrix.")
+        print(f"Solving eigenvalue problem of projection matrix (rank={rank}).")
         vals, vecs = scipy.sparse.linalg.eigsh(perm_spg_mat, k=rank, which="LM")
-
-        nonzero_cols = np.where(np.isclose(vals, 1.0, rtol=0, atol=tol))[0]
-        vecs = vecs[:, nonzero_cols]
+        nonzero_elems = np.nonzero(np.abs(vals) > tol)[0]
+        np.testing.assert_allclose(vals[nonzero_elems], 1.0, rtol=0, atol=tol)
+        vecs = vecs[:, nonzero_elems]
+        vals = vals[nonzero_elems]
         if self._log_level:
-            print(
-                f" eigenvalues of projector = {vals}, len(nonzero-vals)={vecs.shape[1]}"
-            )
+            print(f" eigenvalues of projector = {vals}")
+        return vecs, perm_mat
 
-        C = get_projector_constraints_sum_rule_array(self._natom)
-        # For this C, C.T @ C = self._natom * np.eye(C.shape[1])
-        proj_trans = scipy.sparse.eye(size_sq) - (C @ C.T) / self._natom
+    def _step2(self, vecs: csr_array, perm_mat: csr_array) -> csr_array:
+        proj_trans = self._get_projector_sum_rule()
+        U = perm_mat @ vecs
+        U = proj_trans @ U
+        U = perm_mat.T @ U
+        return U
 
-        # checking commutativity of two projectors that are symmetric matrices.
-        prod_mat = proj_spg @ proj_trans
-        # When A, B are symmetric matrices, BA = B^T.A^T = (AB)^T.
-        comm = prod_mat - prod_mat.T
-        if np.all(np.abs(comm.data) < tol) is False:
-            raise ValueError("Two projectors do not satisfy commutation rule.")
-
-        U = proj_trans @ (perm_mat @ vecs)
+    def _step3(self, U: csr_array, perm_mat: csr_array, tol: float = 1e-8):
+        # Note: proj_trans and (perm_mat @ perm_mat.T) are considered not commute.
+        # for i in range(30):
+        #     U = perm_mat.T @ (proj_trans @ (perm_mat @ U))
         U, s, _ = np.linalg.svd(U, full_matrices=False)
-        U = U[:, np.where(np.abs(s) > tol)[0]]
+        # Instead of making singular value small by repeating, just removing
+        # non one eigenvalues.
+        U = U[:, np.where(np.abs(s) > 1 - tol)[0]]
 
         if self._log_level:
             print(f"  - svd eigenvalues = {np.abs(s)}")
             print(f"  - basis size = {U.shape}")
 
-        fc_basis = [b.reshape((self._natom, self._natom, 3, 3)) for b in U.T]
-
+        fc_basis = [
+            b.reshape((self._natom, self._natom, 3, 3)) for b in (perm_mat @ U).T
+        ]
         self._basis_sets = np.array(fc_basis, dtype="double", order="C")
 
+    def _get_projector_sum_rule(self) -> csr_array:
+        size_sq = (3 * self._natom) ** 2
+        C = get_projector_constraints_sum_rule_array(self._natom)
+        return np.eye(size_sq) - (C @ C.T) / self._natom
 
-def _get_permutation_compression_matrix(natom: int) -> coo_array:
+
+def _get_permutation_compression_matrix(
+    natom: int, val: float = np.sqrt(2) / 2
+) -> csr_array:
     """Return compression matrix by permutation matrix.
 
     Matrix shape is (NN33,(N*3)((N*3)+1)/2).
@@ -115,13 +142,13 @@ def _get_permutation_compression_matrix(natom: int) -> coo_array:
         if i_i == i_j and i_a == i_b:
             data.append(1)
         else:
-            data.append(np.sqrt(2) / 2)
+            data.append(val)
             col.append(n)
             row.append(to_serial(i_j, i_b, i_i, i_a, natom))
-            data.append(np.sqrt(2) / 2)
+            data.append(val)
         n += 1
     if (natom * 3) % 2 == 1:
         assert (natom * 3) * ((natom * 3 + 1) // 2) == n, f"{natom}, {n}"
     else:
         assert ((natom * 3) // 2) * (natom * 3 + 1) == n, f"{natom}, {n}"
-    return coo_array((data, (row, col)), shape=(size, n), dtype="double")
+    return csr_array((data, (row, col)), shape=(size, n), dtype="double")

@@ -37,8 +37,16 @@ def test_fc_basis_sets_compact():
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
 
 
+@pytest.mark.big
 def test_fc_NaCl_222(bs_nacl_222_compact: np.ndarray):
-    """Test force constants by NaCl 64 atoms supercell."""
+    """Test force constants by NaCl 64 atoms supercell and compared with ALM.
+
+    Also test force constants by NaCl 64 atoms supercell.
+
+    This test with ALM is skipped when ALM is not installed.
+
+
+    """
     basis_sets = bs_nacl_222_compact
     ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
     f = ph.dataset["forces"]
@@ -75,14 +83,10 @@ def test_fc_NaCl_222(bs_nacl_222_compact: np.ndarray):
     ph_ref = phonopy.load(cwd / "phonopy_NaCl_222_fc.yaml.xz", produce_fc=False)
     np.testing.assert_allclose(ph_ref.force_constants, fc_compact, atol=1e-6)
 
-
-def test_fc_NaCl_222_wrt_ALM(bs_nacl_222_compact: np.ndarray):
-    """Test force constants by NaCl 64 atoms supercell and compared with ALM.
-
-    This test is skipped when ALM is not installed.
-
-    """
-    _compare_fc_with_alm("phonopy_NaCl_222_rd.yaml.xz", bs_nacl_222_compact)
+    _ = _compare_fc_with_alm("phonopy_NaCl_222_rd.yaml.xz", bs_nacl_222_compact)
+    # _write_phonopy_fc_yaml(
+    #     "phonopy_NaCl_222_fc.yaml", "phonopy_NaCl_222_rd.yaml.xz", fc_compact
+    # )
 
 
 @pytest.mark.big

@@ -9,6 +9,7 @@ from symfc.symfc import SymBasisSets, SymOpReps
 from symfc.symfc_compact import SymBasisSetsCompact
 
 cwd = Path(__file__).parent
+scope = "function"
 
 
 def pytest_addoption(parser):
@@ -34,7 +35,7 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_big)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=scope)
 def bs_nacl_222() -> np.ndarray:
     """Return basis sets of NaCl222."""
     ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
@@ -48,7 +49,7 @@ def bs_nacl_222() -> np.ndarray:
     return sbs.basis_sets
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=scope)
 def bs_sno2_223() -> np.ndarray:
     """Return basis sets of SnO2-223."""
     ph = phonopy.load(cwd / "phonopy_SnO2_223_rd.yaml.xz", produce_fc=False)
@@ -62,7 +63,7 @@ def bs_sno2_223() -> np.ndarray:
     return sbs.basis_sets
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=scope)
 def bs_sno2_222() -> np.ndarray:
     """Return basis sets of SnO2-222."""
     ph = phonopy.load(cwd / "phonopy_SnO2_222_rd.yaml.xz", produce_fc=False)
@@ -76,7 +77,7 @@ def bs_sno2_222() -> np.ndarray:
     return sbs.basis_sets
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=scope)
 def bs_sio2_222() -> np.ndarray:
     """Return basis sets of SiO2-222."""
     ph = phonopy.load(cwd / "phonopy_SiO2_222_rd.yaml.xz", produce_fc=False)
@@ -90,7 +91,7 @@ def bs_sio2_222() -> np.ndarray:
     return sbs.basis_sets
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=scope)
 def bs_sio2_221() -> np.ndarray:
     """Return basis sets of SiO2-221."""
     ph = phonopy.load(cwd / "phonopy_SiO2_221_rd.yaml.xz", produce_fc=False)
@@ -104,7 +105,7 @@ def bs_sio2_221() -> np.ndarray:
     return sbs.basis_sets
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=scope)
 def bs_gan_442() -> np.ndarray:
     """Return basis sets of GaN-442."""
     ph = phonopy.load(cwd / "phonopy_GaN_442_rd.yaml.xz", produce_fc=False)
@@ -118,7 +119,7 @@ def bs_gan_442() -> np.ndarray:
     return sbs.basis_sets
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=scope)
 def bs_gan_222() -> np.ndarray:
     """Return basis sets of GaN-222."""
     ph = phonopy.load(cwd / "phonopy_GaN_222_rd.yaml.xz", produce_fc=False)
@@ -135,7 +136,7 @@ def bs_gan_222() -> np.ndarray:
 #
 # Compact form
 #
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=scope)
 def bs_nacl_222_compact() -> np.ndarray:
     """Return basis sets of NaCl222."""
     ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
@@ -149,7 +150,7 @@ def bs_nacl_222_compact() -> np.ndarray:
     return sbs.basis_sets
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=scope)
 def bs_sno2_223_compact() -> np.ndarray:
     """Return basis sets of SnO2-223."""
     ph = phonopy.load(cwd / "phonopy_SnO2_223_rd.yaml.xz", produce_fc=False)
@@ -163,7 +164,7 @@ def bs_sno2_223_compact() -> np.ndarray:
     return sbs.basis_sets
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=scope)
 def bs_sno2_222_compact() -> np.ndarray:
     """Return basis sets of SnO2-222."""
     ph = phonopy.load(cwd / "phonopy_SnO2_222_rd.yaml.xz", produce_fc=False)
@@ -177,7 +178,7 @@ def bs_sno2_222_compact() -> np.ndarray:
     return sbs.basis_sets
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=scope)
 def bs_sio2_222_compact() -> np.ndarray:
     """Return basis sets of SiO2-222."""
     ph = phonopy.load(cwd / "phonopy_SiO2_222_rd.yaml.xz", produce_fc=False)
@@ -191,7 +192,7 @@ def bs_sio2_222_compact() -> np.ndarray:
     return sbs.basis_sets
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=scope)
 def bs_sio2_221_compact() -> np.ndarray:
     """Return basis sets of SiO2-221."""
     ph = phonopy.load(cwd / "phonopy_SiO2_221_rd.yaml.xz", produce_fc=False)
@@ -205,7 +206,7 @@ def bs_sio2_221_compact() -> np.ndarray:
     return sbs.basis_sets
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=scope)
 def bs_gan_442_compact() -> np.ndarray:
     """Return basis sets of GaN-442."""
     ph = phonopy.load(cwd / "phonopy_GaN_442_rd.yaml.xz", produce_fc=False)
@@ -219,7 +220,7 @@ def bs_gan_442_compact() -> np.ndarray:
     return sbs.basis_sets
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope=scope)
 def bs_gan_222_compact() -> np.ndarray:
     """Return basis sets of GaN-222."""
     ph = phonopy.load(cwd / "phonopy_GaN_222_rd.yaml.xz", produce_fc=False)
