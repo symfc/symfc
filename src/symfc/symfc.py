@@ -431,7 +431,7 @@ class SymBasisSets:
             if self._log_level:
                 print("  - using approximate projection matrix ... ")
 
-            proj_sum = _get_projector_sum_rule(self._natom)
+            proj_sum = get_projector_sum_rule(self._natom)
             proj_perm = _get_projector_permutations(self._natom)
 
             # checking commutativity of two projectors
@@ -575,7 +575,15 @@ def _get_projector_constraints_permutations(
     return n
 
 
-def _get_projector_sum_rule(natom) -> csr_array:
+def get_projector_sum_rule(natom) -> csr_array:
+    """Return sum rule constraint projector.
+
+    Equivalent to C below,
+
+    A = get_projector_constraints_sum_rule_array(natom)
+    C = scipy.sparse.eye(size_sq) - (A @ A.T) / self._natom
+
+    """
     size_sq = 9 * natom * natom
     C = _get_projector_sum_rule_array(natom)
     proj = scipy.sparse.eye(size_sq) - C
