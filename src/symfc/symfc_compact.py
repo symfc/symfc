@@ -116,9 +116,7 @@ class SymBasisSetsCompact:
         self._basis_sets = np.array(fc_basis, dtype="double", order="C")
 
 
-def _get_permutation_compression_matrix(
-    natom: int, val: float = np.sqrt(2) / 2
-) -> csr_array:
+def _get_permutation_compression_matrix(natom: int) -> csr_array:
     """Return compression matrix by permutation matrix.
 
     Matrix shape is (NN33,(N*3)((N*3)+1)/2).
@@ -127,7 +125,8 @@ def _get_permutation_compression_matrix(
 
     """
     col, row, data = [], [], []
-    size = natom**2 * 9
+    val = np.sqrt(2) / 2
+    size_sq = natom**2 * 9
 
     n = 0
     for ia, jb in itertools.combinations_with_replacement(range(natom * 3), 2):
@@ -149,4 +148,4 @@ def _get_permutation_compression_matrix(
         assert (natom * 3) * ((natom * 3 + 1) // 2) == n, f"{natom}, {n}"
     else:
         assert ((natom * 3) // 2) * (natom * 3 + 1) == n, f"{natom}, {n}"
-    return csr_array((data, (row, col)), shape=(size, n), dtype="double")
+    return csr_array((data, (row, col)), shape=(size_sq, n), dtype="double")
