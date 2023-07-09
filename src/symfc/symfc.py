@@ -28,6 +28,7 @@ class SymOpReps:
         lattice: np.ndarray,
         positions: np.ndarray,
         numbers: np.ndarray,
+        pure_translation_only: bool = False,
         log_level: int = 0,
     ):
         """Init method.
@@ -49,6 +50,7 @@ class SymOpReps:
         self._lattice = np.array(lattice, dtype="double", order="C")
         self._positions = np.array(positions, dtype="double", order="C")
         self._numbers = numbers
+        self._pure_translation_only = pure_translation_only
         self._log_level = log_level
         self._reps: Optional[list] = None
 
@@ -61,6 +63,17 @@ class SymOpReps:
 
     def _run(self):
         rotations_inv, translations_inv = self._get_symops_inv()
+        if self._pure_translation_only:
+            identity = np.eye(3, dtype=int)
+            _rots = []
+            _trans = []
+            for r, t in zip(rotations_inv, translations_inv):
+                if (r == identity).all():
+                    _rots.append(r)
+                    _trans.append(t)
+            rotations_inv = np.array(_rots, dtype=rotations_inv.dtype)
+            translations_inv = np.array(_trans, dtype=translations_inv.dtype)
+
         if self._log_level:
             print(" finding permutations ...")
         permutations_inv = compute_all_sg_permutations(
@@ -109,6 +122,7 @@ class SymOpReps:
         assert len(rotations) == len(rotations_inv)
         assert len(translations) == len(translations_inv)
         assert all(indices_found)
+
         return (
             np.array(rotations_inv, dtype=rotations.dtype),
             np.array(translations_inv, dtype=translations.dtype),
