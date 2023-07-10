@@ -6,7 +6,7 @@ from phonopy import Phonopy
 from scipy.sparse import csr_array
 
 from symfc.matrix_funcs import kron_c
-from symfc.spg_reps import SymOpReps
+from symfc.spg_reps import SpgReps
 
 
 @pytest.mark.parametrize(
@@ -18,7 +18,7 @@ def test_kron_c_NaCl_222(
 ):
     """Test kron_c by its rank."""
     ph = ph_nacl_222
-    sym_op_reps = SymOpReps(
+    sym_op_reps = SpgReps(
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,

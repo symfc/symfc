@@ -1,7 +1,6 @@
 """Generate symmetrized force constants."""
 from __future__ import annotations
 
-import itertools
 import time
 from typing import Optional, Union
 
@@ -11,13 +10,15 @@ from scipy.sparse import coo_array, csr_array
 
 from symfc.matrix_funcs import (
     convert_basis_sets_matrix_form,
+    get_projector_constraints,
+    get_projector_permutations,
+    get_projector_sum_rule,
     kron_c,
-    to_serial,
     transform_n3n3_serial_to_nn33_serial,
 )
 
 
-class SymBasisSets:
+class FCBasisSets:
     """Symmetry adapted basis sets for force constants."""
 
     def __init__(
@@ -276,7 +277,7 @@ class SymBasisSets:
             if self._log_level:
                 print("  - using exact projection matrix ... ")
 
-            proj_const = _get_projector_constraints(self._natom)
+            proj_const = get_projector_constraints(self._natom)
 
             # checking commutativity of two projectors
             comm = proj_R.dot(proj_const) - proj_const.dot(proj_R)
@@ -289,7 +290,7 @@ class SymBasisSets:
                 print("  - using approximate projection matrix ... ")
 
             proj_sum = get_projector_sum_rule(self._natom)
-            proj_perm = _get_projector_permutations(self._natom)
+            proj_perm = get_projector_permutations(self._natom)
 
             # checking commutativity of two projectors
             comm = proj_R.dot(proj_sum) - proj_sum.dot(proj_R)
@@ -328,119 +329,3 @@ class SymBasisSets:
         if self._log_level:
             t2 = time.time()
             print("  - elapsed time (reshape) =", t2 - t1, "(s)")
-
-
-def _get_projector_constraints(
-    natom: int, with_permutation: bool = True, with_translation: bool = True
-) -> csr_array:
-    """Construct matrices of sum rule and permutation."""
-    size_sq = (3 * natom) ** 2
-    C = _get_projector_constraints_array(
-        natom, with_permutation=with_permutation, with_translation=with_translation
-    )
-    Cinv = scipy.sparse.linalg.inv((C.T).dot(C))
-    proj = scipy.sparse.eye(size_sq) - (C.dot(Cinv)).dot(C.T)
-    return proj
-
-
-def _get_projector_constraints_array(
-    natom: int, with_permutation: bool = True, with_translation: bool = True
-) -> csr_array:
-    size_sq = (3 * natom) ** 2
-    n, row, col, data = 0, [], [], []
-    # sum rules
-    if with_translation:
-        n = _get_projector_constraints_sum_rule(row, col, data, natom, n)
-
-    # permutation
-    if with_permutation:
-        n = _get_projector_constraints_permutations(row, col, data, natom, n)
-
-    # Temporary fix
-    # scipy.sparse.linalg.inv (finally splu) doesn't accept
-    # "int_" (or list[int]) row and col values at scipy 1.11.1.
-    dtype = "intc"
-    row = np.array(row, dtype=dtype)
-    col = np.array(col, dtype=dtype)
-    return csr_array((data, (row, col)), shape=(size_sq, n))
-
-
-def _get_projector_constraints_sum_rule(
-    row: list, col: list, data: list, natom: int, n: int
-) -> int:
-    """Sparse array data of sum rule constraints.
-
-    Each column contains N of 1 and others are zero.
-    shape=((3N)**2, 9N)
-
-    """
-    for i in range(natom):
-        for alpha, beta in itertools.product(range(3), range(3)):
-            for j in range(natom):
-                row.append(to_serial(i, alpha, j, beta, natom))
-                col.append(n)
-                data.append(1.0)
-            n += 1
-    return n
-
-
-def _get_projector_constraints_permutations(
-    row: list, col: list, data: list, natom: int, n: int
-) -> int:
-    """Sparse array data of permutation constraints.
-
-    Each colum contains one 1 and one -1, and others are all zero.
-    Diagonal elements in (NN33, NN33) representation are zero.
-    shape=((3N)**2, 3N(3N-1))
-
-    """
-    for ia, jb in itertools.combinations(range(natom * 3), 2):
-        i, a = ia // 3, ia % 3
-        j, b = jb // 3, jb % 3
-        id1 = to_serial(i, a, j, b, natom)
-        id2 = to_serial(j, b, i, a, natom)
-        row += [id1, id2]
-        col += [n, n]
-        data += [1, -1]
-        n += 1
-    return n
-
-
-def get_projector_sum_rule(natom) -> csr_array:
-    """Return sum rule constraint projector.
-
-    Equivalent to C below,
-
-    A = get_projector_constraints_sum_rule_array(natom)
-    C = scipy.sparse.eye(size_sq) - (A @ A.T) / self._natom
-
-    """
-    size_sq = 9 * natom * natom
-    row, col, data = [], [], []
-    block = np.tile(np.eye(9), (natom, natom))
-    csr = csr_array(block)
-    for i in range(natom):
-        row1, col1 = csr.nonzero()
-        row += (row1 + 9 * natom * i).tolist()
-        col += (col1 + 9 * natom * i).tolist()
-        data += (csr.data / natom).tolist()
-    C = csr_array((data, (row, col)), shape=(size_sq, size_sq))
-    proj = scipy.sparse.eye(size_sq) - C
-    return proj
-
-
-def _get_projector_permutations(natom: int) -> csr_array:
-    size = 3 * natom
-    size_sq = size**2
-    row, col, data = [], [], []
-    for ia, jb in itertools.combinations(range(size), 2):
-        i, a = ia // 3, ia % 3
-        j, b = jb // 3, jb % 3
-        id1 = to_serial(i, a, j, b, natom)
-        id2 = to_serial(j, b, i, a, natom)
-        row += [id1, id2, id1, id2]
-        col += [id1, id2, id2, id1]
-        data += [0.5, 0.5, -0.5, -0.5]
-    C = csr_array((data, (row, col)), shape=(size_sq, size_sq))
-    proj = scipy.sparse.eye(size_sq) - C
-    return proj
