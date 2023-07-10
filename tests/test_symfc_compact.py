@@ -5,7 +5,7 @@ import numpy as np
 import phonopy
 import pytest
 
-from symfc.symfc import SymOpReps
+from symfc.spg_reps import SymOpReps
 from symfc.symfc_compact import SymBasisSetsCompact
 
 cwd = Path(__file__).parent
