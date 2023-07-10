@@ -6,7 +6,7 @@ from phonopy import Phonopy
 from scipy.sparse import csr_array
 
 from symfc.matrix_funcs import kron_c
-from symfc.symfc import SymOpReps
+from symfc.spg_reps import SymOpReps
 
 
 @pytest.mark.parametrize(
