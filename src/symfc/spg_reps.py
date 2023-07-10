@@ -8,7 +8,7 @@ from phonopy.utils import similarity_transformation
 from scipy.sparse import coo_array
 
 
-class SymOpReps:
+class SpgReps:
     """Reps of space group operations with respect to atomic coordinate basis."""
 
     def __init__(

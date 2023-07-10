@@ -1,12 +1,12 @@
-"""Tests of SymBasisSets."""
+"""Tests of FCBasisSetsCompact."""
 from pathlib import Path
 
 import numpy as np
 import phonopy
 import pytest
 
-from symfc.spg_reps import SymOpReps
-from symfc.symfc_compact import SymBasisSetsCompact
+from symfc.fc_basis_compact import FCBasisSetsCompact
+from symfc.spg_reps import SpgReps
 
 cwd = Path(__file__).parent
 
@@ -26,9 +26,9 @@ def test_fc_basis_sets_compact():
     positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]]).T
     types = [0, 0]
 
-    sym_op_reps = SymOpReps(lattice, positions, types, log_level=1)
+    sym_op_reps = SpgReps(lattice, positions, types, log_level=1)
     rep = sym_op_reps.representations
-    sbs = SymBasisSetsCompact(
+    sbs = FCBasisSetsCompact(
         rep,
         log_level=1,
     )

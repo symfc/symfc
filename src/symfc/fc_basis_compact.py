@@ -6,11 +6,15 @@ import numpy as np
 import scipy
 from scipy.sparse import coo_array, csr_array
 
-from symfc.matrix_funcs import convert_basis_sets_matrix_form, kron_c, to_serial
-from symfc.symfc import get_projector_sum_rule
+from symfc.matrix_funcs import (
+    convert_basis_sets_matrix_form,
+    get_projector_sum_rule,
+    kron_c,
+    to_serial,
+)
 
 
-class SymBasisSetsCompact:
+class FCBasisSetsCompact:
     """Compact symmetry adapted basis sets for force constants.
 
     The strategy is as follows:
