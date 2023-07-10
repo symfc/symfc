@@ -36,6 +36,13 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture(scope=scope)
+def ph_nacl_222() -> SymOpReps:
+    """Return basis sets of NaCl222."""
+    ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
+    return ph
+
+
+@pytest.fixture(scope=scope)
 def bs_nacl_222() -> np.ndarray:
     """Return basis sets of NaCl222."""
     ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
