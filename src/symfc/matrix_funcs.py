@@ -50,13 +50,11 @@ def kron_c(reps, natom) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     row = np.zeros(size, dtype=row_dtype)
     col = np.zeros(size, dtype=col_dtype)
     data = np.zeros(size, dtype=data_dtype)
-    row_dtype = reps[0].row.dtype
-    col_dtype = reps[0].col.dtype
     assert row_dtype is np.dtype("intc") or row_dtype is np.dtype("int_")
     assert reps[0].row.flags.contiguous
     assert col_dtype is np.dtype("intc") or col_dtype is np.dtype("int_")
     assert reps[0].col.flags.contiguous
-    assert data_dtype == np.dtype("double")
+    assert data_dtype is np.dtype("double")
     assert reps[0].data.flags.contiguous
     i_shift = 0
     for rmat in reps:
@@ -79,6 +77,47 @@ def kron_c(reps, natom) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
                 rmat.col,
                 rmat.data,
                 3 * natom,
+            )
+        else:
+            raise RuntimeError("Incompatible data type of rows and cols of coo_array.")
+        i_shift += rmat.row.shape[0] ** 2
+    data /= len(reps)
+
+    return row, col, data
+
+
+def get_spg_proj_c(reps, natom) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Compute compact spg projector matrix in C.
+
+    This computes perm_mat.T @ spg_proj (kron_c) @ perm_mat.
+
+    """
+    size = 0
+    for rmat in reps:
+        size += rmat.row.shape[0] ** 2
+    row_dtype = reps[0].row.dtype
+    col_dtype = reps[0].col.dtype
+    data_dtype = reps[0].data.dtype
+    row = np.zeros(size, dtype=row_dtype)
+    col = np.zeros(size, dtype=col_dtype)
+    data = np.zeros(size, dtype=data_dtype)
+    assert row_dtype is np.dtype("int_")
+    assert reps[0].row.flags.contiguous
+    assert col_dtype is np.dtype("int_")
+    assert reps[0].col.flags.contiguous
+    assert data_dtype is np.dtype("double")
+    assert reps[0].data.flags.contiguous
+    i_shift = 0
+    for rmat in reps:
+        if col_dtype is np.dtype("int_") and row_dtype is np.dtype("int_"):
+            symfcc.get_compact_spg_proj(
+                row[i_shift:],
+                col[i_shift:],
+                data[i_shift:],
+                rmat.row,
+                rmat.col,
+                rmat.data,
+                natom,
             )
         else:
             raise RuntimeError("Incompatible data type of rows and cols of coo_array.")

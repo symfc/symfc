@@ -1,15 +1,16 @@
 """Generate symmetrized force constants using compact projection matrix."""
 import itertools
+import time
 from typing import Optional
 
 import numpy as np
 import scipy
-from scipy.sparse import coo_array, csr_array
+from scipy.sparse import coo_array, csc_array, csr_array
 
 from symfc.matrix_funcs import (
     convert_basis_sets_matrix_form,
     get_projector_sum_rule,
-    kron_c,
+    get_spg_proj_c,
     to_serial,
 )
 
@@ -67,23 +68,30 @@ class FCBasisSetsCompact:
         return self._basis_sets
 
     def _run(self, tol: float = 1e-8):
+        t0 = time.time()
         perm_mat = _get_permutation_compression_matrix(self._natom)
-        perm_spg_mat = self._step1(perm_mat)
-        vecs = self._step2(perm_spg_mat, tol=tol)
+        t2 = time.time()
+        print(f"|--- {t2 - t0} ---")
+        vecs = self._step2(tol=tol)
+        t3 = time.time()
+        print(f"|--- {t3 - t0} ---")
         U = self._step3(vecs, perm_mat)
+        t4 = time.time()
+        print(f"|--- {t4 - t0} ---")
         self._step4(U, perm_mat, tol=tol)
+        t5 = time.time()
+        print(f"|--- {t5 - t0} ---")
 
-    def _step1(self, perm_mat: csr_array):
-        row, col, data = kron_c(self._reps, self._natom)
-        size_sq = (3 * self._natom) ** 2
-        proj_spg = csr_array(
-            (data, (row, col)), shape=(size_sq, size_sq), dtype="double"
-        )
-        perm_spg_mat = proj_spg @ perm_mat
-        perm_spg_mat = perm_mat.T @ perm_spg_mat
-        return perm_spg_mat
-
-    def _step2(self, perm_spg_mat: csr_array, tol: float = 1e-8) -> csr_array:
+    def _step2(self, tol: float = 1e-8) -> csr_array:
+        t0 = time.time()
+        row, col, data = get_spg_proj_c(self._reps, self._natom)
+        t1 = time.time()
+        print(f"  |--- {t1 - t0} ---")
+        size = self._natom * 3 * (self._natom * 3 + 1)
+        size = size // 2
+        perm_spg_mat = csc_array((data, (row, col)), shape=(size, size), dtype="double")
+        t2 = time.time()
+        print(f"  |--- {t2 - t0} ---")
         rank = int(round(perm_spg_mat.diagonal(k=0).sum()))
         print(f"Solving eigenvalue problem of projection matrix (rank={rank}).")
         vals, vecs = scipy.sparse.linalg.eigsh(perm_spg_mat, k=rank, which="LM")
@@ -94,12 +102,15 @@ class FCBasisSetsCompact:
         vecs = vecs[:, nonzero_elems]
         if self._log_level:
             print(f" eigenvalues of projector = {vals}")
+        t3 = time.time()
+        print(f"  |--- {t3 - t0} ---")
         return vecs
 
     def _step3(self, vecs: csr_array, perm_mat: csr_array) -> csr_array:
-        U = perm_mat.T @ get_projector_sum_rule(self._natom)
-        U = U @ perm_mat
-        return U @ vecs
+        U = perm_mat @ vecs
+        U = get_projector_sum_rule(self._natom) @ U
+        U = perm_mat.T @ U
+        return U
 
     def _step4(self, U: csr_array, perm_mat: csr_array, tol: float = 1e-8):
         # Note: proj_trans and (perm_mat @ perm_mat.T) are considered not commute.

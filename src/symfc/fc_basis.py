@@ -295,10 +295,10 @@ class FCBasisSets:
             # checking commutativity of two projectors
             comm = proj_R.dot(proj_sum) - proj_sum.dot(proj_R)
             if np.any(np.abs(comm.data) > tol):
-                raise ValueError("Two projectors do not satisfy " "commutation rule.")
+                raise ValueError("Two projectors do not satisfy commutation rule.")
             comm = proj_R.dot(proj_perm) - proj_perm.dot(proj_R)
             if np.any(np.abs(comm.data) > tol):
-                raise ValueError("Two projectors do not satisfy " "commutation rule.")
+                raise ValueError("Two projectors do not satisfy commutation rule.")
 
             n_repeat = 30
             U = proj_sum.dot(nonzero_proj_R)
