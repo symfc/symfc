@@ -4,6 +4,9 @@ from pathlib import Path
 import numpy as np
 import phonopy
 import pytest
+from phonopy import Phonopy
+from phonopy.interface.phonopy_yaml import read_cell_yaml
+from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.fc_basis import FCBasisSets
 from symfc.fc_basis_compact import FCBasisSetsCompact
@@ -36,9 +39,16 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_big)
 
 
-@pytest.fixture(scope=scope)
-def ph_nacl_222() -> SpgReps:
-    """Return basis sets of NaCl222."""
+@pytest.fixture(scope="session")
+def cell_nacl_111() -> PhonopyAtoms:
+    """Return unitcell of NaCl."""
+    cell = read_cell_yaml(cwd / "NaCl-unitcell.yaml")
+    return cell
+
+
+@pytest.fixture(scope="session")
+def ph_nacl_222() -> Phonopy:
+    """Return phonopy instance of NaCl222."""
     ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
     return ph
 
