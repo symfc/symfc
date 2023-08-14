@@ -181,6 +181,35 @@ def get_projector_permutations(natom: int) -> csr_array:
     return proj
 
 
+def get_indep_atoms_by_lattice_translation(trans_perms: np.ndarray) -> np.ndarray:
+    """Return independent atoms by lattice translation symmetry.
+
+    Parameters
+    ----------
+    trans_perms : np.ndarray
+        Atom indices after lattice translations.
+        shape=(lattice_translations, supercell_atoms)
+
+    Returns
+    -------
+    np.ndarray
+        Independent atoms.
+        shape=(n_indep_atoms_by_lattice_translation,), dtype=int
+
+    """
+    unique_atoms = []
+    assert np.array_equal(trans_perms[0, :], range(trans_perms.shape[1]))
+    for i, perms in enumerate(trans_perms.T):
+        is_found = False
+        for j in unique_atoms:
+            if j in perms:
+                is_found = True
+                break
+        if not is_found:
+            unique_atoms.append(i)
+    return np.array(unique_atoms, dtype=int)
+
+
 def _transform_n3n3_serial(serial_id: int, natom: int) -> tuple[int, int, int, int]:
     """Decode 1D index to (N, 3, N, 3) indices."""
     b = serial_id % 3

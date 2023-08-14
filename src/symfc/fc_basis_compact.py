@@ -7,7 +7,7 @@ import numpy as np
 import scipy
 from scipy.sparse import coo_array, csc_array, csr_array
 
-from symfc.matrix_funcs import (
+from symfc.utils import (
     convert_basis_sets_matrix_form,
     get_projector_sum_rule,
     get_spg_proj_c,
@@ -15,24 +15,45 @@ from symfc.matrix_funcs import (
 )
 
 
+def measure_time(func):
+    """Measure time consumed by func."""
+
+    def wrapper(*args, **kwargs):
+        t0 = time.time()
+        result = func(*args, **kwargs)
+        t1 = time.time()
+        print(f"|--- {t1 - t0} ---")
+        return result
+
+    return wrapper
+
+
 class FCBasisSetsCompact:
     """Compact symmetry adapted basis sets for force constants.
 
-    The strategy is as follows:
-    Construct compression matrix using permutation symmetry C.
-    The matrix shape is (NN33, N(N+1)/2).
-    This matrix expands elements of upper right triagle to
-    full elements NN33 of matrix. (C @ C.T) is made to be identity matrix.
-    The projection matrix of space group operations is multipiled by C
-    from both side, and the resultant matrix is diagonalized.
-    The eigenvectors thus obtained are tricky further applying constraints
-    of translational symmetry.
+    Strategy-1
+    ----------
+    Construct compression matrix using permutation symmetry C. The matrix shape
+    is (NN33, N(N+1)/2). This matrix expands elements of upper right triagle to
+    full elements NN33 of matrix. (C @ C.T) is made to be identity matrix. The
+    projection matrix of space group operations is multipiled by C from both
+    side, and the resultant matrix is diagonalized.
+
+    Strategy-2
+    ----------
+    Construct compression matrix using lattice translation symmetry C. The
+    matrix shape is (NN33, n_aN33), where n_a is the number of atoms in
+    primitive cell. This matrix expands elements of full elements NN33 of
+    matrix. (C @ C.T) is made to be identity matrix. The projection matrix of
+    space group operations is multipiled by C from both side, and the resultant
+    matrix is diagonalized.
 
     """
 
     def __init__(
         self,
         reps: list[coo_array],
+        translation_permutations: Optional[np.ndarray] = None,
         log_level: int = 0,
     ):
         """Init method.
@@ -41,14 +62,18 @@ class FCBasisSetsCompact:
         ----------
         reps : list[coo_array]
             Matrix representations of symmetry operations.
+        translation_permutations:
+            Atom indices after lattice translations.
+            shape=(lattice_translations, supercell_atoms)
         log_level : int, optional
             Log level. Default is 0.
 
         """
         self._reps: list[coo_array] = reps
+        self._translation_permutations = translation_permutations
         self._log_level = log_level
 
-        self._natom = int(round(self._reps[0].shape[0] / 3))
+        self._natom = self._reps[0].shape[0] // 3
 
         self._basis_sets: Optional[np.ndarray] = None
 
@@ -68,32 +93,19 @@ class FCBasisSetsCompact:
         return self._basis_sets
 
     def _run(self, tol: float = 1e-8):
-        t0 = time.time()
         perm_mat = _get_permutation_compression_matrix(self._natom)
-        t2 = time.time()
-        print(f"|--- {t2 - t0} ---")
         vecs = self._step2(tol=tol)
-        t3 = time.time()
-        print(f"|--- {t3 - t0} ---")
         U = self._step3(vecs, perm_mat)
-        t4 = time.time()
-        print(f"|--- {t4 - t0} ---")
         self._step4(U, perm_mat, tol=tol)
-        t5 = time.time()
-        print(f"|--- {t5 - t0} ---")
 
     def _step2(self, tol: float = 1e-8) -> csr_array:
-        t0 = time.time()
         row, col, data = get_spg_proj_c(self._reps, self._natom)
-        t1 = time.time()
-        print(f"  |--- {t1 - t0} ---")
         size = self._natom * 3 * (self._natom * 3 + 1)
         size = size // 2
         perm_spg_mat = csc_array((data, (row, col)), shape=(size, size), dtype="double")
-        t2 = time.time()
-        print(f"  |--- {t2 - t0} ---")
         rank = int(round(perm_spg_mat.diagonal(k=0).sum()))
-        print(f"Solving eigenvalue problem of projection matrix (rank={rank}).")
+        if self._log_level:
+            print(f"Solving eigenvalue problem of projection matrix (rank={rank}).")
         vals, vecs = scipy.sparse.linalg.eigsh(perm_spg_mat, k=rank, which="LM")
         nonzero_elems = np.nonzero(np.abs(vals) > tol)[0]
         vals = vals[nonzero_elems]
@@ -102,8 +114,6 @@ class FCBasisSetsCompact:
         vecs = vecs[:, nonzero_elems]
         if self._log_level:
             print(f" eigenvalues of projector = {vals}")
-        t3 = time.time()
-        print(f"  |--- {t3 - t0} ---")
         return vecs
 
     def _step3(self, vecs: csr_array, perm_mat: csr_array) -> csr_array:
@@ -132,6 +142,41 @@ class FCBasisSetsCompact:
 
 
 def _get_permutation_compression_matrix(natom: int) -> csr_array:
+    """Return compression matrix by permutation matrix.
+
+    Matrix shape is (NN33,(N*3)((N*3)+1)/2).
+    Non-zero only ijab and jiba column elements for ijab rows.
+    Rows upper right NN33 matrix elements are selected for rows.
+
+    """
+    col, row, data = [], [], []
+    val = np.sqrt(2) / 2
+    size_sq = natom**2 * 9
+
+    n = 0
+    for ia, jb in itertools.combinations_with_replacement(range(natom * 3), 2):
+        i_i = ia // 3
+        i_a = ia % 3
+        i_j = jb // 3
+        i_b = jb % 3
+        col.append(n)
+        row.append(to_serial(i_i, i_a, i_j, i_b, natom))
+        if i_i == i_j and i_a == i_b:
+            data.append(1)
+        else:
+            data.append(val)
+            col.append(n)
+            row.append(to_serial(i_j, i_b, i_i, i_a, natom))
+            data.append(val)
+        n += 1
+    if (natom * 3) % 2 == 1:
+        assert (natom * 3) * ((natom * 3 + 1) // 2) == n, f"{natom}, {n}"
+    else:
+        assert ((natom * 3) // 2) * (natom * 3 + 1) == n, f"{natom}, {n}"
+    return csr_array((data, (row, col)), shape=(size_sq, n), dtype="double")
+
+
+def _get_lattice_translation_compression_matrix(natom: int) -> csr_array:
     """Return compression matrix by permutation matrix.
 
     Matrix shape is (NN33,(N*3)((N*3)+1)/2).
