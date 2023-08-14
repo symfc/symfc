@@ -86,7 +86,9 @@ def kron_c(reps, natom) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return row, col, data
 
 
-def get_spg_proj_c(reps, natom) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def get_permutation_spg_proj_c(
+    reps, natom
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute compact spg projector matrix in C.
 
     This computes perm_mat.T @ spg_proj (kron_c) @ perm_mat.
@@ -110,7 +112,7 @@ def get_spg_proj_c(reps, natom) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     i_shift = 0
     for rmat in reps:
         if col_dtype is np.dtype("int_") and row_dtype is np.dtype("int_"):
-            symfcc.get_compact_spg_proj(
+            symfcc.get_permutation_spg_proj(
                 row[i_shift:],
                 col[i_shift:],
                 data[i_shift:],

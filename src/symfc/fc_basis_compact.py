@@ -9,8 +9,9 @@ from scipy.sparse import coo_array, csc_array, csr_array
 
 from symfc.utils import (
     convert_basis_sets_matrix_form,
+    get_permutation_spg_proj_c,
+    get_projector_permutations,
     get_projector_sum_rule,
-    get_spg_proj_c,
     to_serial,
 )
 
@@ -77,8 +78,6 @@ class FCBasisSetsCompact:
 
         self._basis_sets: Optional[np.ndarray] = None
 
-        self._run()
-
     @property
     def basis_sets_matrix_form(self) -> Optional[list[np.ndarray]]:
         """Retrun a list of FC basis in 3Nx3N matrix."""
@@ -92,21 +91,29 @@ class FCBasisSetsCompact:
         """Return a list of FC basis in (N, N, 3, 3) dimentional arrays."""
         return self._basis_sets
 
-    def _run(self, tol: float = 1e-8):
-        perm_mat = _get_permutation_compression_matrix(self._natom)
+    def run(self, tol: float = 1e-8):
+        """Compute force constants basis."""
+        compression_mat = _get_permutation_compression_matrix(self._natom)
         vecs = self._step2(tol=tol)
-        U = self._step3(vecs, perm_mat)
-        self._step4(U, perm_mat, tol=tol)
+        U = self._step3(vecs, compression_mat)
+        self._step4(U, compression_mat, tol=tol)
+        return self
 
     def _step2(self, tol: float = 1e-8) -> csr_array:
-        row, col, data = get_spg_proj_c(self._reps, self._natom)
-        size = self._natom * 3 * (self._natom * 3 + 1)
-        size = size // 2
-        perm_spg_mat = csc_array((data, (row, col)), shape=(size, size), dtype="double")
-        rank = int(round(perm_spg_mat.diagonal(k=0).sum()))
+        row, col, data = get_permutation_spg_proj_c(self._reps, self._natom)
+        if self._translation_permutations is not None:
+            size = self._natom * 3 * (self._natom * 3 + 1)
+            size = size // 2
+        else:
+            size = self._natom * 3 * (self._natom * 3 + 1)
+            size = size // 2
+        compression_spg_mat = csc_array(
+            (data, (row, col)), shape=(size, size), dtype="double"
+        )
+        rank = int(round(compression_spg_mat.diagonal(k=0).sum()))
         if self._log_level:
             print(f"Solving eigenvalue problem of projection matrix (rank={rank}).")
-        vals, vecs = scipy.sparse.linalg.eigsh(perm_spg_mat, k=rank, which="LM")
+        vals, vecs = scipy.sparse.linalg.eigsh(compression_spg_mat, k=rank, which="LM")
         nonzero_elems = np.nonzero(np.abs(vals) > tol)[0]
         vals = vals[nonzero_elems]
         # Check non-zero values are all ones. This is a weak check of commutativity.
@@ -116,10 +123,12 @@ class FCBasisSetsCompact:
             print(f" eigenvalues of projector = {vals}")
         return vecs
 
-    def _step3(self, vecs: csr_array, perm_mat: csr_array) -> csr_array:
-        U = perm_mat @ vecs
+    def _step3(self, vecs: csr_array, compression_mat: csr_array) -> csr_array:
+        U = compression_mat @ vecs
         U = get_projector_sum_rule(self._natom) @ U
-        U = perm_mat.T @ U
+        if self._translation_permutations is not None:
+            U = get_projector_permutations(self._natom) @ U
+        U = compression_mat.T @ U
         return U
 
     def _step4(self, U: csr_array, perm_mat: csr_array, tol: float = 1e-8):

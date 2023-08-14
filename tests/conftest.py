@@ -155,7 +155,7 @@ def bs_gan_222() -> np.ndarray:
 # Compact form
 #
 @pytest.fixture(scope=scope)
-def bs_nacl_222_compact() -> np.ndarray:
+def bs_nacl_222_compact() -> FCBasisSetsCompact:
     """Return basis sets of NaCl222."""
     ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
     sym_op_reps = SpgReps(
@@ -164,12 +164,16 @@ def bs_nacl_222_compact() -> np.ndarray:
         ph.supercell.numbers,
         log_level=1,
     )
-    sbs = FCBasisSetsCompact(sym_op_reps.representations, log_level=1)
-    return sbs.basis_sets
+    sbs = FCBasisSetsCompact(
+        sym_op_reps.representations,
+        translation_permutations=sym_op_reps.translation_permutations,
+        log_level=1,
+    )
+    return sbs
 
 
 @pytest.fixture(scope=scope)
-def bs_sno2_223_compact() -> np.ndarray:
+def bs_sno2_223_compact() -> FCBasisSetsCompact:
     """Return basis sets of SnO2-223."""
     ph = phonopy.load(cwd / "phonopy_SnO2_223_rd.yaml.xz", produce_fc=False)
     sym_op_reps = SpgReps(
@@ -178,12 +182,16 @@ def bs_sno2_223_compact() -> np.ndarray:
         ph.supercell.numbers,
         log_level=1,
     )
-    sbs = FCBasisSetsCompact(sym_op_reps.representations, log_level=1)
-    return sbs.basis_sets
+    sbs = FCBasisSetsCompact(
+        sym_op_reps.representations,
+        translation_permutations=sym_op_reps.translation_permutations,
+        log_level=1,
+    )
+    return sbs
 
 
 @pytest.fixture(scope=scope)
-def bs_sno2_222_compact() -> np.ndarray:
+def bs_sno2_222_compact() -> FCBasisSetsCompact:
     """Return basis sets of SnO2-222."""
     ph = phonopy.load(cwd / "phonopy_SnO2_222_rd.yaml.xz", produce_fc=False)
     sym_op_reps = SpgReps(
@@ -193,11 +201,11 @@ def bs_sno2_222_compact() -> np.ndarray:
         log_level=1,
     )
     sbs = FCBasisSetsCompact(sym_op_reps.representations, log_level=1)
-    return sbs.basis_sets
+    return sbs
 
 
 @pytest.fixture(scope=scope)
-def bs_sio2_222_compact() -> np.ndarray:
+def bs_sio2_222_compact() -> FCBasisSetsCompact:
     """Return basis sets of SiO2-222."""
     ph = phonopy.load(cwd / "phonopy_SiO2_222_rd.yaml.xz", produce_fc=False)
     sym_op_reps = SpgReps(
@@ -206,12 +214,16 @@ def bs_sio2_222_compact() -> np.ndarray:
         ph.supercell.numbers,
         log_level=1,
     )
-    sbs = FCBasisSetsCompact(sym_op_reps.representations, log_level=1)
-    return sbs.basis_sets
+    sbs = FCBasisSetsCompact(
+        sym_op_reps.representations,
+        translation_permutations=sym_op_reps.translation_permutations,
+        log_level=1,
+    )
+    return sbs
 
 
 @pytest.fixture(scope=scope)
-def bs_sio2_221_compact() -> np.ndarray:
+def bs_sio2_221_compact() -> FCBasisSetsCompact:
     """Return basis sets of SiO2-221."""
     ph = phonopy.load(cwd / "phonopy_SiO2_221_rd.yaml.xz", produce_fc=False)
     sym_op_reps = SpgReps(
@@ -220,12 +232,16 @@ def bs_sio2_221_compact() -> np.ndarray:
         ph.supercell.numbers,
         log_level=1,
     )
-    sbs = FCBasisSetsCompact(sym_op_reps.representations, log_level=1)
-    return sbs.basis_sets
+    sbs = FCBasisSetsCompact(
+        sym_op_reps.representations,
+        translation_permutations=sym_op_reps.translation_permutations,
+        log_level=1,
+    )
+    return sbs
 
 
 @pytest.fixture(scope=scope)
-def bs_gan_442_compact() -> np.ndarray:
+def bs_gan_442_compact() -> FCBasisSetsCompact:
     """Return basis sets of GaN-442."""
     ph = phonopy.load(cwd / "phonopy_GaN_442_rd.yaml.xz", produce_fc=False)
     sym_op_reps = SpgReps(
@@ -234,12 +250,16 @@ def bs_gan_442_compact() -> np.ndarray:
         ph.supercell.numbers,
         log_level=1,
     )
-    sbs = FCBasisSetsCompact(sym_op_reps.representations, log_level=1)
-    return sbs.basis_sets
+    sbs = FCBasisSetsCompact(
+        sym_op_reps.representations,
+        translation_permutations=sym_op_reps.translation_permutations,
+        log_level=1,
+    )
+    return sbs
 
 
 @pytest.fixture(scope=scope)
-def bs_gan_222_compact() -> np.ndarray:
+def bs_gan_222_compact() -> FCBasisSetsCompact:
     """Return basis sets of GaN-222."""
     ph = phonopy.load(cwd / "phonopy_GaN_222_rd.yaml.xz", produce_fc=False)
     sym_op_reps = SpgReps(
@@ -248,5 +268,9 @@ def bs_gan_222_compact() -> np.ndarray:
         ph.supercell.numbers,
         log_level=1,
     )
-    sbs = FCBasisSetsCompact(sym_op_reps.representations, log_level=1)
-    return sbs.basis_sets
+    sbs = FCBasisSetsCompact(
+        sym_op_reps.representations,
+        translation_permutations=sym_op_reps.translation_permutations,
+        log_level=1,
+    )
+    return sbs

@@ -16,7 +16,6 @@ class SpgReps:
         lattice: np.ndarray,
         positions: np.ndarray,
         numbers: np.ndarray,
-        pure_translation_only: bool = False,
         log_level: int = 0,
     ):
         """Init method.
@@ -149,7 +148,7 @@ class SpgReps:
 
         """
         size = 3 * len(self._numbers)
-        atom_indices = np.arange(len(self._numbers))  # [0, 1, 2, ..]
+        atom_indices = np.arange(len(self._numbers))
         reps = []
         for perm, r in zip(permutations, rotations):
             rot_cart = similarity_transformation(self._lattice, r)
@@ -160,14 +159,5 @@ class SpgReps:
                 rot_cart[i, j] for i, j in zip(nonzero_r_row, nonzero_r_col)
             ]
             data = np.tile(nonzero_r_elems, len(self._numbers))
-
-            # for atom1, atom2 in enumerate(perm):
-            #    for i,j in zip(ids[0], ids[1]):
-            #       id1 = 3 * atom2 + i
-            #       id2 = 3 * atom1 + j
-            #       row.append(id1)
-            #       col.append(id2)
-            #       data.append(rot[i,j])
-
             reps.append(coo_array((data, (row, col)), shape=(size, size)))
         return reps

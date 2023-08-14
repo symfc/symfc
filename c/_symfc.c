@@ -42,7 +42,7 @@
 static long to_serial(long i, long a, long j, long b, long natom);
 /* Build dynamical matrix */
 static PyObject* py_kron_nn33_long(PyObject* self, PyObject* args);
-static PyObject* py_get_compact_spg_proj(PyObject* self, PyObject* args);
+static PyObject* py_get_permutation_spg_proj(PyObject* self, PyObject* args);
 static PyObject* py_kron_nn33_int(PyObject* self, PyObject* args);
 struct module_state {
     PyObject* error;
@@ -62,7 +62,7 @@ static PyMethodDef _symfc_methods[] = {
      "Compute kron and transform n3n3 indices to nn33 indices."},
     {"kron_nn33_int", py_kron_nn33_int, METH_VARARGS,
      "Compute kron and transform n3n3 indices to nn33 indices."},
-    {"get_compact_spg_proj", py_get_compact_spg_proj, METH_VARARGS,
+    {"get_permutation_spg_proj", py_get_permutation_spg_proj, METH_VARARGS,
      "Compute compact space group operation projector matrix."},
     {NULL, NULL, 0, NULL}};
 
@@ -208,7 +208,7 @@ static PyObject* py_kron_nn33_long(PyObject* self, PyObject* args) {
     Py_RETURN_NONE;
 }
 
-static PyObject* py_get_compact_spg_proj(PyObject* self, PyObject* args) {
+static PyObject* py_get_permutation_spg_proj(PyObject* self, PyObject* args) {
     PyArrayObject* py_row;
     PyArrayObject* py_col;
     PyArrayObject* py_data;

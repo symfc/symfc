@@ -27,17 +27,18 @@ def test_fc_basis_sets_compact():
     types = [0, 0]
 
     sym_op_reps = SpgReps(lattice, positions, types, log_level=1)
-    rep = sym_op_reps.representations
     sbs = FCBasisSetsCompact(
-        rep,
+        sym_op_reps.representations,
+        translation_permutations=sym_op_reps.translation_permutations,
         log_level=1,
     )
+    sbs.run()
     basis = sbs.basis_sets_matrix_form
     np.testing.assert_allclose(basis[0], basis_ref, atol=1e-6)
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
 
 
-def test_fc_NaCl_222(bs_nacl_222_compact: np.ndarray):
+def test_fc_NaCl_222(bs_nacl_222_compact: FCBasisSetsCompact):
     """Test force constants by NaCl 64 atoms supercell and compared with ALM.
 
     Also test force constants by NaCl 64 atoms supercell.
@@ -46,7 +47,7 @@ def test_fc_NaCl_222(bs_nacl_222_compact: np.ndarray):
 
 
     """
-    basis_sets = bs_nacl_222_compact
+    basis_sets = bs_nacl_222_compact.run().basis_sets
     ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]
@@ -89,7 +90,7 @@ def test_fc_NaCl_222(bs_nacl_222_compact: np.ndarray):
 
 
 @pytest.mark.big
-def test_fc_SnO2_223_wrt_ALM(bs_sno2_223_compact: np.ndarray):
+def test_fc_SnO2_223_wrt_ALM(bs_sno2_223_compact: FCBasisSetsCompact):
     """Test force constants by SnO2 72 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -98,7 +99,7 @@ def test_fc_SnO2_223_wrt_ALM(bs_sno2_223_compact: np.ndarray):
     _ = _compare_fc_with_alm("phonopy_SnO2_223_rd.yaml.xz", bs_sno2_223_compact)
 
 
-def test_fc_SnO2_222_wrt_ALM(bs_sno2_222_compact: np.ndarray):
+def test_fc_SnO2_222_wrt_ALM(bs_sno2_222_compact: FCBasisSetsCompact):
     """Test force constants by SnO2 48 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -108,7 +109,7 @@ def test_fc_SnO2_222_wrt_ALM(bs_sno2_222_compact: np.ndarray):
 
 
 @pytest.mark.big
-def test_fc_SiO2_222_wrt_ALM(bs_sio2_222_compact: np.ndarray):
+def test_fc_SiO2_222_wrt_ALM(bs_sio2_222_compact: FCBasisSetsCompact):
     """Test force constants by SiO2 72 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -120,7 +121,7 @@ def test_fc_SiO2_222_wrt_ALM(bs_sio2_222_compact: np.ndarray):
     # )
 
 
-def test_fc_SiO2_221_wrt_ALM(bs_sio2_221_compact: np.ndarray):
+def test_fc_SiO2_221_wrt_ALM(bs_sio2_221_compact: FCBasisSetsCompact):
     """Test force constants by SiO2 36 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -133,7 +134,7 @@ def test_fc_SiO2_221_wrt_ALM(bs_sio2_221_compact: np.ndarray):
 
 
 @pytest.mark.big
-def test_fc_GaN_442_wrt_ALM(bs_gan_442_compact: np.ndarray):
+def test_fc_GaN_442_wrt_ALM(bs_gan_442_compact: FCBasisSetsCompact):
     """Test force constants by GaN 128 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -145,7 +146,7 @@ def test_fc_GaN_442_wrt_ALM(bs_gan_442_compact: np.ndarray):
     # )
 
 
-def test_fc_GaN_222_wrt_ALM(bs_gan_222_compact: np.ndarray):
+def test_fc_GaN_222_wrt_ALM(bs_gan_222_compact: FCBasisSetsCompact):
     """Test force constants by GaN 32 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -157,8 +158,9 @@ def test_fc_GaN_222_wrt_ALM(bs_gan_222_compact: np.ndarray):
     # )
 
 
-def _compare_fc_with_alm(filename, basis_sets) -> np.ndarray:
+def _compare_fc_with_alm(filename, fc_basis_sets) -> np.ndarray:
     pytest.importorskip("alm")
+    basis_sets = fc_basis_sets.run().basis_sets
     ph = phonopy.load(cwd / filename, fc_calculator="alm")
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]
