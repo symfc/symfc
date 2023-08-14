@@ -1,6 +1,5 @@
 """Generate symmetrized force constants using compact projection matrix."""
 import itertools
-import time
 from typing import Optional
 
 import numpy as np
@@ -15,19 +14,6 @@ from symfc.utils import (
     get_projector_sum_rule,
     to_serial,
 )
-
-
-def measure_time(func):
-    """Measure time consumed by func."""
-
-    def wrapper(*args, **kwargs):
-        t0 = time.time()
-        result = func(*args, **kwargs)
-        t1 = time.time()
-        print(f"|--- {t1 - t0} ---")
-        return result
-
-    return wrapper
 
 
 class FCBasisSetsCompact:

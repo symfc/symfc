@@ -3,7 +3,7 @@ import itertools
 
 import numpy as np
 import scipy
-from scipy.sparse import coo_array, csc_array, csr_array
+from scipy.sparse import coo_array, csr_array
 
 import symfc._symfc as symfcc
 
@@ -160,61 +160,11 @@ def get_compression_spg_proj(
     C = compression_mat
     # row, col, data = kron_c(reps, natom)
     # size_sq = (3 * natom) ** 2
-    # proj_mat = csr_array((data, (row, col)), shape=(size_sq, size_sq), dtype="double")
+    # proj_mat = coo_array((data, (row, col)), shape=(size_sq, size_sq), dtype="double")
     # proj_mat = proj_mat @ C
     # proj_mat = C.T @ proj_mat
     proj_mat = kron_sum_c(reps, natom, C)
     return proj_mat
-
-
-def get_permutation_spg_proj_c(
-    reps, natom
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Compute compact spg + permutation projector matrix in C.
-
-    This is a C version of ``get_compression_spg_proj`` with permutation
-    compression matrix. This has little gain in computing time.
-
-    This computes perm_mat.T @ spg_proj (kron_c) @ perm_mat.
-
-    """
-    size = 0
-    for rmat in reps:
-        size += rmat.row.shape[0] ** 2
-    row_dtype = reps[0].row.dtype
-    col_dtype = reps[0].col.dtype
-    data_dtype = reps[0].data.dtype
-    row = np.zeros(size, dtype=row_dtype)
-    col = np.zeros(size, dtype=col_dtype)
-    data = np.zeros(size, dtype=data_dtype)
-    assert row_dtype is np.dtype("int_")
-    assert reps[0].row.flags.contiguous
-    assert col_dtype is np.dtype("int_")
-    assert reps[0].col.flags.contiguous
-    assert data_dtype is np.dtype("double")
-    assert reps[0].data.flags.contiguous
-    i_shift = 0
-    for rmat in reps:
-        if col_dtype is np.dtype("int_") and row_dtype is np.dtype("int_"):
-            symfcc.get_permutation_spg_proj(
-                row[i_shift:],
-                col[i_shift:],
-                data[i_shift:],
-                rmat.row,
-                rmat.col,
-                rmat.data,
-                natom,
-            )
-        else:
-            raise RuntimeError("Incompatible data type of rows and cols of coo_array.")
-        i_shift += rmat.row.shape[0] ** 2
-    data /= len(reps)
-    size_mat = natom * 3 * (natom * 3 + 1)
-    size_mat = size_mat // 2
-    compression_spg_mat = csc_array(
-        (data, (row, col)), shape=(size_mat, size_mat), dtype="double"
-    )
-    return compression_spg_mat
 
 
 def get_projector_constraints(
@@ -230,7 +180,7 @@ def get_projector_constraints(
     return proj
 
 
-def get_projector_sum_rule(natom) -> csr_array:
+def get_projector_sum_rule(natom) -> coo_array:
     """Return sum rule constraint projector.
 
     Equivalent to C below,
@@ -242,7 +192,7 @@ def get_projector_sum_rule(natom) -> csr_array:
     size_sq = 9 * natom * natom
     row, col, data = [], [], []
     block = np.tile(np.eye(9), (natom, natom))
-    csr = csr_array(block)
+    csr = coo_array(block)
     row1, col1 = csr.nonzero()
     size = row1.shape[0]
     row = np.zeros(size * natom, dtype=row1.dtype)
@@ -252,12 +202,12 @@ def get_projector_sum_rule(natom) -> csr_array:
         row[size * i : size * (i + 1)] = row1 + 9 * natom * i
         col[size * i : size * (i + 1)] = col1 + 9 * natom * i
         data[size * i : size * (i + 1)] = csr.data / natom
-    C = csr_array((data, (row, col)), shape=(size_sq, size_sq))
+    C = coo_array((data, (row, col)), shape=(size_sq, size_sq))
     proj = scipy.sparse.eye(size_sq) - C
     return proj
 
 
-def get_projector_permutations(natom: int) -> csr_array:
+def get_projector_permutations(natom: int) -> coo_array:
     """Return permutation constraint projector."""
     size = 3 * natom
     size_sq = size**2
@@ -270,7 +220,7 @@ def get_projector_permutations(natom: int) -> csr_array:
         row += [id1, id2, id1, id2]
         col += [id1, id2, id2, id1]
         data += [0.5, 0.5, -0.5, -0.5]
-    C = csr_array((data, (row, col)), shape=(size_sq, size_sq))
+    C = coo_array((data, (row, col)), shape=(size_sq, size_sq))
     proj = scipy.sparse.eye(size_sq) - C
     return proj
 
