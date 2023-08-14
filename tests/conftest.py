@@ -200,7 +200,11 @@ def bs_sno2_222_compact() -> FCBasisSetsCompact:
         ph.supercell.numbers,
         log_level=1,
     )
-    sbs = FCBasisSetsCompact(sym_op_reps.representations, log_level=1)
+    sbs = FCBasisSetsCompact(
+        sym_op_reps.representations,
+        translation_permutations=sym_op_reps.translation_permutations,
+        log_level=1,
+    )
     return sbs
 
 

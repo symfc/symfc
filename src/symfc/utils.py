@@ -3,7 +3,7 @@ import itertools
 
 import numpy as np
 import scipy
-from scipy.sparse import csr_array
+from scipy.sparse import coo_array, csc_array, csr_array
 
 import symfc._symfc as symfcc
 
@@ -86,10 +86,94 @@ def kron_c(reps, natom) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return row, col, data
 
 
+def kron_sum_c(reps, natom, C):
+    """Compute sum_r kron(r, r) / N_r in NN33 order in C.
+
+    See the details about this method in _step1_kron_py_for_c.
+    Smaller memory usage than kron_c but slower.
+
+    Note
+    ----
+    At some version of scipy, dtype of coo_array.col and coo_array.row changed.
+    Here the dtype is assumed 'intc' (<1.11) or 'int_' (>=1.11).
+
+    """
+    row_dtype = reps[0].row.dtype
+    col_dtype = reps[0].col.dtype
+    data_dtype = reps[0].data.dtype
+    assert row_dtype is np.dtype("intc") or row_dtype is np.dtype("int_")
+    assert reps[0].row.flags.contiguous
+    assert col_dtype is np.dtype("intc") or col_dtype is np.dtype("int_")
+    assert reps[0].col.flags.contiguous
+    assert data_dtype is np.dtype("double")
+    assert reps[0].data.flags.contiguous
+
+    size_sq = (3 * natom) ** 2
+    kron_sum = None
+    for i, rmat in enumerate(reps):
+        size = rmat.row.shape[0] ** 2
+        row = np.zeros(size, dtype=row_dtype)
+        col = np.zeros(size, dtype=col_dtype)
+        data = np.zeros(size, dtype=data_dtype)
+        if col_dtype is np.dtype("intc") and row_dtype is np.dtype("intc"):
+            symfcc.kron_nn33_int(
+                row,
+                col,
+                data,
+                rmat.row,
+                rmat.col,
+                rmat.data,
+                3 * natom,
+            )
+        elif col_dtype is np.dtype("int_") and row_dtype is np.dtype("int_"):
+            symfcc.kron_nn33_long(
+                row,
+                col,
+                data,
+                rmat.row,
+                rmat.col,
+                rmat.data,
+                3 * natom,
+            )
+        else:
+            raise RuntimeError("Incompatible data type of rows and cols of coo_array.")
+        data /= len(reps)
+        kron = coo_array((data, (row, col)), shape=(size_sq, size_sq), dtype="double")
+        kron = kron @ C
+        kron = C.T @ kron
+        if i == 0:
+            kron_sum = kron
+        else:
+            kron_sum += kron
+
+    return kron_sum
+
+
+def get_compression_spg_proj(
+    reps: list[coo_array], natom: int, compression_mat: coo_array
+) -> coo_array:
+    """Compute compact spg projector matrix.
+
+    This computes perm_mat.T @ spg_proj (kron_c) @ perm_mat.
+
+    """
+    C = compression_mat
+    # row, col, data = kron_c(reps, natom)
+    # size_sq = (3 * natom) ** 2
+    # proj_mat = csr_array((data, (row, col)), shape=(size_sq, size_sq), dtype="double")
+    # proj_mat = proj_mat @ C
+    # proj_mat = C.T @ proj_mat
+    proj_mat = kron_sum_c(reps, natom, C)
+    return proj_mat
+
+
 def get_permutation_spg_proj_c(
     reps, natom
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Compute compact spg projector matrix in C.
+    """Compute compact spg + permutation projector matrix in C.
+
+    This is a C version of ``get_compression_spg_proj`` with permutation
+    compression matrix. This has little gain in computing time.
 
     This computes perm_mat.T @ spg_proj (kron_c) @ perm_mat.
 
@@ -125,8 +209,12 @@ def get_permutation_spg_proj_c(
             raise RuntimeError("Incompatible data type of rows and cols of coo_array.")
         i_shift += rmat.row.shape[0] ** 2
     data /= len(reps)
-
-    return row, col, data
+    size_mat = natom * 3 * (natom * 3 + 1)
+    size_mat = size_mat // 2
+    compression_spg_mat = csc_array(
+        (data, (row, col)), shape=(size_mat, size_mat), dtype="double"
+    )
+    return compression_spg_mat
 
 
 def get_projector_constraints(
@@ -155,11 +243,15 @@ def get_projector_sum_rule(natom) -> csr_array:
     row, col, data = [], [], []
     block = np.tile(np.eye(9), (natom, natom))
     csr = csr_array(block)
+    row1, col1 = csr.nonzero()
+    size = row1.shape[0]
+    row = np.zeros(size * natom, dtype=row1.dtype)
+    col = np.zeros(size * natom, dtype=col1.dtype)
+    data = np.zeros(size * natom, dtype=csr.data.dtype)
     for i in range(natom):
-        row1, col1 = csr.nonzero()
-        row += (row1 + 9 * natom * i).tolist()
-        col += (col1 + 9 * natom * i).tolist()
-        data += (csr.data / natom).tolist()
+        row[size * i : size * (i + 1)] = row1 + 9 * natom * i
+        col[size * i : size * (i + 1)] = col1 + 9 * natom * i
+        data[size * i : size * (i + 1)] = csr.data / natom
     C = csr_array((data, (row, col)), shape=(size_sq, size_sq))
     proj = scipy.sparse.eye(size_sq) - C
     return proj

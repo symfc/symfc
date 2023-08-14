@@ -38,17 +38,18 @@ class SpgReps:
         self._positions = np.array(positions, dtype="double", order="C")
         self._numbers = numbers
         self._log_level = log_level
-        self._reps: Optional[list] = None
+        self._reps: Optional[list[coo_array]] = None
+        self._translation_permutations: Optional[np.ndarray] = None
 
         self._run()
 
     @property
-    def representations(self) -> Optional[list]:
-        """Return matrix representations."""
+    def representations(self) -> Optional[list[coo_array]]:
+        """Return 3Nx3N matrix representations."""
         return self._reps
 
     @property
-    def translation_permutations(self) -> np.ndarray:
+    def translation_permutations(self) -> Optional[np.ndarray]:
         """Return permutations by lattice translation.
 
         Returns
@@ -126,7 +127,7 @@ class SpgReps:
             np.array(translations_inv, dtype=translations.dtype),
         )
 
-    def _compute_reps(self, permutations, rotations, tol=1e-10) -> None:
+    def _compute_reps(self, permutations, rotations, tol=1e-10) -> list[coo_array]:
         """Construct representation matrices of rotations.
 
         Permutation of atoms by r, perm(r) = [0 1], means the permutation matrix:
