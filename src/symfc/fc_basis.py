@@ -8,7 +8,7 @@ import numpy as np
 import scipy
 from scipy.sparse import coo_array, csr_array
 
-from symfc.matrix_funcs import (
+from symfc.utils import (
     convert_basis_sets_matrix_form,
     get_projector_constraints,
     get_projector_permutations,
@@ -46,7 +46,7 @@ class FCBasisSets:
         self._use_exact_projection_matrix = use_exact_projection_matrix
         self._log_level = log_level
 
-        self._natom = int(round(self._reps[0].shape[0] / 3))
+        self._natom = self._reps[0].shape[0] // 3
 
         self._basis_sets: Optional[np.ndarray] = None
         self._fc_basis_seq: Optional[np.ndarray] = None
@@ -124,7 +124,11 @@ class FCBasisSets:
         return proj_mat
 
     def _step1_kron_py(self) -> tuple[list, list, list]:
-        """Compute kron(r, r) and reformat from N3N3 into NN33-like."""
+        """Compute kron(r, r) and reformat from N3N3 into NN33-like.
+
+        Original implementation. Slow.
+
+        """
         row = []
         col = []
         data = []

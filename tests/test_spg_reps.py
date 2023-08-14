@@ -1,72 +1,68 @@
 """Tests of SpgReps class."""
 
 import numpy as np
-import pytest
 from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.spg_reps import SpgReps
 
 
-@pytest.mark.parametrize(
-    "pure_translation_only,rank_result",
-    [(True, 6), (False, 0)],
-)
-def test_SpgReps_NaCl_111(
-    cell_nacl_111: PhonopyAtoms, pure_translation_only: bool, rank_result: int
-):
-    """Test SpgReps by its rank."""
+def test_SpgReps_NaCl_111(cell_nacl_111: PhonopyAtoms):
+    """Test SpgReps by its trace."""
     cell = cell_nacl_111
     sym_op_reps = SpgReps(
         cell.cell.T,
         cell.scaled_positions.T,
         cell.numbers,
-        pure_translation_only=pure_translation_only,
         log_level=1,
     )
 
     reps = sym_op_reps.representations
-    proj = reps[0]
-    if len(reps) > 1:
-        for rep in reps[1:]:
-            proj += rep
+    proj = np.zeros_like(reps[0])
+    for rep in reps:
+        proj += rep
     proj /= len(reps)
     for v in proj.toarray():
         print(v)
-    rank = np.rint(proj.diagonal().sum()).astype(int)
-    assert rank == rank_result
-    if pure_translation_only:
-        np.testing.assert_allclose(proj.data, 0.25)
-    else:
-        len(proj.data) == 0
+    assert np.rint(proj.trace()).astype(int) == 0
+    len(proj.data) == 0
 
 
-@pytest.mark.parametrize(
-    "pure_translation_only,rank_result",
-    [(True, 6), (False, 0)],
-)
-def test_SpgReps_NaCl_222(
-    ph_nacl_222: Phonopy, pure_translation_only: bool, rank_result: int
-):
-    """Test SpgReps by its rank."""
+def test_SpgReps_NaCl_222(ph_nacl_222: Phonopy):
+    """Test SpgReps by its trace."""
     ph = ph_nacl_222
     sym_op_reps = SpgReps(
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        pure_translation_only=pure_translation_only,
         log_level=1,
     )
 
     reps = sym_op_reps.representations
-    proj = reps[0]
-    if len(reps) > 1:
-        for rep in reps[1:]:
-            proj += rep
+    proj = np.zeros_like(reps[0])
+    for rep in reps:
+        proj += rep
     proj /= len(reps)
-    rank = np.rint(proj.diagonal().sum()).astype(int)
-    assert rank == rank_result
-    if pure_translation_only:
-        np.testing.assert_allclose(proj.data, 0.03125)
-    else:
-        len(proj.data) == 0
+    assert np.rint(proj.trace()).astype(int) == 0
+    len(proj.data) == 0
+
+
+def test_translation_permutations_NaCl_111(cell_nacl_111: PhonopyAtoms):
+    """Test SpgReps.translation_permutations."""
+    cell = cell_nacl_111
+    sym_op_reps = SpgReps(
+        cell.cell.T,
+        cell.scaled_positions.T,
+        cell.numbers,
+        log_level=1,
+    )
+    trans_perms = sym_op_reps.translation_permutations
+    # for v in trans_perms:
+    #     print("[", ", ".join([f"{x}" for x in v]), "],")
+    ref = [
+        [0, 1, 2, 3, 4, 5, 6, 7],
+        [3, 2, 1, 0, 7, 6, 5, 4],
+        [2, 3, 0, 1, 6, 7, 4, 5],
+        [1, 0, 3, 2, 5, 4, 7, 6],
+    ]
+    np.testing.assert_array_equal(trans_perms, ref)

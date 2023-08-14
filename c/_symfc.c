@@ -39,10 +39,8 @@
 #include <stddef.h>
 #include <stdio.h>
 
-static long to_serial(long i, long a, long j, long b, long natom);
 /* Build dynamical matrix */
 static PyObject* py_kron_nn33_long(PyObject* self, PyObject* args);
-static PyObject* py_get_compact_spg_proj(PyObject* self, PyObject* args);
 static PyObject* py_kron_nn33_int(PyObject* self, PyObject* args);
 struct module_state {
     PyObject* error;
@@ -62,8 +60,6 @@ static PyMethodDef _symfc_methods[] = {
      "Compute kron and transform n3n3 indices to nn33 indices."},
     {"kron_nn33_int", py_kron_nn33_int, METH_VARARGS,
      "Compute kron and transform n3n3 indices to nn33 indices."},
-    {"get_compact_spg_proj", py_get_compact_spg_proj, METH_VARARGS,
-     "Compute compact space group operation projector matrix."},
     {NULL, NULL, 0, NULL}};
 
 static int _symfc_traverse(PyObject* m, visitproc visit, void* arg) {
@@ -206,82 +202,4 @@ static PyObject* py_kron_nn33_long(PyObject* self, PyObject* args) {
         }
     }
     Py_RETURN_NONE;
-}
-
-static PyObject* py_get_compact_spg_proj(PyObject* self, PyObject* args) {
-    PyArrayObject* py_row;
-    PyArrayObject* py_col;
-    PyArrayObject* py_data;
-    PyArrayObject* py_row_R;
-    PyArrayObject* py_col_R;
-    PyArrayObject* py_data_R;
-    long natom;
-
-    long i_row_R, j_row_R, k_row_R, l_row_R, i_col_R, j_col_R, k_col_R, l_col_R;
-    double inv_sqrt2 = sqrt(2) / 2;
-
-    if (!PyArg_ParseTuple(args, "OOOOOOl", &py_row, &py_col, &py_data,
-                          &py_row_R, &py_col_R, &py_data_R, &natom)) {
-        return NULL;
-    }
-
-    long size_R = PyArray_DIMS(py_row_R)[0];
-    long* row_R = (long*)PyArray_DATA(py_row_R);
-    long* col_R = (long*)PyArray_DATA(py_col_R);
-    double* data_R = (double*)PyArray_DATA(py_data_R);
-    long* row = (long*)PyArray_DATA(py_row);
-    long* col = (long*)PyArray_DATA(py_col);
-    double* data = (double*)PyArray_DATA(py_data);
-
-    long to_perm_id[natom * natom * 9];
-    long n = 0;
-    long i_i, i_a, i_j, i_b;
-    for (long i = 0; i < natom * 3; i++) {
-        for (long j = 0; j < natom * 3; j++) {
-            i_i = i / 3;
-            i_a = i % 3;
-            i_j = j / 3;
-            i_b = j % 3;
-            if (i > j) {
-                to_perm_id[to_serial(i_i, i_a, i_j, i_b, natom)] =
-                    to_perm_id[to_serial(i_j, i_b, i_i, i_a, natom)];
-            } else {
-                to_perm_id[to_serial(i_i, i_a, i_j, i_b, natom)] = n;
-                n++;
-            }
-        }
-    }
-
-    // Multiply nn33xnn33 matrix elements by 1/sqrt(2) for non-diagonal elemetns
-    // of n3xn3 matrix along row and col.
-    long count = 0;
-    for (long i = 0; i < size_R; i++) {
-        i_row_R = row_R[i] / 3;
-        j_row_R = row_R[i] % 3;
-        k_row_R = col_R[i] / 3;
-        l_row_R = col_R[i] % 3;
-        for (long j = 0; j < size_R; j++) {
-            i_col_R = row_R[j] / 3;
-            j_col_R = row_R[j] % 3;
-            k_col_R = col_R[j] / 3;
-            l_col_R = col_R[j] % 3;
-            row[count] = to_perm_id[to_serial(i_row_R, j_row_R, i_col_R,
-                                              j_col_R, natom)];
-            col[count] = to_perm_id[to_serial(k_row_R, l_row_R, k_col_R,
-                                              l_col_R, natom)];
-            data[count] = data_R[i] * data_R[j];
-            if (row_R[i] != row_R[j]) {
-                data[count] *= inv_sqrt2;
-            };
-            if (col_R[i] != col_R[j]) {
-                data[count] *= inv_sqrt2;
-            };
-            count++;
-        }
-    }
-    Py_RETURN_NONE;
-}
-
-static long to_serial(long i, long a, long j, long b, long natom) {
-    return (i * 9 * natom) + (j * 9) + (a * 3) + b;
 }

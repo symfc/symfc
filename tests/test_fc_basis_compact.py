@@ -27,17 +27,19 @@ def test_fc_basis_sets_compact():
     types = [0, 0]
 
     sym_op_reps = SpgReps(lattice, positions, types, log_level=1)
-    rep = sym_op_reps.representations
     sbs = FCBasisSetsCompact(
-        rep,
+        sym_op_reps.representations,
+        translation_permutations=sym_op_reps.translation_permutations,
         log_level=1,
     )
+    sbs.run()
     basis = sbs.basis_sets_matrix_form
     np.testing.assert_allclose(basis[0], basis_ref, atol=1e-6)
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
 
 
-def test_fc_NaCl_222(bs_nacl_222_compact: np.ndarray):
+@pytest.mark.parametrize("use_permutation", [True, False])
+def test_fc_NaCl_222(bs_nacl_222_compact: FCBasisSetsCompact, use_permutation: bool):
     """Test force constants by NaCl 64 atoms supercell and compared with ALM.
 
     Also test force constants by NaCl 64 atoms supercell.
@@ -46,7 +48,7 @@ def test_fc_NaCl_222(bs_nacl_222_compact: np.ndarray):
 
 
     """
-    basis_sets = bs_nacl_222_compact
+    basis_sets = bs_nacl_222_compact.run(use_permutation=use_permutation).basis_sets
     ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]
@@ -88,77 +90,119 @@ def test_fc_NaCl_222(bs_nacl_222_compact: np.ndarray):
     # )
 
 
-@pytest.mark.big
-def test_fc_SnO2_223_wrt_ALM(bs_sno2_223_compact: np.ndarray):
+@pytest.mark.parametrize("use_permutation", [True, False])
+def test_fc_SnO2_223_wrt_ALM(
+    bs_sno2_223_compact: FCBasisSetsCompact, use_permutation: bool
+):
     """Test force constants by SnO2 72 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm("phonopy_SnO2_223_rd.yaml.xz", bs_sno2_223_compact)
+    _ = _compare_fc_with_alm(
+        "phonopy_SnO2_223_rd.yaml.xz",
+        bs_sno2_223_compact,
+        use_permutation=use_permutation,
+    )
 
 
-def test_fc_SnO2_222_wrt_ALM(bs_sno2_222_compact: np.ndarray):
+@pytest.mark.parametrize("use_permutation", [True, False])
+def test_fc_SnO2_222_wrt_ALM(
+    bs_sno2_222_compact: FCBasisSetsCompact, use_permutation: bool
+):
     """Test force constants by SnO2 48 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm("phonopy_SnO2_222_rd.yaml.xz", bs_sno2_222_compact)
+    _ = _compare_fc_with_alm(
+        "phonopy_SnO2_222_rd.yaml.xz",
+        bs_sno2_222_compact,
+        use_permutation=use_permutation,
+    )
 
 
 @pytest.mark.big
-def test_fc_SiO2_222_wrt_ALM(bs_sio2_222_compact: np.ndarray):
+@pytest.mark.parametrize("use_permutation", [True, False])
+def test_fc_SiO2_222_wrt_ALM(
+    bs_sio2_222_compact: FCBasisSetsCompact, use_permutation: bool
+):
     """Test force constants by SiO2 72 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm("phonopy_SiO2_222_rd.yaml.xz", bs_sio2_222_compact)
+    _ = _compare_fc_with_alm(
+        "phonopy_SiO2_222_rd.yaml.xz",
+        bs_sio2_222_compact,
+        use_permutation=use_permutation,
+    )
     # _write_phonopy_fc_yaml(
     #     "phonopy_SiO2_222_fc.yaml", "phonopy_SiO2_222_rd.yaml.xz", fc_compact
     # )
 
 
-def test_fc_SiO2_221_wrt_ALM(bs_sio2_221_compact: np.ndarray):
+@pytest.mark.parametrize("use_permutation", [True, False])
+def test_fc_SiO2_221_wrt_ALM(
+    bs_sio2_221_compact: FCBasisSetsCompact, use_permutation: bool
+):
     """Test force constants by SiO2 36 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm("phonopy_SiO2_221_rd.yaml.xz", bs_sio2_221_compact)
+    _ = _compare_fc_with_alm(
+        "phonopy_SiO2_221_rd.yaml.xz",
+        bs_sio2_221_compact,
+        use_permutation=use_permutation,
+    )
     # _write_phonopy_fc_yaml(
     #     "phonopy_SiO2_221_fc.yaml", "phonopy_SiO2_221_rd.yaml.xz", fc_compact
     # )
 
 
 @pytest.mark.big
-def test_fc_GaN_442_wrt_ALM(bs_gan_442_compact: np.ndarray):
+@pytest.mark.parametrize("use_permutation", [True, False])
+def test_fc_GaN_442_wrt_ALM(
+    bs_gan_442_compact: FCBasisSetsCompact, use_permutation: bool
+):
     """Test force constants by GaN 128 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm("phonopy_GaN_442_rd.yaml.xz", bs_gan_442_compact)
+    _ = _compare_fc_with_alm(
+        "phonopy_GaN_442_rd.yaml.xz",
+        bs_gan_442_compact,
+        use_permutation=use_permutation,
+    )
     # _write_phonopy_fc_yaml(
     #     "phonopy_GaN_442_fc.yaml", "phonopy_GaN_442_rd.yaml.xz", fc_compact
     # )
 
 
-def test_fc_GaN_222_wrt_ALM(bs_gan_222_compact: np.ndarray):
+@pytest.mark.parametrize("use_permutation", [True, False])
+def test_fc_GaN_222_wrt_ALM(
+    bs_gan_222_compact: FCBasisSetsCompact, use_permutation: bool
+):
     """Test force constants by GaN 32 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm("phonopy_GaN_222_rd.yaml.xz", bs_gan_222_compact)
+    _ = _compare_fc_with_alm(
+        "phonopy_GaN_222_rd.yaml.xz",
+        bs_gan_222_compact,
+        use_permutation=use_permutation,
+    )
     # _write_phonopy_fc_yaml(
     #     "phonopy_GaN_222_fc.yaml", "phonopy_GaN_222_rd.yaml.xz", fc_compact
     # )
 
 
-def _compare_fc_with_alm(filename, basis_sets) -> np.ndarray:
+def _compare_fc_with_alm(filename, fc_basis_sets, use_permutation=False) -> np.ndarray:
     pytest.importorskip("alm")
+    basis_sets = fc_basis_sets.run(use_permutation=use_permutation).basis_sets
     ph = phonopy.load(cwd / filename, fc_calculator="alm")
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]

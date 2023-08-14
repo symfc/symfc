@@ -16,7 +16,6 @@ class SpgReps:
         lattice: np.ndarray,
         positions: np.ndarray,
         numbers: np.ndarray,
-        pure_translation_only: bool = False,
         log_level: int = 0,
     ):
         """Init method.
@@ -38,30 +37,31 @@ class SpgReps:
         self._lattice = np.array(lattice, dtype="double", order="C")
         self._positions = np.array(positions, dtype="double", order="C")
         self._numbers = numbers
-        self._pure_translation_only = pure_translation_only
         self._log_level = log_level
-        self._reps: Optional[list] = None
+        self._reps: Optional[list[coo_array]] = None
+        self._translation_permutations: Optional[np.ndarray] = None
 
         self._run()
 
     @property
-    def representations(self) -> Optional[list]:
-        """Return matrix representations."""
+    def representations(self) -> Optional[list[coo_array]]:
+        """Return 3Nx3N matrix representations."""
         return self._reps
+
+    @property
+    def translation_permutations(self) -> Optional[np.ndarray]:
+        """Return permutations by lattice translation.
+
+        Returns
+        --------
+        Atom indices after lattice translations.
+        shape=(lattice_translations, supercell_atoms)
+
+        """
+        return self._translation_permutations
 
     def _run(self):
         rotations_inv, translations_inv = self._get_symops_inv()
-        if self._pure_translation_only:
-            identity = np.eye(3, dtype=int)
-            _rots = []
-            _trans = []
-            for r, t in zip(rotations_inv, translations_inv):
-                if (r == identity).all():
-                    _rots.append(r)
-                    _trans.append(t)
-            rotations_inv = np.array(_rots, dtype=rotations_inv.dtype)
-            translations_inv = np.array(_trans, dtype=translations_inv.dtype)
-
         if self._log_level:
             print(" finding permutations ...")
         permutations_inv = compute_all_sg_permutations(
@@ -69,7 +69,18 @@ class SpgReps:
         )
         if self._log_level:
             print(" setting representations (first order) ...")
-        self._compute_reps(permutations_inv, rotations_inv)
+        self._reps = self._compute_reps(permutations_inv, rotations_inv)
+        self._translation_permutations = self._get_translation_permutations(
+            permutations_inv, rotations_inv
+        )
+
+    def _get_translation_permutations(self, permutations, rotations) -> np.ndarray:
+        eye3 = np.eye(3, dtype=int)
+        trans_perms = []
+        for r, perm in zip(rotations, permutations):
+            if np.array_equal(r, eye3):
+                trans_perms.append(perm)
+        return np.array(trans_perms, dtype=int)
 
     def _get_symops_inv(self, tol=1e-8) -> tuple[np.ndarray, np.ndarray]:
         """Return inverse symmetry operations.
@@ -116,7 +127,7 @@ class SpgReps:
             np.array(translations_inv, dtype=translations.dtype),
         )
 
-    def _compute_reps(self, permutations, rotations, tol=1e-10) -> None:
+    def _compute_reps(self, permutations, rotations, tol=1e-10) -> list[coo_array]:
         """Construct representation matrices of rotations.
 
         Permutation of atoms by r, perm(r) = [0 1], means the permutation matrix:
@@ -138,8 +149,8 @@ class SpgReps:
 
         """
         size = 3 * len(self._numbers)
-        atom_indices = np.arange(len(self._numbers))  # [0, 1, 2, ..]
-        self._reps = []
+        atom_indices = np.arange(len(self._numbers))
+        reps = []
         for perm, r in zip(permutations, rotations):
             rot_cart = similarity_transformation(self._lattice, r)
             nonzero_r_row, nonzero_r_col = np.nonzero(np.abs(rot_cart) > tol)
@@ -149,14 +160,5 @@ class SpgReps:
                 rot_cart[i, j] for i, j in zip(nonzero_r_row, nonzero_r_col)
             ]
             data = np.tile(nonzero_r_elems, len(self._numbers))
-
-            # for atom1, atom2 in enumerate(perm):
-            #    for i,j in zip(ids[0], ids[1]):
-            #       id1 = 3 * atom2 + i
-            #       id2 = 3 * atom1 + j
-            #       row.append(id1)
-            #       col.append(id2)
-            #       data.append(rot[i,j])
-
-            rep = coo_array((data, (row, col)), shape=(size, size))
-            self._reps.append(rep)
+            reps.append(coo_array((data, (row, col)), shape=(size, size)))
+        return reps
