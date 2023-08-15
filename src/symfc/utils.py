@@ -271,7 +271,7 @@ def get_projector_sum_rule(natom) -> coo_array:
     if row1.dtype is np.dtype("intc") and col1.dtype is np.dtype("intc"):
         symfcc.projector_sum_rule_int(row, col, row1, col1, natom)
     elif row1.dtype is np.dtype("int_") and col1.dtype is np.dtype("int_"):
-        symfcc.projector_sum_rule_long(row, col, natom)
+        symfcc.projector_sum_rule_long(row, col, row1, col1, natom)
     else:
         raise RuntimeError("Incompatible data type of rows and cols of coo_array.")
     # for i in range(natom):
@@ -286,15 +286,21 @@ def get_projector_permutations(natom: int) -> coo_array:
     """Return permutation constraint projector."""
     size = 3 * natom
     size_sq = size**2
-    row, col, data = [], [], []
+    data_size = size * (size - 1)
+    data_size = data_size // 2
+    row = np.zeros(data_size * 4, dtype=int)
+    col = np.zeros(data_size * 4, dtype=int)
+    data = np.zeros(data_size * 4, dtype=float)
+    count = 0
     for ia, jb in itertools.combinations(range(size), 2):
         i, a = ia // 3, ia % 3
         j, b = jb // 3, jb % 3
         id1 = to_serial(i, a, j, b, natom)
         id2 = to_serial(j, b, i, a, natom)
-        row += [id1, id2, id1, id2]
-        col += [id1, id2, id2, id1]
-        data += [0.5, 0.5, -0.5, -0.5]
+        row[count : count + 4] = [id1, id2, id1, id2]
+        col[count : count + 4] = [id1, id2, id2, id1]
+        data[count : count + 4] = [0.5, 0.5, -0.5, -0.5]
+        count += 4
     C = coo_array((data, (row, col)), shape=(size_sq, size_sq))
     proj = scipy.sparse.eye(size_sq) - C
     return proj

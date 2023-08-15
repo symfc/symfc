@@ -12,7 +12,6 @@ from symfc.utils import (
     get_compression_spg_proj,
     get_indep_atoms_by_lattice_translation,
     get_projector_permutations,
-    get_projector_sum_rule,
     to_serial,
 )
 
@@ -86,6 +85,7 @@ class FCBasisSetsCompact:
             )
         vecs = self._step2(compression_mat, tol=tol)
         U = self._step3(vecs, compression_mat, use_permutation)
+        U = compression_mat.T @ U
         self._step4(U, compression_mat, tol=tol)
         return self
 
@@ -113,13 +113,20 @@ class FCBasisSetsCompact:
     def _step3(
         self, vecs: np.ndarray, compression_mat: coo_array, use_permutation: bool
     ) -> np.ndarray:
-        U = compression_mat @ vecs
-        print("get_projector_sum_rule")
-        U = get_projector_sum_rule(self._natom) @ U
         if not use_permutation:
-            print("get_projector_permutations")
-            U = get_projector_permutations(self._natom) @ U
-        U = compression_mat.T @ U
+            print("Multiply index permutation projector")
+            U = get_projector_permutations(self._natom) @ compression_mat
+            U = U @ vecs
+        else:
+            U = compression_mat @ vecs
+        print("Multiply sum rule projector")
+        block = (
+            np.tile(np.eye(9, dtype=float), (self._natom, self._natom)) / self._natom
+        )
+        for i in range(self._natom):
+            U[i * self._natom * 9 : (i + 1) * self._natom * 9, :] -= (
+                block @ U[i * self._natom * 9 : (i + 1) * self._natom * 9, :]
+            )
         return U
 
     def _step4(self, U: np.ndarray, compression_mat: coo_array, tol: float = 1e-8):
@@ -130,10 +137,14 @@ class FCBasisSetsCompact:
             print(f"  - svd eigenvalues = {np.abs(s)}")
             print(f"  - basis size = {U.shape}")
 
-        fc_basis = [
-            b.reshape((self._natom, self._natom, 3, 3)) for b in (compression_mat @ U).T
-        ]
-        self._basis_sets = np.array(fc_basis, dtype="double", order="C")
+        basis = (compression_mat @ U).T
+        self._basis_sets = np.zeros(
+            (basis.shape[0], self._natom, self._natom, 3, 3),
+            dtype="double",
+            order="C",
+        )
+        for i, b in enumerate(basis):
+            self._basis_sets[i] = b.reshape((self._natom, self._natom, 3, 3))
 
 
 def _get_permutation_compression_matrix(natom: int) -> coo_array:
