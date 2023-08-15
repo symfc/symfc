@@ -85,7 +85,6 @@ class FCBasisSetsCompact:
             )
         vecs = self._step2(compression_mat, tol=tol)
         U = self._step3(vecs, compression_mat, use_permutation)
-        U = compression_mat.T @ U
         self._step4(U, compression_mat, tol=tol)
         return self
 
@@ -120,13 +119,14 @@ class FCBasisSetsCompact:
         else:
             U = compression_mat @ vecs
         print("Multiply sum rule projector")
-        block = (
-            np.tile(np.eye(9, dtype=float), (self._natom, self._natom)) / self._natom
+        block = np.tile(
+            np.eye(9, dtype=float) / self._natom, (self._natom, self._natom)
         )
         for i in range(self._natom):
             U[i * self._natom * 9 : (i + 1) * self._natom * 9, :] -= (
                 block @ U[i * self._natom * 9 : (i + 1) * self._natom * 9, :]
             )
+        U = compression_mat.T @ U
         return U
 
     def _step4(self, U: np.ndarray, compression_mat: coo_array, tol: float = 1e-8):
@@ -137,14 +137,9 @@ class FCBasisSetsCompact:
             print(f"  - svd eigenvalues = {np.abs(s)}")
             print(f"  - basis size = {U.shape}")
 
-        basis = (compression_mat @ U).T
-        self._basis_sets = np.zeros(
-            (basis.shape[0], self._natom, self._natom, 3, 3),
-            dtype="double",
-            order="C",
+        self._basis_sets = (compression_mat @ U).T.reshape(
+            (U.shape[1], self._natom, self._natom, 3, 3)
         )
-        for i, b in enumerate(basis):
-            self._basis_sets[i] = b.reshape((self._natom, self._natom, 3, 3))
 
 
 def _get_permutation_compression_matrix(natom: int) -> coo_array:
