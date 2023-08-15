@@ -1,5 +1,6 @@
 """Functions to handle matrix indices."""
 import itertools
+from typing import Optional
 
 import numpy as np
 import scipy
@@ -30,7 +31,9 @@ def convert_basis_sets_matrix_form(basis_sets) -> list[np.ndarray]:
     return b_mat_all
 
 
-def kron_c(reps, natom) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def kron_c(
+    reps: list[coo_array], natom: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute kron(r, r) in NN33 order in C.
 
     See the details about this method in _step1_kron_py_for_c.
@@ -86,11 +89,40 @@ def kron_c(reps, natom) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return row, col, data
 
 
-def kron_sum_c(reps, natom, C):
+def kron_sum_c(
+    reps: list[coo_array],
+    natom: int,
+    C: coo_array,
+    rotations: Optional[np.ndarray] = None,
+    translation_indices: Optional[np.ndarray] = None,
+    with_all_operations: bool = False,
+):
     """Compute sum_r kron(r, r) / N_r in NN33 order in C.
 
-    See the details about this method in _step1_kron_py_for_c.
-    Smaller memory usage than kron_c but slower.
+    When ``rotations`` and ``translation_indices`` are given
+        1. Sum of kron(r, r) for unique r's are computed.
+        2. Sum of kron(r, r) for r=identity are computed.
+        3. Product of 1 and 2 are computed.
+    Otherwise
+        Sum of kron(r, r) are computed. Difference from kron_c is that in this
+        function, coo_array is created for each r.
+
+    Parameters
+    ----------
+    reps : list[coo_array]
+        Symmetry operation representations in 3Nx3N.
+    natom : int
+        Number of atoms in supercell.
+    C : coo_array
+        Compression matrix.
+    rotations : np.ndarray
+        Rotation matrices of all symmetry operations. Optional.
+    translation_indices : np.ndarray
+        Indices of pure translation operations in all symmetry operations.
+        Optional.
+    with_all_operations : bool
+        Run with all operations instead of product of unique rotations and pure
+        translations.
 
     Note
     ----
@@ -108,49 +140,95 @@ def kron_sum_c(reps, natom, C):
     assert data_dtype is np.dtype("double")
     assert reps[0].data.flags.contiguous
 
-    size_sq = (3 * natom) ** 2
-    kron_sum = None
-    for i, rmat in enumerate(reps):
-        size = rmat.row.shape[0] ** 2
-        row = np.zeros(size, dtype=row_dtype)
-        col = np.zeros(size, dtype=col_dtype)
-        data = np.zeros(size, dtype=data_dtype)
-        if col_dtype is np.dtype("intc") and row_dtype is np.dtype("intc"):
-            symfcc.kron_nn33_int(
-                row,
-                col,
-                data,
-                rmat.row,
-                rmat.col,
-                rmat.data,
-                3 * natom,
-            )
-        elif col_dtype is np.dtype("int_") and row_dtype is np.dtype("int_"):
-            symfcc.kron_nn33_long(
-                row,
-                col,
-                data,
-                rmat.row,
-                rmat.col,
-                rmat.data,
-                3 * natom,
-            )
-        else:
-            raise RuntimeError("Incompatible data type of rows and cols of coo_array.")
-        data /= len(reps)
-        kron = coo_array((data, (row, col)), shape=(size_sq, size_sq), dtype="double")
-        kron = kron @ C
-        kron = C.T @ kron
-        if i == 0:
-            kron_sum = kron
-        else:
+    if (
+        not with_all_operations
+        and rotations is not None
+        and translation_indices is not None
+    ):
+        # Sum over unique r operations (r's of coset representatives)
+        kron_sum_rot = coo_array(
+            ([], ([], [])), shape=(C.shape[1], C.shape[1]), dtype="double"
+        )
+        unique_rotations: list[np.ndarray] = []
+        for i, rmat in enumerate(reps):
+            if rotations is not None:
+                is_found = False
+                for r in unique_rotations:
+                    if np.array_equal(r, rotations[i]):
+                        is_found = True
+                        break
+                if is_found:
+                    continue
+                else:
+                    unique_rotations.append(rotations[i])
+
+            kron = _kron_each_c(rmat, natom, row_dtype, col_dtype, data_dtype)
+            kron = kron @ C
+            kron = C.T @ kron
+            kron_sum_rot += kron
+
+        # Sum over all r=identity.
+        kron_sum_trans = coo_array(
+            ([], ([], [])), shape=(C.shape[1], C.shape[1]), dtype="double"
+        )
+        eye3 = np.eye(3, dtype=int)
+        num_latp = 0
+        for i in translation_indices:
+            rmat = reps[i]
+            if np.array_equal(eye3, rotations[i]):
+                num_latp += 1
+                kron = _kron_each_c(rmat, natom, row_dtype, col_dtype, data_dtype)
+                kron = kron @ C
+                kron = C.T @ kron
+                kron_sum_trans += kron
+
+        # Product of coset representatives and translation group.
+        kron_sum = kron_sum_trans @ kron_sum_rot
+        kron_sum /= len(reps)
+    else:
+        # Sum over all operations.
+        kron_sum = coo_array(
+            ([], ([], [])), shape=(C.shape[1], C.shape[1]), dtype="double"
+        )
+        for i, rmat in enumerate(reps):
+            kron = _kron_each_c(rmat, natom, row_dtype, col_dtype, data_dtype)
+            kron = kron @ C
+            kron = C.T @ kron
             kron_sum += kron
+        kron_sum /= len(reps)
 
     return kron_sum
 
 
+def _kron_each_c(
+    rmat: coo_array,
+    natom: int,
+    row_dtype: np.dtype,
+    col_dtype: np.dtype,
+    data_dtype: np.dtype,
+):
+    size_sq = (3 * natom) ** 2
+    size = rmat.row.shape[0] ** 2
+    row = np.zeros(size, dtype=row_dtype)
+    col = np.zeros(size, dtype=col_dtype)
+    data = np.zeros(size, dtype=data_dtype)
+    args = (row, col, data, rmat.row, rmat.col, rmat.data, 3 * natom)
+    if col_dtype is np.dtype("intc") and row_dtype is np.dtype("intc"):
+        symfcc.kron_nn33_int(*args)
+    elif col_dtype is np.dtype("int_") and row_dtype is np.dtype("int_"):
+        symfcc.kron_nn33_long(*args)
+    else:
+        raise RuntimeError("Incompatible data type of rows and cols of coo_array.")
+    return coo_array((data, (row, col)), shape=(size_sq, size_sq), dtype="double")
+
+
 def get_compression_spg_proj(
-    reps: list[coo_array], natom: int, compression_mat: coo_array
+    reps: list[coo_array],
+    natom: int,
+    compression_mat: coo_array,
+    rotations: Optional[np.ndarray] = None,
+    translation_indices: Optional[np.ndarray] = None,
+    with_all_operations: bool = False,
 ) -> coo_array:
     """Compute compact spg projector matrix.
 
@@ -158,12 +236,14 @@ def get_compression_spg_proj(
 
     """
     C = compression_mat
-    # row, col, data = kron_c(reps, natom)
-    # size_sq = (3 * natom) ** 2
-    # proj_mat = coo_array((data, (row, col)), shape=(size_sq, size_sq), dtype="double")
-    # proj_mat = proj_mat @ C
-    # proj_mat = C.T @ proj_mat
-    proj_mat = kron_sum_c(reps, natom, C)
+    proj_mat = kron_sum_c(
+        reps,
+        natom,
+        C,
+        rotations=rotations,
+        translation_indices=translation_indices,
+        with_all_operations=with_all_operations,
+    )
     return proj_mat
 
 
@@ -190,18 +270,22 @@ def get_projector_sum_rule(natom) -> coo_array:
 
     """
     size_sq = 9 * natom * natom
-    row, col, data = [], [], []
-    block = np.tile(np.eye(9), (natom, natom))
+    block = np.tile(np.eye(9, dtype=int), (natom, natom))
     csr = coo_array(block)
     row1, col1 = csr.nonzero()
     size = row1.shape[0]
     row = np.zeros(size * natom, dtype=row1.dtype)
     col = np.zeros(size * natom, dtype=col1.dtype)
-    data = np.zeros(size * natom, dtype=csr.data.dtype)
-    for i in range(natom):
-        row[size * i : size * (i + 1)] = row1 + 9 * natom * i
-        col[size * i : size * (i + 1)] = col1 + 9 * natom * i
-        data[size * i : size * (i + 1)] = csr.data / natom
+    data = np.ones(size * natom, dtype=float) / natom
+    if row1.dtype is np.dtype("intc") and col1.dtype is np.dtype("intc"):
+        symfcc.projector_sum_rule_int(row, col, row1, col1, natom)
+    elif row1.dtype is np.dtype("int_") and col1.dtype is np.dtype("int_"):
+        symfcc.projector_sum_rule_long(row, col, row1, col1, natom)
+    else:
+        raise RuntimeError("Incompatible data type of rows and cols of coo_array.")
+    # for i in range(natom):
+    #     row[size * i : size * (i + 1)] = row1 + 9 * natom * i
+    #     col[size * i : size * (i + 1)] = col1 + 9 * natom * i
     C = coo_array((data, (row, col)), shape=(size_sq, size_sq))
     proj = scipy.sparse.eye(size_sq) - C
     return proj
@@ -211,15 +295,21 @@ def get_projector_permutations(natom: int) -> coo_array:
     """Return permutation constraint projector."""
     size = 3 * natom
     size_sq = size**2
-    row, col, data = [], [], []
+    data_size = size * (size - 1)
+    data_size = data_size // 2
+    row = np.zeros(data_size * 4, dtype=int)
+    col = np.zeros(data_size * 4, dtype=int)
+    data = np.zeros(data_size * 4, dtype=float)
+    count = 0
     for ia, jb in itertools.combinations(range(size), 2):
         i, a = ia // 3, ia % 3
         j, b = jb // 3, jb % 3
         id1 = to_serial(i, a, j, b, natom)
         id2 = to_serial(j, b, i, a, natom)
-        row += [id1, id2, id1, id2]
-        col += [id1, id2, id2, id1]
-        data += [0.5, 0.5, -0.5, -0.5]
+        row[count : count + 4] = [id1, id2, id1, id2]
+        col[count : count + 4] = [id1, id2, id2, id1]
+        data[count : count + 4] = [0.5, 0.5, -0.5, -0.5]
+        count += 4
     C = coo_array((data, (row, col)), shape=(size_sq, size_sq))
     proj = scipy.sparse.eye(size_sq) - C
     return proj

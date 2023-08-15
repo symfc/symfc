@@ -61,7 +61,6 @@ def bs_nacl_222() -> np.ndarray:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
     sbs = FCBasisSets(sym_op_reps.representations, log_level=1)
     return sbs.basis_sets
@@ -75,7 +74,6 @@ def bs_sno2_223() -> np.ndarray:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
     sbs = FCBasisSets(sym_op_reps.representations, log_level=1)
     return sbs.basis_sets
@@ -89,7 +87,6 @@ def bs_sno2_222() -> np.ndarray:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
     sbs = FCBasisSets(sym_op_reps.representations, log_level=1)
     return sbs.basis_sets
@@ -103,7 +100,6 @@ def bs_sio2_222() -> np.ndarray:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
     sbs = FCBasisSets(sym_op_reps.representations, log_level=1, lang="C")
     return sbs.basis_sets
@@ -117,7 +113,6 @@ def bs_sio2_221() -> np.ndarray:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
     sbs = FCBasisSets(sym_op_reps.representations, log_level=1, lang="C")
     return sbs.basis_sets
@@ -131,7 +126,6 @@ def bs_gan_442() -> np.ndarray:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
     sbs = FCBasisSets(sym_op_reps.representations, log_level=1, lang="C")
     return sbs.basis_sets
@@ -145,7 +139,6 @@ def bs_gan_222() -> np.ndarray:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
     sbs = FCBasisSets(sym_op_reps.representations, log_level=1, lang="C")
     return sbs.basis_sets
@@ -162,13 +155,8 @@ def bs_nacl_222_compact() -> FCBasisSetsCompact:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
-    sbs = FCBasisSetsCompact(
-        sym_op_reps.representations,
-        translation_permutations=sym_op_reps.translation_permutations,
-        log_level=1,
-    )
+    sbs = FCBasisSetsCompact(sym_op_reps, log_level=1)
     return sbs
 
 
@@ -180,13 +168,8 @@ def bs_sno2_223_compact() -> FCBasisSetsCompact:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
-    sbs = FCBasisSetsCompact(
-        sym_op_reps.representations,
-        translation_permutations=sym_op_reps.translation_permutations,
-        log_level=1,
-    )
+    sbs = FCBasisSetsCompact(sym_op_reps, log_level=1)
     return sbs
 
 
@@ -198,13 +181,8 @@ def bs_sno2_222_compact() -> FCBasisSetsCompact:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
-    sbs = FCBasisSetsCompact(
-        sym_op_reps.representations,
-        translation_permutations=sym_op_reps.translation_permutations,
-        log_level=1,
-    )
+    sbs = FCBasisSetsCompact(sym_op_reps, log_level=1)
     return sbs
 
 
@@ -216,13 +194,8 @@ def bs_sio2_222_compact() -> FCBasisSetsCompact:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
-    sbs = FCBasisSetsCompact(
-        sym_op_reps.representations,
-        translation_permutations=sym_op_reps.translation_permutations,
-        log_level=1,
-    )
+    sbs = FCBasisSetsCompact(sym_op_reps, log_level=1)
     return sbs
 
 
@@ -234,13 +207,8 @@ def bs_sio2_221_compact() -> FCBasisSetsCompact:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
-    sbs = FCBasisSetsCompact(
-        sym_op_reps.representations,
-        translation_permutations=sym_op_reps.translation_permutations,
-        log_level=1,
-    )
+    sbs = FCBasisSetsCompact(sym_op_reps, log_level=1)
     return sbs
 
 
@@ -252,13 +220,8 @@ def bs_gan_442_compact() -> FCBasisSetsCompact:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
-    sbs = FCBasisSetsCompact(
-        sym_op_reps.representations,
-        translation_permutations=sym_op_reps.translation_permutations,
-        log_level=1,
-    )
+    sbs = FCBasisSetsCompact(sym_op_reps, log_level=1)
     return sbs
 
 
@@ -270,11 +233,6 @@ def bs_gan_222_compact() -> FCBasisSetsCompact:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
-    sbs = FCBasisSetsCompact(
-        sym_op_reps.representations,
-        translation_permutations=sym_op_reps.translation_permutations,
-        log_level=1,
-    )
+    sbs = FCBasisSetsCompact(sym_op_reps, log_level=1)
     return sbs

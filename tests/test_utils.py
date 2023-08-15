@@ -15,7 +15,6 @@ def test_kron_c_NaCl_222(ph_nacl_222: Phonopy):
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
     natom = len(ph.supercell)
     size_sq = natom**2 * 9
@@ -32,7 +31,6 @@ def test_get_indep_atoms_by_lattice_translation(ph_nacl_222: Phonopy):
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
     trans_perms = sym_op_reps.translation_permutations
     indep_atoms = get_indep_atoms_by_lattice_translation(trans_perms)
