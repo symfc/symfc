@@ -95,6 +95,7 @@ def kron_sum_c(
     C: coo_array,
     rotations: Optional[np.ndarray] = None,
     translation_indices: Optional[np.ndarray] = None,
+    with_all_operations: bool = False,
 ):
     """Compute sum_r kron(r, r) / N_r in NN33 order in C.
 
@@ -119,6 +120,9 @@ def kron_sum_c(
     translation_indices : np.ndarray
         Indices of pure translation operations in all symmetry operations.
         Optional.
+    with_all_operations : bool
+        Run with all operations instead of product of unique rotations and pure
+        translations.
 
     Note
     ----
@@ -136,18 +140,11 @@ def kron_sum_c(
     assert data_dtype is np.dtype("double")
     assert reps[0].data.flags.contiguous
 
-    if rotations is None or translation_indices is None:
-        # Sum over all operations.
-        kron_sum = coo_array(
-            ([], ([], [])), shape=(C.shape[1], C.shape[1]), dtype="double"
-        )
-        for i, rmat in enumerate(reps):
-            kron = _kron_each_c(rmat, natom, row_dtype, col_dtype, data_dtype)
-            kron = kron @ C
-            kron = C.T @ kron
-            kron_sum += kron
-        kron_sum /= len(reps)
-    else:
+    if (
+        not with_all_operations
+        and rotations is not None
+        and translation_indices is not None
+    ):
         # Sum over unique r operations (r's of coset representatives)
         kron_sum_rot = coo_array(
             ([], ([], [])), shape=(C.shape[1], C.shape[1]), dtype="double"
@@ -188,6 +185,17 @@ def kron_sum_c(
         # Product of coset representatives and translation group.
         kron_sum = kron_sum_trans @ kron_sum_rot
         kron_sum /= len(reps)
+    else:
+        # Sum over all operations.
+        kron_sum = coo_array(
+            ([], ([], [])), shape=(C.shape[1], C.shape[1]), dtype="double"
+        )
+        for i, rmat in enumerate(reps):
+            kron = _kron_each_c(rmat, natom, row_dtype, col_dtype, data_dtype)
+            kron = kron @ C
+            kron = C.T @ kron
+            kron_sum += kron
+        kron_sum /= len(reps)
 
     return kron_sum
 
@@ -220,6 +228,7 @@ def get_compression_spg_proj(
     compression_mat: coo_array,
     rotations: Optional[np.ndarray] = None,
     translation_indices: Optional[np.ndarray] = None,
+    with_all_operations: bool = False,
 ) -> coo_array:
     """Compute compact spg projector matrix.
 
@@ -227,13 +236,13 @@ def get_compression_spg_proj(
 
     """
     C = compression_mat
-    # row, col, data = kron_c(reps, natom)
-    # size_sq = (3 * natom) ** 2
-    # proj_mat = coo_array((data, (row, col)), shape=(size_sq, size_sq), dtype="double")
-    # proj_mat = proj_mat @ C
-    # proj_mat = C.T @ proj_mat
     proj_mat = kron_sum_c(
-        reps, natom, C, rotations=rotations, translation_indices=translation_indices
+        reps,
+        natom,
+        C,
+        rotations=rotations,
+        translation_indices=translation_indices,
+        with_all_operations=with_all_operations,
     )
     return proj_mat
 

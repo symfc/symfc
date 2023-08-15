@@ -75,7 +75,12 @@ class FCBasisSetsCompact:
         """Return a list of FC basis in (N, N, 3, 3) dimentional arrays."""
         return self._basis_sets
 
-    def run(self, use_permutation=False, tol: float = 1e-8):
+    def run(
+        self,
+        use_permutation: bool = False,
+        with_all_operations: bool = False,
+        tol: float = 1e-8,
+    ):
         """Compute force constants basis."""
         if use_permutation:
             compression_mat = _get_permutation_compression_matrix(self._natom)
@@ -83,18 +88,26 @@ class FCBasisSetsCompact:
             compression_mat = _get_lattice_translation_compression_matrix(
                 self._translation_permutations
             )
-        vecs = self._step2(compression_mat, tol=tol)
+        vecs = self._step2(
+            compression_mat, with_all_operations=with_all_operations, tol=tol
+        )
         U = self._step3(vecs, compression_mat, use_permutation)
         self._step4(U, compression_mat, tol=tol)
         return self
 
-    def _step2(self, compression_mat, tol: float = 1e-8) -> np.ndarray:
+    def _step2(
+        self,
+        compression_mat: coo_array,
+        with_all_operations: bool = False,
+        tol: float = 1e-8,
+    ) -> np.ndarray:
         compression_spg_mat = get_compression_spg_proj(
             self._reps,
             self._natom,
             compression_mat,
             rotations=self._rotations,
             translation_indices=self._translation_indices,
+            with_all_operations=with_all_operations,
         )
         rank = int(round(compression_spg_mat.diagonal(k=0).sum()))
         if self._log_level:

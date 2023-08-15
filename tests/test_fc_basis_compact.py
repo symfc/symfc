@@ -138,9 +138,14 @@ def test_fc_SiO2_222_wrt_ALM(
     # )
 
 
-@pytest.mark.parametrize("use_permutation", [True, False])
+@pytest.mark.parametrize(
+    "use_permutation,with_all_operations",
+    [(True, True), (True, False), (False, True), (False, False)],
+)
 def test_fc_SiO2_221_wrt_ALM(
-    bs_sio2_221_compact: FCBasisSetsCompact, use_permutation: bool
+    bs_sio2_221_compact: FCBasisSetsCompact,
+    use_permutation: bool,
+    with_all_operations: bool,
 ):
     """Test force constants by SiO2 36 atoms supercell and compared with ALM.
 
@@ -151,6 +156,7 @@ def test_fc_SiO2_221_wrt_ALM(
         "phonopy_SiO2_221_rd.yaml.xz",
         bs_sio2_221_compact,
         use_permutation=use_permutation,
+        with_all_operations=with_all_operations,
     )
     # _write_phonopy_fc_yaml(
     #     "phonopy_SiO2_221_fc.yaml", "phonopy_SiO2_221_rd.yaml.xz", fc_compact
@@ -196,9 +202,13 @@ def test_fc_GaN_222_wrt_ALM(
     # )
 
 
-def _compare_fc_with_alm(filename, fc_basis_sets, use_permutation=False) -> np.ndarray:
+def _compare_fc_with_alm(
+    filename, fc_basis_sets, use_permutation=False, with_all_operations=False
+) -> np.ndarray:
     pytest.importorskip("alm")
-    basis_sets = fc_basis_sets.run(use_permutation=use_permutation).basis_sets
+    basis_sets = fc_basis_sets.run(
+        use_permutation=use_permutation, with_all_operations=with_all_operations
+    ).basis_sets
     ph = phonopy.load(cwd / filename, fc_calculator="alm")
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]
