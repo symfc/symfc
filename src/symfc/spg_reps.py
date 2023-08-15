@@ -1,4 +1,6 @@
 """Reps of space group operations with respect to atomic coordinate basis."""
+from __future__ import annotations
+
 from typing import Optional
 
 import numpy as np
@@ -16,7 +18,6 @@ class SpgReps:
         lattice: np.ndarray,
         positions: np.ndarray,
         numbers: np.ndarray,
-        log_level: int = 0,
     ):
         """Init method.
 
@@ -30,16 +31,14 @@ class SpgReps:
             shape=(3, natom), dtype='double'
         numbers : array_like
             Atomic IDs idicated by integers larger or eqaul to 0.
-        log_level : int, optional
-            Log level. Default is 0.
 
         """
         self._lattice = np.array(lattice, dtype="double", order="C")
         self._positions = np.array(positions, dtype="double", order="C")
         self._numbers = numbers
-        self._log_level = log_level
         self._reps: Optional[list[coo_array]] = None
         self._translation_permutations: Optional[np.ndarray] = None
+        self._translation_indices: Optional[np.ndarray] = None
 
         self._run()
 
@@ -55,45 +54,64 @@ class SpgReps:
         Returns
         --------
         Atom indices after lattice translations.
-        shape=(lattice_translations, supercell_atoms)
+        shape=(lattice_translations, supercell_atoms), dtype=int
 
         """
         return self._translation_permutations
 
-    def _run(self):
-        rotations_inv, translations_inv = self._get_symops_inv()
-        if self._log_level:
-            print(" finding permutations ...")
-        permutations_inv = compute_all_sg_permutations(
-            self._positions.T, rotations_inv, translations_inv, self._lattice, 1e-5
-        )
-        if self._log_level:
-            print(" setting representations (first order) ...")
-        self._reps = self._compute_reps(permutations_inv, rotations_inv)
-        self._translation_permutations = self._get_translation_permutations(
-            permutations_inv, rotations_inv
-        )
+    @property
+    def translation_indices(self) -> Optional[np.ndarray]:
+        """Return indices of lattice translations in operations.
 
-    def _get_translation_permutations(self, permutations, rotations) -> np.ndarray:
+        Returns
+        --------
+        np.ndarray :
+            Indices of pure lattice translations in operations.
+            shape=(num_pure_translations,), dtype=int
+
+        """
+        return self._translation_indices
+
+    @property
+    def rotations(self) -> np.ndarray:
+        """Return rotations."""
+        return self._rotations
+
+    def _run(self):
+        rotations, translations = self._get_symops()
+        permutations = compute_all_sg_permutations(
+            self._positions.T, rotations, translations, self._lattice, 1e-5
+        )
+        self._reps = self._compute_reps(permutations, rotations)
+        (
+            self._translation_permutations,
+            self._translation_indices,
+        ) = self._get_translation_permutations(permutations, rotations)
+        self._rotations = rotations
+
+    def _get_translation_permutations(
+        self, permutations, rotations
+    ) -> tuple[np.ndarray, np.ndarray]:
         eye3 = np.eye(3, dtype=int)
         trans_perms = []
-        for r, perm in zip(rotations, permutations):
+        trans_indices = []
+        for i, (r, perm) in enumerate(zip(rotations, permutations)):
             if np.array_equal(r, eye3):
                 trans_perms.append(perm)
-        return np.array(trans_perms, dtype=int)
+                trans_indices.append(i)
+        return np.array(trans_perms, dtype=int), np.array(trans_indices, dtype=int)
 
-    def _get_symops_inv(self, tol=1e-8) -> tuple[np.ndarray, np.ndarray]:
-        """Return inverse symmetry operations.
+    def _get_symops(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return symmetry operations.
 
-        It is assumed that inverse symmetry operations are included in given
-        symmetry operations up to lattice translation.
+        The set of inverse operations is the same as the set of the operations.
 
         Returns
         -------
-        rotations_inv : array_like
+        rotations : array_like
             A set of rotation matrices of inverse space group operations.
             (n_symops, 3, 3), dtype='intc', order='C'
-        translations_inv : array_like
+        translations : array_like
             A set of translation vectors. It is assumed that inverse matrices are
             included in this set.
             (n_symops, 3), dtype='double'.
@@ -102,30 +120,7 @@ class SpgReps:
         symops = spglib.get_symmetry(
             (self._lattice.T, self._positions.T, self._numbers)
         )
-        rotations = symops["rotations"]
-        translations = symops["translations"]
-        rotations_inv = []
-        translations_inv = []
-        identity = np.eye(3, dtype=int)
-        indices_found = [False] * len(rotations)
-        for r, t in zip(rotations, translations):
-            for i, (r_inv, t_inv) in enumerate(zip(rotations, translations)):
-                if np.array_equal(r @ r_inv, identity):
-                    diff = r_inv @ t + t_inv
-                    diff -= np.rint(diff)
-                    if np.linalg.norm(self._lattice @ np.abs(diff)) < tol:
-                        rotations_inv.append(r_inv)
-                        translations_inv.append(t_inv)
-                        indices_found[i] = True
-                        break
-        assert len(rotations) == len(rotations_inv)
-        assert len(translations) == len(translations_inv)
-        assert all(indices_found)
-
-        return (
-            np.array(rotations_inv, dtype=rotations.dtype),
-            np.array(translations_inv, dtype=translations.dtype),
-        )
+        return symops["rotations"], symops["translations"]
 
     def _compute_reps(self, permutations, rotations, tol=1e-10) -> list[coo_array]:
         """Construct representation matrices of rotations.

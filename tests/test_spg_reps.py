@@ -14,7 +14,6 @@ def test_SpgReps_NaCl_111(cell_nacl_111: PhonopyAtoms):
         cell.cell.T,
         cell.scaled_positions.T,
         cell.numbers,
-        log_level=1,
     )
 
     reps = sym_op_reps.representations
@@ -35,7 +34,6 @@ def test_SpgReps_NaCl_222(ph_nacl_222: Phonopy):
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        log_level=1,
     )
 
     reps = sym_op_reps.representations
@@ -54,7 +52,6 @@ def test_translation_permutations_NaCl_111(cell_nacl_111: PhonopyAtoms):
         cell.cell.T,
         cell.scaled_positions.T,
         cell.numbers,
-        log_level=1,
     )
     trans_perms = sym_op_reps.translation_permutations
     # for v in trans_perms:

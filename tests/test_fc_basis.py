@@ -30,7 +30,7 @@ def test_fc_basis_sets(lang, use_exact_projection_matrix):
     positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]]).T
     types = [0, 0]
 
-    sym_op_reps = SpgReps(lattice, positions, types, log_level=1)
+    sym_op_reps = SpgReps(lattice, positions, types)
     rep = sym_op_reps.representations
     sbs = FCBasisSets(
         rep,

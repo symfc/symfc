@@ -26,12 +26,8 @@ def test_fc_basis_sets_compact():
     positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]]).T
     types = [0, 0]
 
-    sym_op_reps = SpgReps(lattice, positions, types, log_level=1)
-    sbs = FCBasisSetsCompact(
-        sym_op_reps.representations,
-        translation_permutations=sym_op_reps.translation_permutations,
-        log_level=1,
-    )
+    sym_op_reps = SpgReps(lattice, positions, types)
+    sbs = FCBasisSetsCompact(sym_op_reps, log_level=1)
     sbs.run()
     basis = sbs.basis_sets_matrix_form
     np.testing.assert_allclose(basis[0], basis_ref, atol=1e-6)

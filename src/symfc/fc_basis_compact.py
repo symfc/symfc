@@ -6,6 +6,7 @@ import numpy as np
 import scipy
 from scipy.sparse import coo_array
 
+from symfc.spg_reps import SpgReps
 from symfc.utils import (
     convert_basis_sets_matrix_form,
     get_compression_spg_proj,
@@ -19,31 +20,26 @@ from symfc.utils import (
 class FCBasisSetsCompact:
     """Compact symmetry adapted basis sets for force constants.
 
-    Strategy-1
-    ----------
+    Strategy-1 : run(use_permutation=True)
+    --------------------------------------
     Construct compression matrix using permutation symmetry C. The matrix shape
     is (NN33, N(N+1)/2). This matrix expands elements of upper right triagle to
-    full elements NN33 of matrix. (C @ C.T) is made to be identity matrix. The
+    full elements NN33 of matrix. (C.T @ C) is made to be identity matrix. The
     projection matrix of space group operations is multipiled by C from both
     side, and the resultant matrix is diagonalized.
 
-    Strategy-2
-    ----------
+    Strategy-2 : run(use_permutation=False)
+    ---------------------------------------
     Construct compression matrix using lattice translation symmetry C. The
     matrix shape is (NN33, n_aN33), where n_a is the number of atoms in
     primitive cell. This matrix expands elements of full elements NN33 of
-    matrix. (C @ C.T) is made to be identity matrix. The projection matrix of
+    matrix. (C.T @ C) is made to be identity matrix. The projection matrix of
     space group operations is multipiled by C from both side, and the resultant
     matrix is diagonalized.
 
     """
 
-    def __init__(
-        self,
-        reps: list[coo_array],
-        translation_permutations: Optional[np.ndarray] = None,
-        log_level: int = 0,
-    ):
+    def __init__(self, spg_reps: SpgReps, log_level: int = 0):
         """Init method.
 
         Parameters
@@ -57,8 +53,10 @@ class FCBasisSetsCompact:
             Log level. Default is 0.
 
         """
-        self._reps: list[coo_array] = reps
-        self._translation_permutations = translation_permutations
+        self._reps: list[coo_array] = spg_reps.representations
+        self._translation_permutations = spg_reps.translation_permutations
+        self._rotations = spg_reps.rotations
+        self._translation_indices = spg_reps.translation_indices
         self._log_level = log_level
 
         self._natom = self._reps[0].shape[0] // 3
@@ -93,7 +91,11 @@ class FCBasisSetsCompact:
 
     def _step2(self, compression_mat, tol: float = 1e-8) -> np.ndarray:
         compression_spg_mat = get_compression_spg_proj(
-            self._reps, self._natom, compression_mat
+            self._reps,
+            self._natom,
+            compression_mat,
+            rotations=self._rotations,
+            translation_indices=self._translation_indices,
         )
         rank = int(round(compression_spg_mat.diagonal(k=0).sum()))
         if self._log_level:
@@ -112,8 +114,10 @@ class FCBasisSetsCompact:
         self, vecs: np.ndarray, compression_mat: coo_array, use_permutation: bool
     ) -> np.ndarray:
         U = compression_mat @ vecs
+        print("get_projector_sum_rule")
         U = get_projector_sum_rule(self._natom) @ U
         if not use_permutation:
+            print("get_projector_permutations")
             U = get_projector_permutations(self._natom) @ U
         U = compression_mat.T @ U
         return U
