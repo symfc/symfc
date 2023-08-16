@@ -140,15 +140,13 @@ def kron_sum_c(
     assert data_dtype is np.dtype("double")
     assert reps[0].data.flags.contiguous
 
+    kron_sum = coo_array(([], ([], [])), shape=(C.shape[1], C.shape[1]), dtype="double")
     if (
         not with_all_operations
         and rotations is not None
         and translation_indices is not None
     ):
         # Sum over unique r operations (r's of coset representatives)
-        kron_sum_rot = coo_array(
-            ([], ([], [])), shape=(C.shape[1], C.shape[1]), dtype="double"
-        )
         unique_rotations: list[np.ndarray] = []
         for i, rmat in enumerate(reps):
             if rotations is not None:
@@ -165,31 +163,11 @@ def kron_sum_c(
             kron = _kron_each_c(rmat, natom, row_dtype, col_dtype, data_dtype)
             kron = kron @ C
             kron = C.T @ kron
-            kron_sum_rot += kron
+            kron_sum += kron
 
-        # Sum over all r=identity.
-        kron_sum_trans = coo_array(
-            ([], ([], [])), shape=(C.shape[1], C.shape[1]), dtype="double"
-        )
-        eye3 = np.eye(3, dtype=int)
-        num_latp = 0
-        for i in translation_indices:
-            rmat = reps[i]
-            if np.array_equal(eye3, rotations[i]):
-                num_latp += 1
-                kron = _kron_each_c(rmat, natom, row_dtype, col_dtype, data_dtype)
-                kron = kron @ C
-                kron = C.T @ kron
-                kron_sum_trans += kron
-
-        # Product of coset representatives and translation group.
-        kron_sum = kron_sum_trans @ kron_sum_rot
-        kron_sum /= len(reps)
+        kron_sum /= len(unique_rotations)
     else:
         # Sum over all operations.
-        kron_sum = coo_array(
-            ([], ([], [])), shape=(C.shape[1], C.shape[1]), dtype="double"
-        )
         for i, rmat in enumerate(reps):
             kron = _kron_each_c(rmat, natom, row_dtype, col_dtype, data_dtype)
             kron = kron @ C
@@ -197,7 +175,13 @@ def kron_sum_c(
             kron_sum += kron
         kron_sum /= len(reps)
 
-    return kron_sum
+    # lattice translation and index permutation symmetry are projected.
+    C_perm = _get_permutation_compression_matrix(natom)
+    perm = C_perm.T @ C
+    perm = C_perm @ perm
+    perm = C.T @ perm
+
+    return kron_sum @ perm
 
 
 def _kron_each_c(
@@ -232,14 +216,14 @@ def get_compression_spg_proj(
 ) -> coo_array:
     """Compute compact spg projector matrix.
 
-    This computes perm_mat.T @ spg_proj (kron_c) @ perm_mat.
+    This computes C.T @ spg_proj (kron_c) @ perm_proj @ C,
+    where C is ``compression_mat``.
 
     """
-    C = compression_mat
     proj_mat = kron_sum_c(
         reps,
         natom,
-        C,
+        compression_mat,
         rotations=rotations,
         translation_indices=translation_indices,
         with_all_operations=with_all_operations,
@@ -414,3 +398,38 @@ def _get_projector_constraints_permutations(
         data += [1, -1]
         n += 1
     return n
+
+
+def _get_permutation_compression_matrix(natom: int) -> coo_array:
+    """Return compression matrix by permutation symmetry.
+
+    Matrix shape is (NN33,(N*3)(N*3+1)/2).
+    Non-zero only ijab and jiba column elements for ijab rows.
+    Rows upper right NN33 matrix elements are selected for rows.
+
+    """
+    col, row, data = [], [], []
+    val = np.sqrt(2) / 2
+    size_row = natom**2 * 9
+
+    n = 0
+    for ia, jb in itertools.combinations_with_replacement(range(natom * 3), 2):
+        i_i = ia // 3
+        i_a = ia % 3
+        i_j = jb // 3
+        i_b = jb % 3
+        col.append(n)
+        row.append(to_serial(i_i, i_a, i_j, i_b, natom))
+        if i_i == i_j and i_a == i_b:
+            data.append(1)
+        else:
+            data.append(val)
+            col.append(n)
+            row.append(to_serial(i_j, i_b, i_i, i_a, natom))
+            data.append(val)
+        n += 1
+    if (natom * 3) % 2 == 1:
+        assert (natom * 3) * ((natom * 3 + 1) // 2) == n, f"{natom}, {n}"
+    else:
+        assert ((natom * 3) // 2) * (natom * 3 + 1) == n, f"{natom}, {n}"
+    return coo_array((data, (row, col)), shape=(size_row, n), dtype="double")

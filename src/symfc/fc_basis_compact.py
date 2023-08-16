@@ -11,7 +11,6 @@ from symfc.utils import (
     convert_basis_sets_matrix_form,
     get_compression_spg_proj,
     get_indep_atoms_by_lattice_translation,
-    get_projector_permutations,
     to_serial,
 )
 
@@ -19,22 +18,15 @@ from symfc.utils import (
 class FCBasisSetsCompact:
     """Compact symmetry adapted basis sets for force constants.
 
-    Strategy-1 : run(use_permutation=True)
-    --------------------------------------
-    Construct compression matrix using permutation symmetry C. The matrix shape
-    is (NN33, N(N+1)/2). This matrix expands elements of upper right triagle to
-    full elements NN33 of matrix. (C.T @ C) is made to be identity matrix. The
-    projection matrix of space group operations is multipiled by C from both
-    side, and the resultant matrix is diagonalized.
-
-    Strategy-2 : run(use_permutation=False)
-    ---------------------------------------
+    Strategy
+    --------
     Construct compression matrix using lattice translation symmetry C. The
     matrix shape is (NN33, n_aN33), where n_a is the number of atoms in
     primitive cell. This matrix expands elements of full elements NN33 of
     matrix. (C.T @ C) is made to be identity matrix. The projection matrix of
     space group operations is multipiled by C from both side, and the resultant
-    matrix is diagonalized.
+    matrix is diagonalized. In addition, (C_perm @ C_perm.T) that is the
+    projector of index permutation symmetry is multiplied.
 
     """
 
@@ -77,21 +69,31 @@ class FCBasisSetsCompact:
 
     def run(
         self,
-        use_permutation: bool = False,
         with_all_operations: bool = False,
         tol: float = 1e-8,
     ):
-        """Compute force constants basis."""
-        if use_permutation:
-            compression_mat = _get_permutation_compression_matrix(self._natom)
-        else:
-            compression_mat = _get_lattice_translation_compression_matrix(
-                self._translation_permutations
-            )
+        """Compute force constants basis.
+
+        Parameters
+        ----------
+        with_all_operations : bool, optional
+            With True, space group operation projector is constructued using all
+            given symmetry operations. With False, the projector is constructued
+            as a product of sum of those operations with unique rotations (up to
+            48 operations) and lattice translation projector. The former is
+            considered as the coset representatives and the lattice is the
+            translation group. Default is False.
+
+        """
+        if self._log_level:
+            print("Construct compression matrix of lattice translation.")
+        compression_mat = _get_lattice_translation_compression_matrix(
+            self._translation_permutations
+        )
         vecs = self._step2(
             compression_mat, with_all_operations=with_all_operations, tol=tol
         )
-        U = self._step3(vecs, compression_mat, use_permutation)
+        U = self._step3(vecs, compression_mat)
         self._step4(U, compression_mat, tol=tol)
         return self
 
@@ -101,6 +103,11 @@ class FCBasisSetsCompact:
         with_all_operations: bool = False,
         tol: float = 1e-8,
     ) -> np.ndarray:
+        if self._log_level:
+            print(
+                "Construct projector of product of space group and "
+                "index permutation symmetry."
+            )
         compression_spg_mat = get_compression_spg_proj(
             self._reps,
             self._natom,
@@ -122,16 +129,11 @@ class FCBasisSetsCompact:
             print(f" eigenvalues of projector = {vals}")
         return vecs
 
-    def _step3(
-        self, vecs: np.ndarray, compression_mat: coo_array, use_permutation: bool
-    ) -> np.ndarray:
-        if not use_permutation:
-            print("Multiply index permutation projector")
-            U = get_projector_permutations(self._natom) @ compression_mat
-            U = U @ vecs
-        else:
-            U = compression_mat @ vecs
+    def _step3(self, vecs: np.ndarray, compression_mat: coo_array) -> np.ndarray:
+        # print("Multiply index permutation projector")
+        # U = get_projector_permutations(self._natom) @ compression_mat
         print("Multiply sum rule projector")
+        U = compression_mat @ vecs
         block = np.tile(
             np.eye(9, dtype=float) / self._natom, (self._natom, self._natom)
         )
@@ -153,41 +155,6 @@ class FCBasisSetsCompact:
         self._basis_sets = (compression_mat @ U).T.reshape(
             (U.shape[1], self._natom, self._natom, 3, 3)
         )
-
-
-def _get_permutation_compression_matrix(natom: int) -> coo_array:
-    """Return compression matrix by permutation symmetry.
-
-    Matrix shape is (NN33,(N*3)(N*3+1)/2).
-    Non-zero only ijab and jiba column elements for ijab rows.
-    Rows upper right NN33 matrix elements are selected for rows.
-
-    """
-    col, row, data = [], [], []
-    val = np.sqrt(2) / 2
-    size_row = natom**2 * 9
-
-    n = 0
-    for ia, jb in itertools.combinations_with_replacement(range(natom * 3), 2):
-        i_i = ia // 3
-        i_a = ia % 3
-        i_j = jb // 3
-        i_b = jb % 3
-        col.append(n)
-        row.append(to_serial(i_i, i_a, i_j, i_b, natom))
-        if i_i == i_j and i_a == i_b:
-            data.append(1)
-        else:
-            data.append(val)
-            col.append(n)
-            row.append(to_serial(i_j, i_b, i_i, i_a, natom))
-            data.append(val)
-        n += 1
-    if (natom * 3) % 2 == 1:
-        assert (natom * 3) * ((natom * 3 + 1) // 2) == n, f"{natom}, {n}"
-    else:
-        assert ((natom * 3) // 2) * (natom * 3 + 1) == n, f"{natom}, {n}"
-    return coo_array((data, (row, col)), shape=(size_row, n), dtype="double")
 
 
 def _get_lattice_translation_compression_matrix(trans_perms: np.ndarray) -> coo_array:
