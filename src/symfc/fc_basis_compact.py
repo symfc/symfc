@@ -1,5 +1,4 @@
 """Generate symmetrized force constants using compact projection matrix."""
-import itertools
 from typing import Optional
 
 import numpy as np
@@ -10,8 +9,7 @@ from symfc.spg_reps import SpgReps
 from symfc.utils import (
     convert_basis_sets_matrix_form,
     get_compression_spg_proj,
-    get_indep_atoms_by_lattice_translation,
-    to_serial,
+    get_lattice_translation_compression_matrix,
 )
 
 
@@ -21,12 +19,13 @@ class FCBasisSetsCompact:
     Strategy
     --------
     Construct compression matrix using lattice translation symmetry C. The
-    matrix shape is (NN33, n_aN33), where n_a is the number of atoms in
-    primitive cell. This matrix expands elements of full elements NN33 of
-    matrix. (C.T @ C) is made to be identity matrix. The projection matrix of
-    space group operations is multipiled by C from both side, and the resultant
-    matrix is diagonalized. In addition, (C_perm @ C_perm.T) that is the
-    projector of index permutation symmetry is multiplied.
+    matrix shape is (NN33, n_aN33) where N=n_a * n_l. n_a and n_l is the number
+    of atoms in primitive cell and the number of lattice points in the
+    supercell. This matrix expands elements of full elements NN33 of matrix.
+    (C.T @ C) is made to be identity matrix. The projection matrix of space
+    group operations is multipiled by C from both side, and the resultant matrix
+    is diagonalized. In addition, (C_perm @ C_perm.T) that is the projector of
+    index permutation symmetry is multiplied.
 
     """
 
@@ -87,22 +86,32 @@ class FCBasisSetsCompact:
         """
         if self._log_level:
             print("Construct compression matrix of lattice translation.")
-        compression_mat = _get_lattice_translation_compression_matrix(
+        compression_mat = get_lattice_translation_compression_matrix(
             self._translation_permutations
         )
-        vecs = self._step2(
+        vecs = self._step1(
             compression_mat, with_all_operations=with_all_operations, tol=tol
         )
-        U = self._step3(vecs, compression_mat)
-        self._step4(U, compression_mat, tol=tol)
+        U = self._step2(vecs, compression_mat)
+        self._step3(U, compression_mat, tol=tol)
         return self
 
-    def _step2(
+    def _step1(
         self,
         compression_mat: coo_array,
         with_all_operations: bool = False,
         tol: float = 1e-8,
     ) -> np.ndarray:
+        """Compute eigenvectors of projection matrix.
+
+        Projection matrix is made of the product of the projection matrices of
+        space group operations and index permutation symmetry in supercell.
+
+        The eigenvalues are 1 or 0. Therefore eigenvectors corresponding to
+        eigenvalue=1 are collected using sparce eigen solver. The collected
+        eigenvectors are basis vectors of force constants.
+
+        """
         if self._log_level:
             print(
                 "Construct projector of product of space group and "
@@ -122,29 +131,44 @@ class FCBasisSetsCompact:
         vals, vecs = scipy.sparse.linalg.eigsh(compression_spg_mat, k=rank, which="LM")
         nonzero_elems = np.nonzero(np.abs(vals) > tol)[0]
         vals = vals[nonzero_elems]
-        # Check non-zero values are all ones. This is a weak check of commutativity.
+        # Check non-zero values are all ones. This is a weak check of
+        # commutativity.
         np.testing.assert_allclose(vals, 1.0, rtol=0, atol=tol)
         vecs = vecs[:, nonzero_elems]
         if self._log_level:
             print(f" eigenvalues of projector = {vals}")
         return vecs
 
-    def _step3(self, vecs: np.ndarray, compression_mat: coo_array) -> np.ndarray:
-        # print("Multiply index permutation projector")
-        # U = get_projector_permutations(self._natom) @ compression_mat
+    def _step2(self, vecs: np.ndarray, compression_mat: coo_array) -> np.ndarray:
+        """Multiply sum rule project to basis vectors.
+
+        P_sum = I - M_sum = I - np.kron(np.eye(natom, natom),
+                                      np.tile(np.eye(9) / natom, (natom,
+                                      natom)))
+
+        """
         print("Multiply sum rule projector")
         U = compression_mat @ vecs
-        block = np.tile(
-            np.eye(9, dtype=float) / self._natom, (self._natom, self._natom)
-        )
         for i in range(self._natom):
-            U[i * self._natom * 9 : (i + 1) * self._natom * 9, :] -= (
-                block @ U[i * self._natom * 9 : (i + 1) * self._natom * 9, :]
+            prod = (
+                U[i * self._natom * 9 : (i + 1) * self._natom * 9, :]
+                .reshape(self._natom, 9, -1)
+                .sum(axis=0)
+                / self._natom
             )
+            for j in range(self._natom):
+                U[(i * self._natom + j) * 9 : (i * self._natom + j + 1) * 9, :] -= prod
         U = compression_mat.T @ U
         return U
 
-    def _step4(self, U: np.ndarray, compression_mat: coo_array, tol: float = 1e-8):
+    def _step3(self, U: np.ndarray, compression_mat: coo_array, tol: float = 1e-8):
+        """Extract basis vectors that satisfies sum rule.
+
+        Eigenvectors corresponding to SVD eigenvalues that are not 1 are
+        rejected.
+
+        """
+        print("Solving SVD")
         U, s, _ = np.linalg.svd(U, full_matrices=False)
         U = U[:, np.where(np.abs(s) > 1 - tol)[0]]
 
@@ -155,32 +179,3 @@ class FCBasisSetsCompact:
         self._basis_sets = (compression_mat @ U).T.reshape(
             (U.shape[1], self._natom, self._natom, 3, 3)
         )
-
-
-def _get_lattice_translation_compression_matrix(trans_perms: np.ndarray) -> coo_array:
-    """Return compression matrix by lattice translation symmetry.
-
-    Matrix shape is (NN33, n_a*N33), where n_a is the number of independent
-    atoms by lattice translation symmetry.
-
-    """
-    col, row, data = [], [], []
-    indep_atoms = get_indep_atoms_by_lattice_translation(trans_perms)
-    n_a = len(indep_atoms)
-    N = trans_perms.shape[1]
-    n_lp = N // n_a
-    val = 1.0 / np.sqrt(n_lp)
-    size_row = (N * 3) ** 2
-
-    n = 0
-    for i_patom in indep_atoms:
-        for j in range(N):
-            for a, b in itertools.product(range(3), range(3)):
-                for i_trans, j_trans in zip(trans_perms[:, i_patom], trans_perms[:, j]):
-                    data.append(val)
-                    col.append(n)
-                    row.append(to_serial(i_trans, a, j_trans, b, N))
-                n += 1
-
-    assert n * n_lp == size_row
-    return coo_array((data, (row, col)), shape=(size_row, n), dtype="double")
