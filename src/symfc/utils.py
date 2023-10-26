@@ -175,13 +175,7 @@ def kron_sum_c(
             kron_sum += kron
         kron_sum /= len(reps)
 
-    # lattice translation and index permutation symmetry are projected.
-    C_perm = _get_permutation_compression_matrix(natom)
-    perm = C_perm.T @ C
-    perm = C_perm @ perm
-    perm = C.T @ perm
-
-    return kron_sum @ perm
+    return kron_sum
 
 
 def _kron_each_c(
@@ -220,7 +214,7 @@ def get_compression_spg_proj(
     where C is ``compression_mat``.
 
     """
-    proj_mat = kron_sum_c(
+    coset_reps_sum = kron_sum_c(
         reps,
         natom,
         compression_mat,
@@ -228,7 +222,13 @@ def get_compression_spg_proj(
         translation_indices=translation_indices,
         with_all_operations=with_all_operations,
     )
-    return proj_mat
+    # lattice translation and index permutation symmetry are projected.
+    C_perm = _get_permutation_compression_matrix(natom)
+    perm = C_perm.T @ compression_mat
+    perm = C_perm @ perm
+    perm = compression_mat.T @ perm
+
+    return coset_reps_sum @ perm
 
 
 def get_projector_constraints(
@@ -432,4 +432,33 @@ def _get_permutation_compression_matrix(natom: int) -> coo_array:
         assert (natom * 3) * ((natom * 3 + 1) // 2) == n, f"{natom}, {n}"
     else:
         assert ((natom * 3) // 2) * (natom * 3 + 1) == n, f"{natom}, {n}"
+    return coo_array((data, (row, col)), shape=(size_row, n), dtype="double")
+
+
+def get_lattice_translation_compression_matrix(trans_perms: np.ndarray) -> coo_array:
+    """Return compression matrix by lattice translation symmetry.
+
+    Matrix shape is (NN33, n_a*N33), where n_a is the number of independent
+    atoms by lattice translation symmetry.
+
+    """
+    col, row, data = [], [], []
+    indep_atoms = get_indep_atoms_by_lattice_translation(trans_perms)
+    n_a = len(indep_atoms)
+    N = trans_perms.shape[1]
+    n_lp = N // n_a
+    val = 1.0 / np.sqrt(n_lp)
+    size_row = (N * 3) ** 2
+
+    n = 0
+    for i_patom in indep_atoms:
+        for j in range(N):
+            for a, b in itertools.product(range(3), range(3)):
+                for i_trans, j_trans in zip(trans_perms[:, i_patom], trans_perms[:, j]):
+                    data.append(val)
+                    col.append(n)
+                    row.append(to_serial(i_trans, a, j_trans, b, N))
+                n += 1
+
+    assert n * n_lp == size_row
     return coo_array((data, (row, col)), shape=(size_row, n), dtype="double")
