@@ -31,8 +31,7 @@ def kron_sum_c(
 ):
     """Compute sum_r kron(r, r) / N_r in NN33 order in C.
 
-    Sum of kron(r, r) are computed for unique r. Difference from kron_c is that
-    in this function, coo_array is created for each r.
+    Sum of kron(r, r) are computed for unique r.
 
     Parameters
     ----------
@@ -42,6 +41,37 @@ def kron_sum_c(
         Number of atoms in supercell.
     C : coo_array
         Compression matrix.
+
+    kron
+    ----
+    This is a prototype code to write the same implementation in C.
+    See self._step1_kron_c().
+
+                [a11*B a12*B a13*B ...]
+    kron(A, B) =[a21*B a22*B a13*B ...]
+                [a31*B a32*B a33*B ...]
+                [        ...          ]
+
+    (i, j, k, l) N-3-N-3 index
+    (i*3+j, k*3+l) N3-N3 index
+    (i, k, j, l) N-N-3-3 index
+    (i*9*N+k*9+j*3+l) NN33 index
+
+    p = 3*N, R=(r,s) and R=(v,w) in (3N, 3N).
+    i = r // 3
+    j = r % 3
+    k = s // 3
+    l = s % 3
+    I = v // 3
+    J = v % 3
+    K = w // 3
+    L = w % 3
+
+    kron(R, R)_(pr+v, ps+w) = R(r,s)*R(v,w)  (3N*3N, 3N*3N)
+    kron(R, R)_(r, v, s, w) = R(r,s)*R(v,w)  (3N,3N, 3N,3N)
+    kron(R, R)_(i, j, I, J, k, l, K, L) = R(r,s)*R(v,w)  (N,3,N,3, N,3,N,3)
+    kron(R, R)_(i, I, j, J, k, K, l, L) = R(r,s)*R(v,w)  (N,N,3,3, N,N,3,3)
+    kron(R, R)_(i*9N+I*9+j*3+J, k*9N+K*9+l*3+L) = R(r,s)*R(v,w)  (N,N,3,3, N,N,3,3)
 
     Note
     ----

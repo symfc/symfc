@@ -130,7 +130,7 @@ class SpgReps:
         self,
         permutations: np.ndarray,
         rotations: np.ndarray,
-        unique_rotation_indices: list[int],
+        rotation_indices: list[int],
         tol=1e-10,
     ) -> list[coo_array]:
         """Construct representation matrices of rotations.
@@ -152,14 +152,15 @@ class SpgReps:
         [0 0 0 1 0 0]
         [0 0 0 0 0 1]
 
+        Note
+        ----
+        np.add.outer(a, b).ravel() = [i + j for i in a for j in b].
+
         """
         size = 3 * len(self._numbers)
         atom_indices = np.arange(len(self._numbers))
         reps = []
-        for perm, r in zip(
-            permutations[unique_rotation_indices],
-            rotations[unique_rotation_indices],
-        ):
+        for perm, r in zip(permutations[rotation_indices], rotations[rotation_indices]):
             rot_cart = similarity_transformation(self._lattice, r)
             nonzero_r_row, nonzero_r_col = np.nonzero(np.abs(rot_cart) > tol)
             row = np.add.outer(perm * 3, nonzero_r_row).ravel()
