@@ -7,14 +7,14 @@ from scipy.sparse import coo_array
 
 from symfc.spg_reps import SpgReps
 from symfc.utils import (
-    convert_basis_sets_matrix_form,
+    convert_basis_set_matrix_form,
     get_compression_spg_proj,
     get_lattice_translation_compression_matrix,
 )
 
 
-class FCBasisSetsCompact:
-    """Compact symmetry adapted basis sets for force constants.
+class FCBasisSet:
+    """Symmetry adapted basis set for force constants.
 
     Strategy
     --------
@@ -51,20 +51,20 @@ class FCBasisSetsCompact:
 
         self._natom = self._reps[0].shape[0] // 3
 
-        self._basis_sets: Optional[np.ndarray] = None
+        self._basis_set: Optional[np.ndarray] = None
 
     @property
-    def basis_sets_matrix_form(self) -> Optional[list[np.ndarray]]:
+    def basis_set_matrix_form(self) -> Optional[list[np.ndarray]]:
         """Retrun a list of FC basis in 3Nx3N matrix."""
-        if self._basis_sets is None:
+        if self._basis_set is None:
             return None
 
-        return convert_basis_sets_matrix_form(self._basis_sets)
+        return convert_basis_set_matrix_form(self._basis_set)
 
     @property
-    def basis_sets(self) -> Optional[np.ndarray]:
+    def basis_set(self) -> Optional[np.ndarray]:
         """Return a list of FC basis in (N, N, 3, 3) dimentional arrays."""
-        return self._basis_sets
+        return self._basis_set
 
     def run(
         self,
@@ -142,9 +142,13 @@ class FCBasisSetsCompact:
     def _step2(self, vecs: np.ndarray, compression_mat: coo_array) -> np.ndarray:
         """Multiply sum rule project to basis vectors.
 
+        Compute P_sum B, where
+
         P_sum = I - M_sum = I - np.kron(np.eye(natom, natom),
                                       np.tile(np.eye(9) / natom, (natom,
                                       natom)))
+
+        and B is the set of fc basis vectors determined by P_SG and P_perm.
 
         """
         print("Multiply sum rule projector")
@@ -176,6 +180,6 @@ class FCBasisSetsCompact:
             print(f"  - svd eigenvalues = {np.abs(s)}")
             print(f"  - basis size = {U.shape}")
 
-        self._basis_sets = (compression_mat @ U).T.reshape(
+        self._basis_set = (compression_mat @ U).T.reshape(
             (U.shape[1], self._natom, self._natom, 3, 3)
         )

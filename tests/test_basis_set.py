@@ -1,11 +1,11 @@
-"""Tests of FCBasisSetsCompact."""
+"""Tests of FCBasisSet."""
 from pathlib import Path
 
 import numpy as np
 import phonopy
 import pytest
 
-from symfc.fc_basis_compact import FCBasisSetsCompact
+from symfc.basis_set import FCBasisSet
 from symfc.spg_reps import SpgReps
 
 cwd = Path(__file__).parent
@@ -27,14 +27,14 @@ def test_fc_basis_sets_compact():
     types = [0, 0]
 
     sym_op_reps = SpgReps(lattice, positions, types)
-    sbs = FCBasisSetsCompact(sym_op_reps, log_level=1)
+    sbs = FCBasisSet(sym_op_reps, log_level=1)
     sbs.run()
-    basis = sbs.basis_sets_matrix_form
+    basis = sbs.basis_set_matrix_form
     np.testing.assert_allclose(basis[0], basis_ref, atol=1e-6)
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
 
 
-def test_fc_NaCl_222(bs_nacl_222_compact: FCBasisSetsCompact):
+def test_fc_NaCl_222(bs_nacl_222_compact: FCBasisSet):
     """Test force constants by NaCl 64 atoms supercell and compared with ALM.
 
     Also test force constants by NaCl 64 atoms supercell.
@@ -43,7 +43,7 @@ def test_fc_NaCl_222(bs_nacl_222_compact: FCBasisSetsCompact):
 
 
     """
-    basis_sets = bs_nacl_222_compact.run().basis_sets
+    basis_set = bs_nacl_222_compact.run().basis_set
     ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]
@@ -60,9 +60,9 @@ def test_fc_NaCl_222(bs_nacl_222_compact: FCBasisSetsCompact):
     #     (31, 64, 64, 3, 3)
     # )
 
-    Bf = np.einsum("ijklm,nkm->injl", basis_sets, d).reshape(basis_sets.shape[0], -1)
+    Bf = np.einsum("ijklm,nkm->injl", basis_set, d).reshape(basis_set.shape[0], -1)
     c = -f.ravel() @ np.linalg.pinv(Bf)
-    fc = np.einsum("i,ijklm->jklm", c, basis_sets)
+    fc = np.einsum("i,ijklm->jklm", c, basis_set)
     fc_compact = fc[ph.primitive.p2s_map]
 
     # To save force constants in phonopy-yaml.
@@ -85,7 +85,7 @@ def test_fc_NaCl_222(bs_nacl_222_compact: FCBasisSetsCompact):
     # )
 
 
-def test_fc_SnO2_223_wrt_ALM(bs_sno2_223_compact: FCBasisSetsCompact):
+def test_fc_SnO2_223_wrt_ALM(bs_sno2_223: FCBasisSet):
     """Test force constants by SnO2 72 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -93,11 +93,11 @@ def test_fc_SnO2_223_wrt_ALM(bs_sno2_223_compact: FCBasisSetsCompact):
     """
     _ = _compare_fc_with_alm(
         "phonopy_SnO2_223_rd.yaml.xz",
-        bs_sno2_223_compact,
+        bs_sno2_223,
     )
 
 
-def test_fc_SnO2_222_wrt_ALM(bs_sno2_222_compact: FCBasisSetsCompact):
+def test_fc_SnO2_222_wrt_ALM(bs_sno2_222: FCBasisSet):
     """Test force constants by SnO2 48 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -105,12 +105,12 @@ def test_fc_SnO2_222_wrt_ALM(bs_sno2_222_compact: FCBasisSetsCompact):
     """
     _ = _compare_fc_with_alm(
         "phonopy_SnO2_222_rd.yaml.xz",
-        bs_sno2_222_compact,
+        bs_sno2_222,
     )
 
 
 @pytest.mark.big
-def test_fc_SiO2_222_wrt_ALM(bs_sio2_222_compact: FCBasisSetsCompact):
+def test_fc_SiO2_222_wrt_ALM(bs_sio2_222: FCBasisSet):
     """Test force constants by SiO2 72 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -118,7 +118,7 @@ def test_fc_SiO2_222_wrt_ALM(bs_sio2_222_compact: FCBasisSetsCompact):
     """
     _ = _compare_fc_with_alm(
         "phonopy_SiO2_222_rd.yaml.xz",
-        bs_sio2_222_compact,
+        bs_sio2_222,
     )
     # _write_phonopy_fc_yaml(
     #     "phonopy_SiO2_222_fc.yaml", "phonopy_SiO2_222_rd.yaml.xz", fc_compact
@@ -127,7 +127,7 @@ def test_fc_SiO2_222_wrt_ALM(bs_sio2_222_compact: FCBasisSetsCompact):
 
 @pytest.mark.parametrize("with_all_operations", [True, False])
 def test_fc_SiO2_221_wrt_ALM(
-    bs_sio2_221_compact: FCBasisSetsCompact,
+    bs_sio2_221: FCBasisSet,
     with_all_operations: bool,
 ):
     """Test force constants by SiO2 36 atoms supercell and compared with ALM.
@@ -137,7 +137,7 @@ def test_fc_SiO2_221_wrt_ALM(
     """
     _ = _compare_fc_with_alm(
         "phonopy_SiO2_221_rd.yaml.xz",
-        bs_sio2_221_compact,
+        bs_sio2_221,
         with_all_operations=with_all_operations,
     )
     # _write_phonopy_fc_yaml(
@@ -146,7 +146,7 @@ def test_fc_SiO2_221_wrt_ALM(
 
 
 @pytest.mark.big
-def test_fc_GaN_442_wrt_ALM(bs_gan_442_compact: FCBasisSetsCompact):
+def test_fc_GaN_442_wrt_ALM(bs_gan_442: FCBasisSet):
     """Test force constants by GaN 128 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -154,14 +154,14 @@ def test_fc_GaN_442_wrt_ALM(bs_gan_442_compact: FCBasisSetsCompact):
     """
     _ = _compare_fc_with_alm(
         "phonopy_GaN_442_rd.yaml.xz",
-        bs_gan_442_compact,
+        bs_gan_442,
     )
     # _write_phonopy_fc_yaml(
     #     "phonopy_GaN_442_fc.yaml", "phonopy_GaN_442_rd.yaml.xz", fc_compact
     # )
 
 
-def test_fc_GaN_222_wrt_ALM(bs_gan_222_compact: FCBasisSetsCompact):
+def test_fc_GaN_222_wrt_ALM(bs_gan_222: FCBasisSet):
     """Test force constants by GaN 32 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -169,7 +169,7 @@ def test_fc_GaN_222_wrt_ALM(bs_gan_222_compact: FCBasisSetsCompact):
     """
     _ = _compare_fc_with_alm(
         "phonopy_GaN_222_rd.yaml.xz",
-        bs_gan_222_compact,
+        bs_gan_222,
     )
     # _write_phonopy_fc_yaml(
     #     "phonopy_GaN_222_fc.yaml", "phonopy_GaN_222_rd.yaml.xz", fc_compact
@@ -177,16 +177,16 @@ def test_fc_GaN_222_wrt_ALM(bs_gan_222_compact: FCBasisSetsCompact):
 
 
 def _compare_fc_with_alm(
-    filename, fc_basis_sets, with_all_operations=False
+    filename: str, fc_basis_set: FCBasisSet, with_all_operations: bool = False
 ) -> np.ndarray:
     pytest.importorskip("alm")
-    basis_sets = fc_basis_sets.run(with_all_operations=with_all_operations).basis_sets
+    basis_set = fc_basis_set.run(with_all_operations=with_all_operations).basis_set
     ph = phonopy.load(cwd / filename, fc_calculator="alm")
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]
-    Bf = np.einsum("ijklm,nkm->injl", basis_sets, d).reshape(basis_sets.shape[0], -1)
+    Bf = np.einsum("ijklm,nkm->injl", basis_set, d).reshape(basis_set.shape[0], -1)
     c = -f.ravel() @ np.linalg.pinv(Bf)
-    fc = np.einsum("i,ijklm->jklm", c, basis_sets)
+    fc = np.einsum("i,ijklm->jklm", c, basis_set)
     fc_compact = fc[ph.primitive.p2s_map]
     np.testing.assert_allclose(ph.force_constants, fc_compact, atol=1e-6)
     return fc_compact
