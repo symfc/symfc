@@ -18,19 +18,22 @@ class SpgReps:
         lattice: np.ndarray,
         positions: np.ndarray,
         numbers: np.ndarray,
+        only_coset_representatives: bool = True,
     ):
         """Init method.
 
         Parameters
         ----------
         lattice : array_like
-            Basis vectors as column vectors.
-            shape=(3, 3), dtype='double'
+            Basis vectors as column vectors. shape=(3, 3), dtype='double'
         positions : array_like
-            Position vectors given as column vectors.
-            shape=(3, natom), dtype='double'
+            Position vectors given as column vectors. shape=(3, natom),
+            dtype='double'
         numbers : array_like
             Atomic IDs idicated by integers larger or eqaul to 0.
+        only_coset_representatives : bool
+            Matrix reps are computed for only coset representatives. Default is
+            True.
 
         """
         self._lattice = np.array(lattice, dtype="double", order="C")
@@ -38,9 +41,8 @@ class SpgReps:
         self._numbers = numbers
         self._reps: Optional[list[coo_array]] = None
         self._translation_permutations: Optional[np.ndarray] = None
-        self._translation_indices: Optional[np.ndarray] = None
 
-        self._run()
+        self._run(only_coset_representatives=only_coset_representatives)
 
     @property
     def representations(self) -> Optional[list[coo_array]]:
@@ -59,35 +61,23 @@ class SpgReps:
         """
         return self._translation_permutations
 
-    @property
-    def translation_indices(self) -> Optional[np.ndarray]:
-        """Return indices of lattice translations in operations.
-
-        Returns
-        --------
-        np.ndarray :
-            Indices of pure lattice translations in operations.
-            shape=(num_pure_translations,), dtype=int
-
-        """
-        return self._translation_indices
-
-    @property
-    def rotations(self) -> np.ndarray:
-        """Return rotations."""
-        return self._rotations
-
-    def _run(self):
+    def _run(self, only_coset_representatives=True):
         rotations, translations = self._get_symops()
         permutations = compute_all_sg_permutations(
             self._positions.T, rotations, translations, self._lattice, 1e-5
         )
-        self._reps = self._compute_reps(permutations, rotations)
-        (
-            self._translation_permutations,
-            self._translation_indices,
-        ) = self._get_translation_permutations(permutations, rotations)
-        self._rotations = rotations
+        self._translation_permutations, _ = self._get_translation_permutations(
+            permutations, rotations
+        )
+        unique_rotation_indices = self._get_unique_rotation_indices(rotations)
+        if only_coset_representatives:
+            self._reps = self._compute_reps(
+                permutations, rotations, unique_rotation_indices
+            )
+        else:
+            self._reps = self._compute_reps(
+                permutations, rotations, list(range(len(rotations)))
+            )
 
     def _get_translation_permutations(
         self, permutations, rotations
@@ -100,6 +90,20 @@ class SpgReps:
                 trans_perms.append(perm)
                 trans_indices.append(i)
         return np.array(trans_perms, dtype=int), np.array(trans_indices, dtype=int)
+
+    def _get_unique_rotation_indices(self, rotations: np.ndarray) -> list[int]:
+        unique_rotations = []
+        indices = []
+        for i, r in enumerate(rotations):
+            is_found = False
+            for ur in unique_rotations:
+                if np.array_equal(r, ur):
+                    is_found = True
+                    break
+            if not is_found:
+                unique_rotations.append(r)
+                indices.append(i)
+        return indices
 
     def _get_symops(self) -> tuple[np.ndarray, np.ndarray]:
         """Return symmetry operations.
@@ -122,7 +126,13 @@ class SpgReps:
         )
         return symops["rotations"], symops["translations"]
 
-    def _compute_reps(self, permutations, rotations, tol=1e-10) -> list[coo_array]:
+    def _compute_reps(
+        self,
+        permutations: np.ndarray,
+        rotations: np.ndarray,
+        unique_rotation_indices: list[int],
+        tol=1e-10,
+    ) -> list[coo_array]:
         """Construct representation matrices of rotations.
 
         Permutation of atoms by r, perm(r) = [0 1], means the permutation matrix:
@@ -146,7 +156,10 @@ class SpgReps:
         size = 3 * len(self._numbers)
         atom_indices = np.arange(len(self._numbers))
         reps = []
-        for perm, r in zip(permutations, rotations):
+        for perm, r in zip(
+            permutations[unique_rotation_indices],
+            rotations[unique_rotation_indices],
+        ):
             rot_cart = similarity_transformation(self._lattice, r)
             nonzero_r_row, nonzero_r_col = np.nonzero(np.abs(rot_cart) > tol)
             row = np.add.outer(perm * 3, nonzero_r_row).ravel()

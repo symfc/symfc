@@ -125,21 +125,15 @@ def test_fc_SiO2_222_wrt_ALM(bs_sio2_222: FCBasisSet):
     # )
 
 
-@pytest.mark.parametrize("with_all_operations", [True, False])
 def test_fc_SiO2_221_wrt_ALM(
     bs_sio2_221: FCBasisSet,
-    with_all_operations: bool,
 ):
     """Test force constants by SiO2 36 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm(
-        "phonopy_SiO2_221_rd.yaml.xz",
-        bs_sio2_221,
-        with_all_operations=with_all_operations,
-    )
+    _ = _compare_fc_with_alm("phonopy_SiO2_221_rd.yaml.xz", bs_sio2_221)
     # _write_phonopy_fc_yaml(
     #     "phonopy_SiO2_221_fc.yaml", "phonopy_SiO2_221_rd.yaml.xz", fc_compact
     # )
@@ -176,11 +170,9 @@ def test_fc_GaN_222_wrt_ALM(bs_gan_222: FCBasisSet):
     # )
 
 
-def _compare_fc_with_alm(
-    filename: str, fc_basis_set: FCBasisSet, with_all_operations: bool = False
-) -> np.ndarray:
+def _compare_fc_with_alm(filename: str, fc_basis_set: FCBasisSet) -> np.ndarray:
     pytest.importorskip("alm")
-    basis_set = fc_basis_set.run(with_all_operations=with_all_operations).basis_set
+    basis_set = fc_basis_set.run().basis_set
     ph = phonopy.load(cwd / filename, fc_calculator="alm")
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]

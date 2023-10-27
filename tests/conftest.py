@@ -51,6 +51,13 @@ def ph_nacl_222() -> Phonopy:
     return ph
 
 
+@pytest.fixture(scope="session")
+def ph_gan_222() -> Phonopy:
+    """Return phonopy instance of GaN222."""
+    ph = phonopy.load(cwd / "phonopy_GaN_222_rd.yaml.xz", produce_fc=False)
+    return ph
+
+
 @pytest.fixture(scope=scope)
 def bs_nacl_222_compact() -> FCBasisSet:
     """Return basis sets of NaCl222."""

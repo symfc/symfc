@@ -1,6 +1,5 @@
 """Functions to handle matrix indices."""
 import itertools
-from typing import Optional
 
 import numpy as np
 from scipy.sparse import coo_array
@@ -29,19 +28,11 @@ def kron_sum_c(
     reps: list[coo_array],
     natom: int,
     C: coo_array,
-    rotations: Optional[np.ndarray] = None,
-    translation_indices: Optional[np.ndarray] = None,
-    with_all_operations: bool = False,
 ):
     """Compute sum_r kron(r, r) / N_r in NN33 order in C.
 
-    When ``rotations`` and ``translation_indices`` are given
-        1. Sum of kron(r, r) for unique r's are computed.
-        2. Sum of kron(r, r) for r=identity are computed.
-        3. Product of 1 and 2 are computed.
-    Otherwise
-        Sum of kron(r, r) are computed. Difference from kron_c is that in this
-        function, coo_array is created for each r.
+    Sum of kron(r, r) are computed for unique r. Difference from kron_c is that
+    in this function, coo_array is created for each r.
 
     Parameters
     ----------
@@ -51,14 +42,6 @@ def kron_sum_c(
         Number of atoms in supercell.
     C : coo_array
         Compression matrix.
-    rotations : np.ndarray
-        Rotation matrices of all symmetry operations. Optional.
-    translation_indices : np.ndarray
-        Indices of pure translation operations in all symmetry operations.
-        Optional.
-    with_all_operations : bool
-        Run with all operations instead of product of unique rotations and pure
-        translations.
 
     Note
     ----
@@ -69,47 +52,20 @@ def kron_sum_c(
     row_dtype = reps[0].row.dtype
     col_dtype = reps[0].col.dtype
     data_dtype = reps[0].data.dtype
-    assert row_dtype is np.dtype("intc") or row_dtype is np.dtype("int_")
+    assert row_dtype in (np.dtype("intc"), np.dtype("int_"))
     assert reps[0].row.flags.contiguous
-    assert col_dtype is np.dtype("intc") or col_dtype is np.dtype("int_")
+    assert col_dtype in (np.dtype("intc"), np.dtype("int_"))
     assert reps[0].col.flags.contiguous
     assert data_dtype is np.dtype("double")
     assert reps[0].data.flags.contiguous
 
     kron_sum = coo_array(([], ([], [])), shape=(C.shape[1], C.shape[1]), dtype="double")
-    if (
-        not with_all_operations
-        and rotations is not None
-        and translation_indices is not None
-    ):
-        # Sum over unique r operations (r's of coset representatives)
-        unique_rotations: list[np.ndarray] = []
-        for i, rmat in enumerate(reps):
-            if rotations is not None:
-                is_found = False
-                for r in unique_rotations:
-                    if np.array_equal(r, rotations[i]):
-                        is_found = True
-                        break
-                if is_found:
-                    continue
-                else:
-                    unique_rotations.append(rotations[i])
-
-            kron = _kron_each_c(rmat, natom, row_dtype, col_dtype, data_dtype)
-            kron = kron @ C
-            kron = C.T @ kron
-            kron_sum += kron
-
-        kron_sum /= len(unique_rotations)
-    else:
-        # Sum over all operations.
-        for i, rmat in enumerate(reps):
-            kron = _kron_each_c(rmat, natom, row_dtype, col_dtype, data_dtype)
-            kron = kron @ C
-            kron = C.T @ kron
-            kron_sum += kron
-        kron_sum /= len(reps)
+    for rmat in reps:
+        kron = _kron_each_c(rmat, natom, row_dtype, col_dtype, data_dtype)
+        kron = kron @ C
+        kron = C.T @ kron
+        kron_sum += kron
+    kron_sum /= len(reps)
 
     return kron_sum
 
@@ -140,9 +96,6 @@ def get_compression_spg_proj(
     reps: list[coo_array],
     natom: int,
     compression_mat: coo_array,
-    rotations: Optional[np.ndarray] = None,
-    translation_indices: Optional[np.ndarray] = None,
-    with_all_operations: bool = False,
 ) -> coo_array:
     """Compute compact spg projector matrix.
 
@@ -154,9 +107,6 @@ def get_compression_spg_proj(
         reps,
         natom,
         compression_mat,
-        rotations=rotations,
-        translation_indices=translation_indices,
-        with_all_operations=with_all_operations,
     )
     # lattice translation and index permutation symmetry are projected.
     C_perm = _get_permutation_compression_matrix(natom)

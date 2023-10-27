@@ -21,8 +21,8 @@ def test_SpgReps_NaCl_111(cell_nacl_111: PhonopyAtoms):
     for rep in reps:
         proj += rep
     proj /= len(reps)
-    for v in proj.toarray():
-        print(v)
+    # for v in proj.toarray():
+    #     print(v)
     assert np.rint(proj.trace()).astype(int) == 0
     len(proj.data) == 0
 
@@ -34,6 +34,7 @@ def test_SpgReps_NaCl_222(ph_nacl_222: Phonopy):
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
+        only_coset_representatives=False,
     )
 
     reps = sym_op_reps.representations
@@ -63,3 +64,15 @@ def test_translation_permutations_NaCl_111(cell_nacl_111: PhonopyAtoms):
         [1, 0, 3, 2, 5, 4, 7, 6],
     ]
     np.testing.assert_array_equal(trans_perms, ref)
+
+
+def test_translation_permutations_shape_GaN_222(ph_gan_222: Phonopy):
+    """Test SpgReps.translation_permutations."""
+    cell = ph_gan_222.supercell
+    sym_op_reps = SpgReps(
+        cell.cell.T,
+        cell.scaled_positions.T,
+        cell.numbers,
+    )
+    trans_perms = sym_op_reps.translation_permutations
+    assert trans_perms.shape == (8, 32)
