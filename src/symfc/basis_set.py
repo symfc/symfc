@@ -7,14 +7,14 @@ from scipy.sparse import coo_array
 
 from symfc.spg_reps import SpgReps
 from symfc.utils import (
-    convert_basis_sets_matrix_form,
+    convert_basis_set_matrix_form,
     get_compression_spg_proj,
     get_lattice_translation_compression_matrix,
 )
 
 
-class FCBasisSetsCompact:
-    """Compact symmetry adapted basis sets for force constants.
+class FCBasisSet:
+    """Symmetry adapted basis set for force constants.
 
     Strategy
     --------
@@ -43,55 +43,36 @@ class FCBasisSetsCompact:
             Log level. Default is 0.
 
         """
-        self._reps: list[coo_array] = spg_reps.representations
-        self._translation_permutations = spg_reps.translation_permutations
-        self._rotations = spg_reps.rotations
-        self._translation_indices = spg_reps.translation_indices
+        self._spg_reps = spg_reps
+        # self._reps: list[coo_array] = spg_reps.representations
+        self._natom = len(self._spg_reps.numbers)
         self._log_level = log_level
-
-        self._natom = self._reps[0].shape[0] // 3
-
-        self._basis_sets: Optional[np.ndarray] = None
+        self._basis_set: Optional[np.ndarray] = None
 
     @property
-    def basis_sets_matrix_form(self) -> Optional[list[np.ndarray]]:
+    def basis_set_matrix_form(self) -> Optional[list[np.ndarray]]:
         """Retrun a list of FC basis in 3Nx3N matrix."""
-        if self._basis_sets is None:
+        if self._basis_set is None:
             return None
 
-        return convert_basis_sets_matrix_form(self._basis_sets)
+        return convert_basis_set_matrix_form(self._basis_set)
 
     @property
-    def basis_sets(self) -> Optional[np.ndarray]:
+    def basis_set(self) -> Optional[np.ndarray]:
         """Return a list of FC basis in (N, N, 3, 3) dimentional arrays."""
-        return self._basis_sets
+        return self._basis_set
 
     def run(
         self,
-        with_all_operations: bool = False,
         tol: float = 1e-8,
     ):
-        """Compute force constants basis.
-
-        Parameters
-        ----------
-        with_all_operations : bool, optional
-            With True, space group operation projector is constructued using all
-            given symmetry operations. With False, the projector is constructued
-            as a product of sum of those operations with unique rotations (up to
-            48 operations) and lattice translation projector. The former is
-            considered as the coset representatives and the lattice is the
-            translation group. Default is False.
-
-        """
+        """Compute force constants basis."""
         if self._log_level:
             print("Construct compression matrix of lattice translation.")
         compression_mat = get_lattice_translation_compression_matrix(
-            self._translation_permutations
+            self._spg_reps.translation_permutations
         )
-        vecs = self._step1(
-            compression_mat, with_all_operations=with_all_operations, tol=tol
-        )
+        vecs = self._step1(compression_mat, tol=tol)
         U = self._step2(vecs, compression_mat)
         self._step3(U, compression_mat, tol=tol)
         return self
@@ -99,7 +80,6 @@ class FCBasisSetsCompact:
     def _step1(
         self,
         compression_mat: coo_array,
-        with_all_operations: bool = False,
         tol: float = 1e-8,
     ) -> np.ndarray:
         """Compute eigenvectors of projection matrix.
@@ -118,12 +98,9 @@ class FCBasisSetsCompact:
                 "index permutation symmetry."
             )
         compression_spg_mat = get_compression_spg_proj(
-            self._reps,
+            self._spg_reps,
             self._natom,
             compression_mat,
-            rotations=self._rotations,
-            translation_indices=self._translation_indices,
-            with_all_operations=with_all_operations,
         )
         rank = int(round(compression_spg_mat.diagonal(k=0).sum()))
         if self._log_level:
@@ -142,9 +119,13 @@ class FCBasisSetsCompact:
     def _step2(self, vecs: np.ndarray, compression_mat: coo_array) -> np.ndarray:
         """Multiply sum rule project to basis vectors.
 
+        Compute P_sum B, where
+
         P_sum = I - M_sum = I - np.kron(np.eye(natom, natom),
                                       np.tile(np.eye(9) / natom, (natom,
                                       natom)))
+
+        and B is the set of fc basis vectors determined by P_SG and P_perm.
 
         """
         print("Multiply sum rule projector")
@@ -176,6 +157,6 @@ class FCBasisSetsCompact:
             print(f"  - svd eigenvalues = {np.abs(s)}")
             print(f"  - basis size = {U.shape}")
 
-        self._basis_sets = (compression_mat @ U).T.reshape(
+        self._basis_set = (compression_mat @ U).T.reshape(
             (U.shape[1], self._natom, self._natom, 3, 3)
         )
