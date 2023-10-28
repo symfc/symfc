@@ -14,7 +14,7 @@ def test_SpgReps_NaCl_111(cell_nacl_111: PhonopyAtoms):
         cell.cell.T,
         cell.scaled_positions.T,
         cell.numbers,
-    )
+    ).run()
 
     reps = sym_op_reps.representations
     proj = np.zeros_like(reps[0])
@@ -34,8 +34,7 @@ def test_SpgReps_NaCl_222(ph_nacl_222: Phonopy):
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-        only_coset_representatives=False,
-    )
+    ).run(only_coset_representatives=False)
 
     reps = sym_op_reps.representations
     proj = np.zeros_like(reps[0])
@@ -53,7 +52,7 @@ def test_translation_permutations_NaCl_111(cell_nacl_111: PhonopyAtoms):
         cell.cell.T,
         cell.scaled_positions.T,
         cell.numbers,
-    )
+    ).run()
     trans_perms = sym_op_reps.translation_permutations
     # for v in trans_perms:
     #     print("[", ", ".join([f"{x}" for x in v]), "],")
@@ -73,6 +72,6 @@ def test_translation_permutations_shape_GaN_222(ph_gan_222: Phonopy):
         cell.cell.T,
         cell.scaled_positions.T,
         cell.numbers,
-    )
+    ).run()
     trans_perms = sym_op_reps.translation_permutations
     assert trans_perms.shape == (8, 32)

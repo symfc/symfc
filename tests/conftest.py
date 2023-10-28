@@ -1,5 +1,6 @@
 """Pytest conftest.py."""
 from pathlib import Path
+from typing import Final
 
 import phonopy
 import pytest
@@ -11,7 +12,7 @@ from symfc.basis_set import FCBasisSet
 from symfc.spg_reps import SpgReps
 
 cwd = Path(__file__).parent
-scope = "function"
+scope: Final = "function"
 
 
 def pytest_addoption(parser):
@@ -66,7 +67,7 @@ def bs_nacl_222_compact() -> FCBasisSet:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-    )
+    ).run()
     sbs = FCBasisSet(sym_op_reps, log_level=1)
     return sbs
 
@@ -79,7 +80,7 @@ def bs_sno2_223() -> FCBasisSet:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-    )
+    ).run()
     sbs = FCBasisSet(sym_op_reps, log_level=1)
     return sbs
 
@@ -92,7 +93,7 @@ def bs_sno2_222() -> FCBasisSet:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-    )
+    ).run()
     sbs = FCBasisSet(sym_op_reps, log_level=1)
     return sbs
 
@@ -105,7 +106,7 @@ def bs_sio2_222() -> FCBasisSet:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-    )
+    ).run()
     sbs = FCBasisSet(sym_op_reps, log_level=1)
     return sbs
 
@@ -118,7 +119,7 @@ def bs_sio2_221() -> FCBasisSet:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-    )
+    ).run()
     sbs = FCBasisSet(sym_op_reps, log_level=1)
     return sbs
 
@@ -131,7 +132,7 @@ def bs_gan_442() -> FCBasisSet:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-    )
+    ).run()
     sbs = FCBasisSet(sym_op_reps, log_level=1)
     return sbs
 
@@ -144,6 +145,6 @@ def bs_gan_222() -> FCBasisSet:
         ph.supercell.cell.T,
         ph.supercell.scaled_positions.T,
         ph.supercell.numbers,
-    )
+    ).run()
     sbs = FCBasisSet(sym_op_reps, log_level=1)
     return sbs

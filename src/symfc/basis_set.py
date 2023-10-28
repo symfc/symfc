@@ -43,12 +43,10 @@ class FCBasisSet:
             Log level. Default is 0.
 
         """
-        self._reps: list[coo_array] = spg_reps.representations
-        self._translation_permutations = spg_reps.translation_permutations
+        self._spg_reps = spg_reps
+        # self._reps: list[coo_array] = spg_reps.representations
+        self._natom = len(self._spg_reps.numbers)
         self._log_level = log_level
-
-        self._natom = self._reps[0].shape[0] // 3
-
         self._basis_set: Optional[np.ndarray] = None
 
     @property
@@ -72,7 +70,7 @@ class FCBasisSet:
         if self._log_level:
             print("Construct compression matrix of lattice translation.")
         compression_mat = get_lattice_translation_compression_matrix(
-            self._translation_permutations
+            self._spg_reps.translation_permutations
         )
         vecs = self._step1(compression_mat, tol=tol)
         U = self._step2(vecs, compression_mat)
@@ -100,7 +98,7 @@ class FCBasisSet:
                 "index permutation symmetry."
             )
         compression_spg_mat = get_compression_spg_proj(
-            self._reps,
+            self._spg_reps,
             self._natom,
             compression_mat,
         )

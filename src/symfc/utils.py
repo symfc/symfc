@@ -4,7 +4,7 @@ import itertools
 import numpy as np
 from scipy.sparse import coo_array
 
-import symfc._symfc as symfcc
+from symfc.spg_reps import SpgReps
 
 
 def to_serial(i: int, a: int, j: int, b: int, natom: int) -> int:
@@ -24,106 +24,8 @@ def convert_basis_set_matrix_form(basis_set) -> list[np.ndarray]:
     return b_mat_all
 
 
-def kron_sum_c(
-    reps: list[coo_array],
-    natom: int,
-    C: coo_array,
-):
-    """Compute sum_r kron(r, r) / N_r in NN33 order in C.
-
-    Sum of kron(r, r) are computed for unique r.
-
-    Parameters
-    ----------
-    reps : list[coo_array]
-        Symmetry operation representations in 3Nx3N.
-    natom : int
-        Number of atoms in supercell.
-    C : coo_array
-        Compression matrix.
-
-    kron
-    ----
-    This is a prototype code to write the same implementation in C.
-    See self._step1_kron_c().
-
-                [a11*B a12*B a13*B ...]
-    kron(A, B) =[a21*B a22*B a13*B ...]
-                [a31*B a32*B a33*B ...]
-                [        ...          ]
-
-    (i, j, k, l) N-3-N-3 index
-    (i*3+j, k*3+l) N3-N3 index
-    (i, k, j, l) N-N-3-3 index
-    (i*9*N+k*9+j*3+l) NN33 index
-
-    p = 3*N, R=(r,s) and R=(v,w) in (3N, 3N).
-    i = r // 3
-    j = r % 3
-    k = s // 3
-    l = s % 3
-    I = v // 3
-    J = v % 3
-    K = w // 3
-    L = w % 3
-
-    kron(R, R)_(pr+v, ps+w) = R(r,s)*R(v,w)  (3N*3N, 3N*3N)
-    kron(R, R)_(r, v, s, w) = R(r,s)*R(v,w)  (3N,3N, 3N,3N)
-    kron(R, R)_(i, j, I, J, k, l, K, L) = R(r,s)*R(v,w)  (N,3,N,3, N,3,N,3)
-    kron(R, R)_(i, I, j, J, k, K, l, L) = R(r,s)*R(v,w)  (N,N,3,3, N,N,3,3)
-    kron(R, R)_(i*9N+I*9+j*3+J, k*9N+K*9+l*3+L) = R(r,s)*R(v,w)  (N,N,3,3, N,N,3,3)
-
-    Note
-    ----
-    At some version of scipy, dtype of coo_array.col and coo_array.row changed.
-    Here the dtype is assumed 'intc' (<1.11) or 'int_' (>=1.11).
-
-    """
-    row_dtype = reps[0].row.dtype
-    col_dtype = reps[0].col.dtype
-    data_dtype = reps[0].data.dtype
-    assert row_dtype in (np.dtype("intc"), np.dtype("int_"))
-    assert reps[0].row.flags.contiguous
-    assert col_dtype in (np.dtype("intc"), np.dtype("int_"))
-    assert reps[0].col.flags.contiguous
-    assert data_dtype is np.dtype("double")
-    assert reps[0].data.flags.contiguous
-
-    kron_sum = coo_array(([], ([], [])), shape=(C.shape[1], C.shape[1]), dtype="double")
-    for rmat in reps:
-        kron = _kron_each_c(rmat, natom, row_dtype, col_dtype, data_dtype)
-        kron = kron @ C
-        kron = C.T @ kron
-        kron_sum += kron
-    kron_sum /= len(reps)
-
-    return kron_sum
-
-
-def _kron_each_c(
-    rmat: coo_array,
-    natom: int,
-    row_dtype: np.dtype,
-    col_dtype: np.dtype,
-    data_dtype: np.dtype,
-):
-    size_sq = (3 * natom) ** 2
-    size = rmat.row.shape[0] ** 2
-    row = np.zeros(size, dtype=row_dtype)
-    col = np.zeros(size, dtype=col_dtype)
-    data = np.zeros(size, dtype=data_dtype)
-    args = (row, col, data, rmat.row, rmat.col, rmat.data, 3 * natom)
-    if col_dtype is np.dtype("intc") and row_dtype is np.dtype("intc"):
-        symfcc.kron_nn33_int(*args)
-    elif col_dtype is np.dtype("int_") and row_dtype is np.dtype("int_"):
-        symfcc.kron_nn33_long(*args)
-    else:
-        raise RuntimeError("Incompatible data type of rows and cols of coo_array.")
-    return coo_array((data, (row, col)), shape=(size_sq, size_sq), dtype="double")
-
-
 def get_compression_spg_proj(
-    reps: list[coo_array],
+    spg_reps: SpgReps,
     natom: int,
     compression_mat: coo_array,
 ) -> coo_array:
@@ -133,11 +35,7 @@ def get_compression_spg_proj(
     where C is ``compression_mat``.
 
     """
-    coset_reps_sum = kron_sum_c(
-        reps,
-        natom,
-        compression_mat,
-    )
+    coset_reps_sum = kron_sum_c(spg_reps, compression_mat)
     # lattice translation and index permutation symmetry are projected.
     C_perm = _get_permutation_compression_matrix(natom)
     perm = C_perm.T @ compression_mat
@@ -163,7 +61,7 @@ def get_indep_atoms_by_lattice_translation(trans_perms: np.ndarray) -> np.ndarra
         shape=(n_indep_atoms_by_lattice_translation,), dtype=int
 
     """
-    unique_atoms = []
+    unique_atoms: list[int] = []
     assert np.array_equal(trans_perms[0, :], range(trans_perms.shape[1]))
     for i, perms in enumerate(trans_perms.T):
         is_found = False
@@ -174,6 +72,35 @@ def get_indep_atoms_by_lattice_translation(trans_perms: np.ndarray) -> np.ndarra
         if not is_found:
             unique_atoms.append(i)
     return np.array(unique_atoms, dtype=int)
+
+
+def kron_sum_c(
+    spg_reps: SpgReps,
+    C: coo_array,
+):
+    """Compute sum_r kron(r, r) / N_r in NN33 order in C.
+
+    Sum of kron(r, r) are computed for unique r.
+
+    Parameters
+    ----------
+    reps : list[coo_array]
+        Symmetry operation representations in 3Nx3N.
+    natom : int
+        Number of atoms in supercell.
+    C : coo_array
+        Compression matrix.
+
+    """
+    mat_sum = coo_array(([], ([], [])), shape=(C.shape[1], C.shape[1]), dtype="double")
+    for i, _ in enumerate(spg_reps.representations):
+        mat = spg_reps.get_fc2_rep(i)
+        mat = mat @ C
+        mat = C.T @ mat
+        mat_sum += mat
+    mat_sum /= len(spg_reps.representations)
+
+    return mat_sum
 
 
 def get_lattice_translation_compression_matrix(trans_perms: np.ndarray) -> coo_array:

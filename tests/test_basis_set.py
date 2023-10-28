@@ -26,7 +26,7 @@ def test_fc_basis_sets_compact():
     positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]]).T
     types = [0, 0]
 
-    sym_op_reps = SpgReps(lattice, positions, types)
+    sym_op_reps = SpgReps(lattice, positions, types).run()
     sbs = FCBasisSet(sym_op_reps, log_level=1)
     sbs.run()
     basis = sbs.basis_set_matrix_form
