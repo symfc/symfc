@@ -60,8 +60,8 @@ def ph_gan_222() -> Phonopy:
 
 
 @pytest.fixture(scope=scope)
-def bs_nacl_222_compact() -> FCBasisSet:
-    """Return basis sets of NaCl222."""
+def bs_nacl_222() -> FCBasisSet:
+    """Return basis set of NaCl222."""
     ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
     sym_op_reps = SpgReps(
         ph.supercell.cell.T,
@@ -74,7 +74,7 @@ def bs_nacl_222_compact() -> FCBasisSet:
 
 @pytest.fixture(scope=scope)
 def bs_sno2_223() -> FCBasisSet:
-    """Return basis sets of SnO2-223."""
+    """Return basis set of SnO2-223."""
     ph = phonopy.load(cwd / "phonopy_SnO2_223_rd.yaml.xz", produce_fc=False)
     sym_op_reps = SpgReps(
         ph.supercell.cell.T,
@@ -87,7 +87,7 @@ def bs_sno2_223() -> FCBasisSet:
 
 @pytest.fixture(scope=scope)
 def bs_sno2_222() -> FCBasisSet:
-    """Return basis sets of SnO2-222."""
+    """Return basis set of SnO2-222."""
     ph = phonopy.load(cwd / "phonopy_SnO2_222_rd.yaml.xz", produce_fc=False)
     sym_op_reps = SpgReps(
         ph.supercell.cell.T,
@@ -100,7 +100,7 @@ def bs_sno2_222() -> FCBasisSet:
 
 @pytest.fixture(scope=scope)
 def bs_sio2_222() -> FCBasisSet:
-    """Return basis sets of SiO2-222."""
+    """Return basis set of SiO2-222."""
     ph = phonopy.load(cwd / "phonopy_SiO2_222_rd.yaml.xz", produce_fc=False)
     sym_op_reps = SpgReps(
         ph.supercell.cell.T,
@@ -113,7 +113,7 @@ def bs_sio2_222() -> FCBasisSet:
 
 @pytest.fixture(scope=scope)
 def bs_sio2_221() -> FCBasisSet:
-    """Return basis sets of SiO2-221."""
+    """Return basis set of SiO2-221."""
     ph = phonopy.load(cwd / "phonopy_SiO2_221_rd.yaml.xz", produce_fc=False)
     sym_op_reps = SpgReps(
         ph.supercell.cell.T,
@@ -126,7 +126,7 @@ def bs_sio2_221() -> FCBasisSet:
 
 @pytest.fixture(scope=scope)
 def bs_gan_442() -> FCBasisSet:
-    """Return basis sets of GaN-442."""
+    """Return basis set of GaN-442."""
     ph = phonopy.load(cwd / "phonopy_GaN_442_rd.yaml.xz", produce_fc=False)
     sym_op_reps = SpgReps(
         ph.supercell.cell.T,
@@ -139,7 +139,7 @@ def bs_gan_442() -> FCBasisSet:
 
 @pytest.fixture(scope=scope)
 def bs_gan_222() -> FCBasisSet:
-    """Return basis sets of GaN-222."""
+    """Return basis set of GaN-222."""
     ph = phonopy.load(cwd / "phonopy_GaN_222_rd.yaml.xz", produce_fc=False)
     sym_op_reps = SpgReps(
         ph.supercell.cell.T,
