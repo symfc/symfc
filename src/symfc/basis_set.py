@@ -60,17 +60,18 @@ class FCBasisSet:
         self._log_level = log_level
         self._basis_set: Optional[np.ndarray] = None
 
+    @property
     def basis_set_matrix_form(self) -> Optional[list[np.ndarray]]:
         """Retrun basis set in (n_basis, 3N, 3N) array."""
-        return convert_basis_set_matrix_form(self.fc_basis_set)
+        return convert_basis_set_matrix_form(self.basis_set)
 
     @property
-    def fc_basis_set(self) -> Optional[np.ndarray]:
+    def basis_set(self) -> Optional[np.ndarray]:
         """Return basis set in (n_basis, N, N, 3, 3) array."""
         return self._get_fc_basis_set()
 
     @property
-    def basis_set(self) -> Optional[np.ndarray]:
+    def compressed_basis_set(self) -> Optional[np.ndarray]:
         """Return basi set in (n_a * N * 9, n_basis) array."""
         return self._basis_set
 
