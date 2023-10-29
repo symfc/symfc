@@ -24,7 +24,7 @@ def convert_basis_set_matrix_form(basis_set) -> list[np.ndarray]:
     return b_mat_all
 
 
-def get_compression_spg_proj(
+def get_spg_projector(
     spg_reps: SpgReps,
     natom: int,
     compression_mat: coo_array,
@@ -37,7 +37,7 @@ def get_compression_spg_proj(
     """
     coset_reps_sum = kron_sum_c(spg_reps, compression_mat)
     # lattice translation and index permutation symmetry are projected.
-    C_perm = _get_permutation_compression_matrix(natom)
+    C_perm = get_perm_compr_matrix(natom)
     perm = C_perm.T @ compression_mat
     perm = C_perm @ perm
     perm = compression_mat.T @ perm
@@ -45,7 +45,7 @@ def get_compression_spg_proj(
     return coset_reps_sum @ perm
 
 
-def get_indep_atoms_by_lattice_translation(trans_perms: np.ndarray) -> np.ndarray:
+def get_indep_atoms_by_lat_trans(trans_perms: np.ndarray) -> np.ndarray:
     """Return independent atoms by lattice translation symmetry.
 
     Parameters
@@ -103,7 +103,7 @@ def kron_sum_c(
     return mat_sum
 
 
-def get_lattice_translation_compression_matrix(trans_perms: np.ndarray) -> coo_array:
+def get_lat_trans_compr_matrix(trans_perms: np.ndarray) -> coo_array:
     """Return compression matrix by lattice translation symmetry.
 
     Matrix shape is (NN33, n_a*N33), where n_a is the number of independent
@@ -111,7 +111,7 @@ def get_lattice_translation_compression_matrix(trans_perms: np.ndarray) -> coo_a
 
     """
     col, row, data = [], [], []
-    indep_atoms = get_indep_atoms_by_lattice_translation(trans_perms)
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
     n_a = len(indep_atoms)
     N = trans_perms.shape[1]
     n_lp = N // n_a
@@ -132,7 +132,33 @@ def get_lattice_translation_compression_matrix(trans_perms: np.ndarray) -> coo_a
     return coo_array((data, (row, col)), shape=(size_row, n), dtype="double")
 
 
-def _get_permutation_compression_matrix(natom: int) -> coo_array:
+def get_lat_trans_compr_matrix_block_i(
+    trans_perms: np.ndarray, i_lattice: int
+) -> coo_array:
+    """Return compression matrix by lattice translation symmetry.
+
+    Matrix shape is (NN33, n_a*N33), where n_a is the number of independent
+    atoms by lattice translation symmetry.
+
+    Parameters
+    ----------
+    i : int
+        Left most index of (N, N, 3, 3).
+
+    """
+    n_lp, N = trans_perms.shape
+    val = 1.0 / np.sqrt(n_lp) * np.eye(9)
+    block = np.zeros(shape=(9 * N, 9 * N), dtype="double")
+    n = 0
+    for j in range(N):
+        j_for_i = trans_perms[i_lattice, j]
+        block[j_for_i * 9 : j_for_i * 9 + 9, n : n + 9] = val
+        n += 9
+    assert n == block.shape[1]
+    return block
+
+
+def get_perm_compr_matrix(natom: int) -> coo_array:
     """Return compression matrix by permutation symmetry.
 
     Matrix shape is (NN33,(N*3)(N*3+1)/2).

@@ -11,7 +11,7 @@ from symfc.spg_reps import SpgReps
 cwd = Path(__file__).parent
 
 
-def test_fc_basis_sets_compact():
+def test_fc_basis_set():
     """Test symmetry adapted basis sets of FC."""
     basis_ref = [
         [-0.28867513, 0, 0, 0.28867513, 0, 0],
@@ -34,7 +34,7 @@ def test_fc_basis_sets_compact():
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
 
 
-def test_fc_NaCl_222(bs_nacl_222_compact: FCBasisSet):
+def test_fc_NaCl_222(bs_nacl_222: FCBasisSet):
     """Test force constants by NaCl 64 atoms supercell and compared with ALM.
 
     Also test force constants by NaCl 64 atoms supercell.
@@ -43,7 +43,7 @@ def test_fc_NaCl_222(bs_nacl_222_compact: FCBasisSet):
 
 
     """
-    basis_set = bs_nacl_222_compact.run().basis_set
+    basis_set = bs_nacl_222.run().basis_set
     ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]
@@ -79,7 +79,7 @@ def test_fc_NaCl_222(bs_nacl_222_compact: FCBasisSet):
     ph_ref = phonopy.load(cwd / "phonopy_NaCl_222_fc.yaml.xz", produce_fc=False)
     np.testing.assert_allclose(ph_ref.force_constants, fc_compact, atol=1e-6)
 
-    _ = _compare_fc_with_alm("phonopy_NaCl_222_rd.yaml.xz", bs_nacl_222_compact)
+    _ = _compare_fc_with_alm("phonopy_NaCl_222_rd.yaml.xz", bs_nacl_222)
     # _write_phonopy_fc_yaml(
     #     "phonopy_NaCl_222_fc.yaml", "phonopy_NaCl_222_rd.yaml.xz", fc_compact
     # )

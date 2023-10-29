@@ -4,7 +4,7 @@ import numpy as np
 from phonopy import Phonopy
 
 from symfc.spg_reps import SpgReps
-from symfc.utils import get_indep_atoms_by_lattice_translation
+from symfc.utils import get_indep_atoms_by_lat_trans
 
 
 def test_get_indep_atoms_by_lattice_translation(ph_nacl_222: Phonopy):
@@ -16,5 +16,5 @@ def test_get_indep_atoms_by_lattice_translation(ph_nacl_222: Phonopy):
         ph.supercell.numbers,
     )
     trans_perms = sym_op_reps.translation_permutations
-    indep_atoms = get_indep_atoms_by_lattice_translation(trans_perms)
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
     np.testing.assert_array_equal(indep_atoms, [0, 32])
