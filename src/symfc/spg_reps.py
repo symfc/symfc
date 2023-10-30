@@ -173,7 +173,9 @@ class SpgReps:
             if np.array_equal(r, eye3):
                 trans_perms.append(perm)
                 trans_indices.append(i)
-        return np.array(trans_perms, dtype=int), np.array(trans_indices, dtype=int)
+        return np.array(trans_perms, dtype="intc", order="C"), np.array(
+            trans_indices, dtype="intc"
+        )
 
     def _get_unique_rotation_indices(self, rotations: np.ndarray) -> list[int]:
         unique_rotations: list[np.ndarray] = []

@@ -9,7 +9,7 @@ from scipy.sparse import coo_array
 from symfc.spg_reps import SpgReps
 from symfc.utils import (
     convert_basis_set_matrix_form,
-    get_indep_atoms_by_lat_trans,
+    get_lat_trans_compr_indices,
     get_lat_trans_compr_matrix,
     get_lat_trans_compr_matrix_block_i,
     get_spg_projector,
@@ -132,11 +132,11 @@ class FCBasisSet:
         if self._mode == "fast":
             return self._step2_fast(vecs, compression_mat)
         elif self._mode == "lowmem":
-            return self._step2_lowmem(vecs, compression_mat)
+            return self._step2_lowmem(vecs)
         else:
             raise RuntimeError("This should not happen.")
 
-    def _step2_lowmem(self, vecs: np.ndarray, compression_mat: coo_array) -> np.ndarray:
+    def _step2_lowmem(self, vecs: np.ndarray) -> np.ndarray:
         if self._log_level:
             print("Multiply sum rule projector with current basis set...")
         n_l, N = self._spg_reps.translation_permutations.shape
@@ -249,22 +249,13 @@ class FCBasisSet:
             return None
         if self._mode == "lowmem":
             trans_perms = self._spg_reps.translation_permutations
-            indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
-            n_l, N = trans_perms.shape
-            n_a = N // n_l
+            indices = get_lat_trans_compr_indices(trans_perms)
+            N = trans_perms.shape[1]
             fc_basis_set = np.zeros(
                 (self._basis_set.shape[1], N, N, 3, 3), dtype="double"
             )
-            for i_lattice in range(n_l):
-                if self._log_level:
-                    print(f"{i_lattice}")
-                compr_block = get_lat_trans_compr_matrix_block_i(
-                    self._spg_reps.translation_permutations, i_lattice
-                )
-                basis_part = compr_block @ self._basis_set.reshape(n_a, N * 9, -1)
-                fc_basis_set[
-                    :, trans_perms[i_lattice, indep_atoms], :, :, :
-                ] = basis_part.reshape(n_a * N * 9, -1).T.reshape(-1, n_a, N, 3, 3)
+            for i, b in enumerate(self._basis_set.T):
+                fc_basis_set[i] = b[indices].reshape(N, N, 3, 3)
             return fc_basis_set
         elif self._mode == "fast":
             fc_basis_set = (self.compression_matrix @ self._basis_set).T.reshape(
