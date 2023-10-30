@@ -51,7 +51,6 @@ def test_get_lat_trans_decompr_indices(cell_nacl_111: PhonopyAtoms):
 def test_get_lat_trans_compr_indices(cell_nacl_111: PhonopyAtoms):
     """Test get_lat_trans_compr_indices.
 
-
     The two dimensional array (n_a * N * 9, n_lp) stores NN33 indices where
     compression matrix elements are non-zero.
 

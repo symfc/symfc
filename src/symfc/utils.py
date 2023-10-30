@@ -143,13 +143,18 @@ def get_lat_trans_compr_matrix(trans_perms: np.ndarray) -> coo_array:
 def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
     """Return indices to compress matrix by lat-trans-sym.
 
+    Usage
+    -----
+    vec[indices] of shape (N**2*9,) vec gives an array of shape=(n_a*N*9, n_lp).
+    1/sqrt(n_lp) must be multiplied manually after compression to mimic
+    get_lat_trans_compr_matrix.
+
     Parameters
     ----------
     trans_perms : ndarray
         Permutation of atomic indices by lattice translational symmetry.
-        dtype='intc'.
-        shape=(n_l, N), where n_l and N are the numbers of lattce points and
-        atoms in supercell.
+        dtype='intc'. shape=(n_l, N), where n_l and N are the numbers of lattce
+        points and atoms in supercell.
 
     Returns
     -------
@@ -180,6 +185,12 @@ def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
 def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
     """Return indices to de-compress compressed matrix by lat-trans-sym.
 
+    Usage
+    -----
+    vec[indices] of shape (n_a*N*9,) gives an array of shape=(N**2*9,).
+    1/sqrt(n_lp) must be multiplied manually after decompression to mimic
+    get_lat_trans_compr_matrix.
+
     Parameters
     ----------
     trans_perms : ndarray
@@ -191,7 +202,7 @@ def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
     Returns
     -------
     indices : ndarray
-
+        Indices of n_a * N9 elements.
         shape=(N^2*9,), dtype='int_'.
 
     """
