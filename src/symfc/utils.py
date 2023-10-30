@@ -141,7 +141,45 @@ def get_lat_trans_compr_matrix(trans_perms: np.ndarray) -> coo_array:
 
 
 def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
-    """Return index ver. of compression matrix by lattice translation symmetry.
+    """Return indices to de-compression lattice translation symmetry matrix.
+
+    Parameters
+    ----------
+    trans_perms : ndarray
+        Permutation of atomic indices by lattice translational symmetry.
+        dtype='intc'.
+        shape=(n_l, N), where n_l and N are the numbers of lattce points and
+        atoms in supercell.
+
+    Returns
+    -------
+    indices : ndarray
+
+        shape=(N^2*9,), dtype='int_'.
+
+    """
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+    n_a = len(indep_atoms)
+    N = trans_perms.shape[1]
+    n_lp = N // n_a
+    size_row = (N * 3) ** 2
+
+    n = 0
+    indices = np.zeros((n_a * N * 9, n_lp), dtype="int_")
+    nums = np.zeros(n_a * N * 9, dtype="int_")
+    for i_patom in indep_atoms:
+        for j in range(N):
+            for a, b in itertools.product(range(3), range(3)):
+                for i_trans, j_trans in zip(trans_perms[:, i_patom], trans_perms[:, j]):
+                    indices[n, nums[n]] = to_serial(i_trans, a, j_trans, b, N)
+                    nums[n] += 1
+                n += 1
+    assert n * n_lp == size_row
+    return indices
+
+
+def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
+    """Return indices to de-compression lattice translation symmetry matrix.
 
     Parameters
     ----------
