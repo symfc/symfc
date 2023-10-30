@@ -52,6 +52,7 @@ class FCBasisSet:
         self._log_level = log_level
         self._basis_set: Optional[np.ndarray] = None
         self._mode = Literal["lowmem"]
+        self._compression_mat = None
 
     @property
     def basis_set_matrix_form(self) -> Optional[list[np.ndarray]]:
@@ -71,7 +72,11 @@ class FCBasisSet:
     @property
     def compression_matrix(self) -> coo_array:
         """Return compression matrix."""
-        return get_lat_trans_compr_matrix(self._spg_reps.translation_permutations)
+        if self._compression_mat is None:
+            self._compression_mat = get_lat_trans_compr_matrix(
+                self._spg_reps.translation_permutations
+            )
+        return self._compression_mat
 
     def run(self, mode: Literal["fast", "lowmem"] = "lowmem", tol: float = 1e-8):
         """Compute force constants basis.
@@ -83,18 +88,14 @@ class FCBasisSet:
             and with "lowmem" slower but less memory usage. Default is "fast".
 
         """
-        if self._log_level:
-            print("Construct compression matrix of lattice translation.")
         self._mode = mode
-        compression_mat = self.compression_matrix
-        vecs = self._step1(compression_mat, tol=tol)
-        U = self._step2(vecs, compression_mat)
-        self._step3(U, compression_mat, tol=tol)
+        vecs = self._step1(tol=tol)
+        U = self._step2(vecs)
+        self._step3(U, tol=tol)
         return self
 
     def _step1(
         self,
-        compression_mat: coo_array,
         tol: float = 1e-8,
     ) -> np.ndarray:
         """Compute eigenvectors of projection matrix.
@@ -115,11 +116,14 @@ class FCBasisSet:
         compression_spg_mat = get_spg_projector(
             self._spg_reps,
             self._natom,
-            compression_mat,
+            self.compression_matrix,
         )
+        if self._mode == "lowmem":
+            self._compression_mat = None
         rank = int(round(compression_spg_mat.diagonal(k=0).sum()))
         if self._log_level:
-            N, N_c = compression_mat.shape
+            N = self._natom**2 * 9
+            N_c = compression_spg_mat.shape[0]
             print(f"Projection matrix ({N}, {N}) was compressed to ({N_c}, {N_c}).")
             print(
                 f"Solving eigenvalue problem of projection matrix with rank={rank}..."
@@ -130,9 +134,9 @@ class FCBasisSet:
         np.testing.assert_allclose(vals, 1.0, rtol=0, atol=tol)
         return vecs
 
-    def _step2(self, vecs: np.ndarray, compression_mat: coo_array) -> np.ndarray:
+    def _step2(self, vecs: np.ndarray) -> np.ndarray:
         if self._mode == "fast":
-            return self._step2_fast(vecs, compression_mat)
+            return self._step2_fast(vecs)
         elif self._mode == "lowmem":
             return self._step2_lowmem(vecs)
         else:
@@ -164,7 +168,7 @@ class FCBasisSet:
         basis = basis[compr_idx].sum(axis=1) / (compr_idx.shape[1] * N)
         return vec - basis
 
-    def _step2_fast(self, vecs: np.ndarray, compression_mat: coo_array) -> np.ndarray:
+    def _step2_fast(self, vecs: np.ndarray) -> np.ndarray:
         """Multiply sum rule project to basis vectors.
 
         Compute P_sum B, where
@@ -178,7 +182,7 @@ class FCBasisSet:
         """
         if self._log_level:
             print("Multiply sum rule projector with current basis set...")
-        U = compression_mat @ vecs
+        U = self.compression_matrix @ vecs
         for i in range(self._natom):
             prod = (
                 U[i * self._natom * 9 : (i + 1) * self._natom * 9, :]
@@ -188,10 +192,10 @@ class FCBasisSet:
             )
             for j in range(self._natom):
                 U[(i * self._natom + j) * 9 : (i * self._natom + j + 1) * 9, :] -= prod
-        U = compression_mat.T @ U
+        U = self.compression_matrix.T @ U
         return U
 
-    def _step3(self, U: np.ndarray, compression_mat: coo_array, tol: float = 1e-8):
+    def _step3(self, U: np.ndarray, tol: float = 1e-8):
         """Extract basis vectors that satisfies sum rule.
 
         Eigenvectors corresponding to SVD eigenvalues that are not 1 are
@@ -208,6 +212,10 @@ class FCBasisSet:
             print("Excluded SVD eigenvalues:")
             print(f"{s[np.abs(s) < 1 - tol]}")
             print(f"Final size of basis set: {U.shape}")
+            print(
+                "Non-zero elems: "
+                f"{np.count_nonzero(np.abs(U) > tol)}/{np.prod(U.shape)}"
+            )
 
         self._basis_set = U
 
@@ -229,22 +237,14 @@ class FCBasisSet:
         return fc_basis_set
 
     def _get_fc_basis_set(self) -> Optional[np.ndarray]:
+        """Return fc basis set by (num_basis, N, N, 3, 3) array.
+
+        This is a large dense-array, so no reason to employ low-mem approach.
+
+        """
         if self._basis_set is None:
             return None
-        if self._mode == "lowmem":
-            trans_perms = self._spg_reps.translation_permutations
-            indices = get_lat_trans_decompr_indices(trans_perms)
-            N = trans_perms.shape[1]
-            fc_basis_set = np.zeros(
-                (self._basis_set.shape[1], N, N, 3, 3), dtype="double"
-            )
-            for i, b in enumerate((self._basis_set / np.sqrt(trans_perms.shape[0])).T):
-                fc_basis_set[i] = b[indices].reshape(N, N, 3, 3)
-            return fc_basis_set
-        elif self._mode == "fast":
-            fc_basis_set = (self.compression_matrix @ self._basis_set).T.reshape(
-                (self._basis_set.shape[1], self._natom, self._natom, 3, 3)
-            )
-            return fc_basis_set
-        else:
-            raise RuntimeError("This should not happen.")
+        fc_basis_set = (self.compression_matrix @ self._basis_set).T.reshape(
+            (self._basis_set.shape[1], self._natom, self._natom, 3, 3)
+        )
+        return fc_basis_set

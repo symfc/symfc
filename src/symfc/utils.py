@@ -141,7 +141,7 @@ def get_lat_trans_compr_matrix(trans_perms: np.ndarray) -> coo_array:
 
 
 def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
-    """Return indices to de-compression lattice translation symmetry matrix.
+    """Return indices to compress matrix by lat-trans-sym.
 
     Parameters
     ----------
@@ -154,8 +154,7 @@ def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
     Returns
     -------
     indices : ndarray
-
-        shape=(N^2*9,), dtype='int_'.
+        shape=(n_a*N9, n_lp), dtype='int_'.
 
     """
     indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
@@ -179,7 +178,7 @@ def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
 
 
 def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
-    """Return indices to de-compression lattice translation symmetry matrix.
+    """Return indices to de-compress compressed matrix by lat-trans-sym.
 
     Parameters
     ----------
