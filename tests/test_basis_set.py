@@ -1,5 +1,6 @@
 """Tests of FCBasisSet."""
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import phonopy
@@ -11,7 +12,8 @@ from symfc.spg_reps import SpgReps
 cwd = Path(__file__).parent
 
 
-def test_fc_basis_set():
+@pytest.mark.parametrize("mode", ["fast", "lowmem"])
+def test_fc_basis_set(mode: Literal["fast", "lowmem"]):
     """Test symmetry adapted basis sets of FC."""
     basis_ref = [
         [-0.28867513, 0, 0, 0.28867513, 0, 0],
@@ -27,14 +29,14 @@ def test_fc_basis_set():
     types = [0, 0]
 
     sym_op_reps = SpgReps(lattice, positions, types).run()
-    sbs = FCBasisSet(sym_op_reps, log_level=1)
-    sbs.run()
+    sbs = FCBasisSet(sym_op_reps, log_level=1).run(mode=mode)
     basis = sbs.basis_set_matrix_form
     np.testing.assert_allclose(basis[0], basis_ref, atol=1e-6)
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
 
 
-def test_fc_NaCl_222(bs_nacl_222: FCBasisSet):
+@pytest.mark.parametrize("mode", ["fast", "lowmem"])
+def test_fc_NaCl_222(bs_nacl_222: FCBasisSet, mode: Literal["fast", "lowmem"]):
     """Test force constants by NaCl 64 atoms supercell and compared with ALM.
 
     Also test force constants by NaCl 64 atoms supercell.
@@ -43,7 +45,7 @@ def test_fc_NaCl_222(bs_nacl_222: FCBasisSet):
 
 
     """
-    basis_set = bs_nacl_222.run().basis_set
+    basis_set = bs_nacl_222.run(mode=mode).basis_set
     ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]
@@ -79,55 +81,48 @@ def test_fc_NaCl_222(bs_nacl_222: FCBasisSet):
     ph_ref = phonopy.load(cwd / "phonopy_NaCl_222_fc.yaml.xz", produce_fc=False)
     np.testing.assert_allclose(ph_ref.force_constants, fc_compact, atol=1e-6)
 
-    _ = _compare_fc_with_alm("phonopy_NaCl_222_rd.yaml.xz", bs_nacl_222)
+    _ = _compare_fc_with_alm("phonopy_NaCl_222_rd.yaml.xz", bs_nacl_222, mode=mode)
     # _write_phonopy_fc_yaml(
     #     "phonopy_NaCl_222_fc.yaml", "phonopy_NaCl_222_rd.yaml.xz", fc_compact
     # )
 
 
-def test_fc_SnO2_223_wrt_ALM(bs_sno2_223: FCBasisSet):
+@pytest.mark.parametrize("mode", ["fast", "lowmem"])
+def test_fc_SnO2_223_wrt_ALM(bs_sno2_223: FCBasisSet, mode: Literal["fast", "lowmem"]):
     """Test force constants by SnO2 72 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm(
-        "phonopy_SnO2_223_rd.yaml.xz",
-        bs_sno2_223,
-    )
+    _ = _compare_fc_with_alm("phonopy_SnO2_223_rd.yaml.xz", bs_sno2_223, mode=mode)
 
 
-def test_fc_SnO2_222_wrt_ALM(bs_sno2_222: FCBasisSet):
+@pytest.mark.parametrize("mode", ["fast", "lowmem"])
+def test_fc_SnO2_222_wrt_ALM(bs_sno2_222: FCBasisSet, mode: Literal["fast", "lowmem"]):
     """Test force constants by SnO2 48 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm(
-        "phonopy_SnO2_222_rd.yaml.xz",
-        bs_sno2_222,
-    )
+    _ = _compare_fc_with_alm("phonopy_SnO2_222_rd.yaml.xz", bs_sno2_222, mode=mode)
 
 
 @pytest.mark.big
-def test_fc_SiO2_222_wrt_ALM(bs_sio2_222: FCBasisSet):
+@pytest.mark.parametrize("mode", ["fast", "lowmem"])
+def test_fc_SiO2_222_wrt_ALM(bs_sio2_222: FCBasisSet, mode: Literal["fast", "lowmem"]):
     """Test force constants by SiO2 72 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm(
-        "phonopy_SiO2_222_rd.yaml.xz",
-        bs_sio2_222,
-    )
+    _ = _compare_fc_with_alm("phonopy_SiO2_222_rd.yaml.xz", bs_sio2_222, mode=mode)
     # _write_phonopy_fc_yaml(
     #     "phonopy_SiO2_222_fc.yaml", "phonopy_SiO2_222_rd.yaml.xz", fc_compact
     # )
 
 
-def test_fc_SiO2_221_wrt_ALM(
-    bs_sio2_221: FCBasisSet,
-):
+@pytest.mark.parametrize("mode", ["fast", "lowmem"])
+def test_fc_SiO2_221_wrt_ALM(bs_sio2_221: FCBasisSet, mode: Literal["fast", "lowmem"]):
     """Test force constants by SiO2 36 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -140,39 +135,37 @@ def test_fc_SiO2_221_wrt_ALM(
 
 
 @pytest.mark.big
-def test_fc_GaN_442_wrt_ALM(bs_gan_442: FCBasisSet):
+@pytest.mark.parametrize("mode", ["fast", "lowmem"])
+def test_fc_GaN_442_wrt_ALM(bs_gan_442: FCBasisSet, mode: Literal["fast", "lowmem"]):
     """Test force constants by GaN 128 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm(
-        "phonopy_GaN_442_rd.yaml.xz",
-        bs_gan_442,
-    )
+    _ = _compare_fc_with_alm("phonopy_GaN_442_rd.yaml.xz", bs_gan_442, mode=mode)
     # _write_phonopy_fc_yaml(
     #     "phonopy_GaN_442_fc.yaml", "phonopy_GaN_442_rd.yaml.xz", fc_compact
     # )
 
 
-def test_fc_GaN_222_wrt_ALM(bs_gan_222: FCBasisSet):
+@pytest.mark.parametrize("mode", ["fast", "lowmem"])
+def test_fc_GaN_222_wrt_ALM(bs_gan_222: FCBasisSet, mode: Literal["fast", "lowmem"]):
     """Test force constants by GaN 32 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm(
-        "phonopy_GaN_222_rd.yaml.xz",
-        bs_gan_222,
-    )
+    _ = _compare_fc_with_alm("phonopy_GaN_222_rd.yaml.xz", bs_gan_222, mode=mode)
     # _write_phonopy_fc_yaml(
     #     "phonopy_GaN_222_fc.yaml", "phonopy_GaN_222_rd.yaml.xz", fc_compact
     # )
 
 
-def _compare_fc_with_alm(filename: str, fc_basis_set: FCBasisSet) -> np.ndarray:
+def _compare_fc_with_alm(
+    filename: str, fc_basis_set: FCBasisSet, mode: Literal["fast", "lowmem"] = "fast"
+) -> np.ndarray:
     pytest.importorskip("alm")
-    basis_set = fc_basis_set.run().basis_set
+    basis_set = fc_basis_set.run(mode=mode).basis_set
     ph = phonopy.load(cwd / filename, fc_calculator="alm")
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]

@@ -1,5 +1,4 @@
 """Generate symmetrized force constants using compact projection matrix."""
-import time
 from typing import Literal, Optional
 
 import numpy as np
@@ -12,6 +11,7 @@ from symfc.utils import (
     get_lat_trans_compr_indices,
     get_lat_trans_compr_matrix,
     get_lat_trans_compr_matrix_block_i,
+    get_lat_trans_decompr_indices,
     get_spg_projector,
 )
 
@@ -35,30 +35,23 @@ class FCBasisSet:
     def __init__(
         self,
         spg_reps: SpgReps,
-        mode: Literal["fast", "lowmem"] = "fast",
         log_level: int = 0,
     ):
         """Init method.
 
         Parameters
         ----------
-        reps : list[coo_array]
+        spg_reps : list[coo_array]
             3Nx3N matrix representations of symmetry operations.
-        translation_permutations:
-            Atom indices after lattice translations.
-            shape=(lattice_translations, supercell_atoms)
-        mode : Lietral["fast", "lowmem"]
-            With "fact", basis set is computed faster but with more memory usage
-            and with "lowmem" slower but less memory usage. Default is "fast".
         log_level : int, optional
             Log level. Default is 0.
 
         """
         self._spg_reps = spg_reps
-        self._mode = mode
         self._natom = len(self._spg_reps.numbers)
         self._log_level = log_level
         self._basis_set: Optional[np.ndarray] = None
+        self._mode = Literal["lowmem"]
 
     @property
     def basis_set_matrix_form(self) -> Optional[list[np.ndarray]]:
@@ -80,10 +73,19 @@ class FCBasisSet:
         """Return compression matrix."""
         return get_lat_trans_compr_matrix(self._spg_reps.translation_permutations)
 
-    def run(self, tol: float = 1e-8):
-        """Compute force constants basis."""
+    def run(self, mode: Literal["fast", "lowmem"] = "lowmem", tol: float = 1e-8):
+        """Compute force constants basis.
+
+        Parameters
+        ----------
+        mode : Lietral["fast", "lowmem"]
+            With "fact", basis set is computed faster but with more memory usage
+            and with "lowmem" slower but less memory usage. Default is "fast".
+
+        """
         if self._log_level:
             print("Construct compression matrix of lattice translation.")
+        self._mode = mode
         compression_mat = self.compression_matrix
         vecs = self._step1(compression_mat, tol=tol)
         U = self._step2(vecs, compression_mat)
@@ -139,46 +141,28 @@ class FCBasisSet:
     def _step2_lowmem(self, vecs: np.ndarray) -> np.ndarray:
         if self._log_level:
             print("Multiply sum rule projector with current basis set...")
-        n_l, N = self._spg_reps.translation_permutations.shape
+        trans_perms = self._spg_reps.translation_permutations
+        n_l, N = trans_perms.shape
         n_a = N // n_l
-        U_sum = np.zeros(shape=(n_a, 9 * N, vecs.shape[1]), dtype="double")
-        for i_lattice in range(n_l):
-            U_sum += self._get_U_i_lat(i_lattice, n_a, vecs)
-        return U_sum.reshape(n_a * 9 * N, -1)
-
-    def _get_U_i_lat(
-        self,
-        i_lattice: int,
-        n_a: int,
-        vecs: np.ndarray,
-    ):
-        if self._log_level:
-            print(f"---------{i_lattice}---------")
-        t0 = time.time()
-        compr_block = get_lat_trans_compr_matrix_block_i(
-            self._spg_reps.translation_permutations, i_lattice
-        )
-        if self._log_level:
-            print("compr_block", compr_block.shape, time.time() - t0)
-        t1 = time.time()
-        U = compr_block @ vecs.reshape(n_a, self._natom * 9, vecs.shape[1])
-        t2 = time.time()
-        if self._log_level:
-            print("compr_block @ vecs", U.shape, t2 - t1)
-        prod = U.reshape(n_a, self._natom, 9, -1).sum(axis=1) / self._natom
-        t3 = time.time()
-        if self._log_level:
-            print("sum", prod.shape, t3 - t2)
-        for j in range(self._natom):
-            U[:, j * 9 : (j + 1) * 9, :] -= prod
-        t4 = time.time()
-        if self._log_level:
-            print("loop", t4 - t3)
-        U = compr_block.T @ U
-        t5 = time.time()
-        if self._log_level:
-            print("compr_block.T @ U", U.shape, t5 - t4)
+        length = n_a * 9 * N
+        U = np.zeros(shape=(length, vecs.shape[1]), dtype="double")
+        compr_idx = get_lat_trans_compr_indices(trans_perms)
+        decompr_idx = get_lat_trans_decompr_indices(trans_perms)
+        for i, vec in enumerate(vecs.T):
+            U[:, i] = self._get_U_basis(vec, compr_idx, decompr_idx)
         return U
+
+    def _get_U_basis(
+        self,
+        vec: np.ndarray,
+        compr_idx: np.ndarray,
+        decompr_idx: np.ndarray,
+    ):
+        N = self._natom
+        basis = vec[decompr_idx].reshape(N, N, 9).sum(axis=1)
+        basis = np.tile(basis, N).ravel()
+        basis = basis[compr_idx].sum(axis=1) / (compr_idx.shape[1] * N)
+        return vec - basis
 
     def _step2_fast(self, vecs: np.ndarray, compression_mat: coo_array) -> np.ndarray:
         """Multiply sum rule project to basis vectors.
@@ -249,12 +233,12 @@ class FCBasisSet:
             return None
         if self._mode == "lowmem":
             trans_perms = self._spg_reps.translation_permutations
-            indices = get_lat_trans_compr_indices(trans_perms)
+            indices = get_lat_trans_decompr_indices(trans_perms)
             N = trans_perms.shape[1]
             fc_basis_set = np.zeros(
                 (self._basis_set.shape[1], N, N, 3, 3), dtype="double"
             )
-            for i, b in enumerate(self._basis_set.T):
+            for i, b in enumerate((self._basis_set / np.sqrt(trans_perms.shape[0])).T):
                 fc_basis_set[i] = b[indices].reshape(N, N, 3, 3)
             return fc_basis_set
         elif self._mode == "fast":
