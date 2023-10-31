@@ -1,6 +1,7 @@
 """Tests of matrix manipulating functions."""
 
 import numpy as np
+import pytest
 from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
@@ -27,7 +28,8 @@ def test_get_indep_atoms_by_lattice_translation(ph_nacl_222: Phonopy):
     np.testing.assert_array_equal(indep_atoms, [0, 32])
 
 
-def test_get_lat_trans_decompr_indices(cell_nacl_111: PhonopyAtoms):
+@pytest.mark.parametrize("shape", ["NN33", "N3,N3"])
+def test_get_lat_trans_decompr_indices(cell_nacl_111: PhonopyAtoms, shape: str):
     """Test get_lat_trans_decompr_indices.
 
     The one dimensional array with row-size of compr-mat.
@@ -43,7 +45,12 @@ def test_get_lat_trans_decompr_indices(cell_nacl_111: PhonopyAtoms):
     trans_perms = sym_op_reps.translation_permutations
     assert trans_perms.shape == (4, 8)
     compr_mat = get_lat_trans_compr_matrix(trans_perms).toarray()
-    decompr_idx = get_lat_trans_decompr_indices(trans_perms)
+    decompr_idx = get_lat_trans_decompr_indices(trans_perms, shape=shape)
+    if shape == "N3,N3":
+        N = len(unitcell.numbers)
+        decompr_idx = np.transpose(
+            decompr_idx.reshape(N, 3, N, 3), axes=[0, 2, 1, 3]
+        ).ravel()
     for r, c in enumerate(decompr_idx):
         np.testing.assert_almost_equal(compr_mat[r, c], 0.5)
 

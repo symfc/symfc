@@ -7,10 +7,9 @@ from scipy.sparse import coo_array
 
 from symfc.spg_reps import SpgReps
 from symfc.utils import (
-    convert_basis_set_matrix_form,
+    get_indep_atoms_by_lat_trans,
     get_lat_trans_compr_indices,
     get_lat_trans_compr_matrix,
-    get_lat_trans_compr_matrix_block_i,
     get_lat_trans_decompr_indices,
     get_spg_projector,
 )
@@ -55,17 +54,7 @@ class FCBasisSet:
         self._compression_mat = None
 
     @property
-    def basis_set_matrix_form(self) -> Optional[list[np.ndarray]]:
-        """Retrun basis set in (n_basis, 3N, 3N) array."""
-        return convert_basis_set_matrix_form(self.basis_set)
-
-    @property
     def basis_set(self) -> Optional[np.ndarray]:
-        """Return basis set in (n_basis, N, N, 3, 3) array."""
-        return self._get_fc_basis_set()
-
-    @property
-    def compressed_basis_set(self) -> Optional[np.ndarray]:
         """Return basi set in (n_a * N * 9, n_basis) array."""
         return self._basis_set
 
@@ -93,6 +82,54 @@ class FCBasisSet:
         U = self._step2(vecs)
         self._step3(U, tol=tol)
         return self
+
+    def solve(self, displacements: np.ndarray, forces: np.ndarray, is_compact_fc=True):
+        """Solve force constants.
+
+        Parameters
+        ----------
+        displacements : ndarray
+            Displacements of atoms in Cartesian coordinates.
+            shape=(n_snapshot, N, 3), dtype='double'
+        forces : ndarray
+            Forces of atoms in Cartesian coordinates.
+            shape=(n_snapshot, N, 3), dtype='double'
+
+        Returns
+        -------
+        ndarray
+            Force constants.
+            shape=(N, N, 3, 3), dtype='double', order='C'
+
+        """
+        assert displacements.shape == forces.shape
+        coeff = self._get_coeff(displacements, forces)
+        trans_perms = self._spg_reps.translation_permutations
+        decompr_idx = get_lat_trans_decompr_indices(trans_perms)
+        N = self._natom
+        fc = (self._basis_set @ coeff)[decompr_idx].reshape(N, N, 3, 3)
+        if is_compact_fc:
+            indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+            return np.array(fc[indep_atoms], dtype="double", order="C")
+        return fc
+
+    def _get_coeff(
+        self,
+        displacements: np.ndarray,
+        forces: np.ndarray,
+    ):
+        trans_perms = self._spg_reps.translation_permutations
+        decompr_idx = get_lat_trans_decompr_indices(trans_perms, shape="N3,N3")
+        n_snapshot = displacements.shape[0]
+        disps = displacements.reshape(n_snapshot, -1)
+        N = self._natom
+        d_basis = np.zeros(
+            (n_snapshot * N * 3, self._basis_set.shape[1]), dtype="double", order="C"
+        )
+        for i, vec in enumerate(self._basis_set.T):
+            d_basis[:, i] = (disps @ vec[decompr_idx]).ravel()
+        coeff = -(np.linalg.pinv(d_basis) @ forces.ravel())
+        return coeff
 
     def _step1(
         self,
@@ -146,10 +183,9 @@ class FCBasisSet:
         if self._log_level:
             print("Multiply sum rule projector with current basis set...")
         trans_perms = self._spg_reps.translation_permutations
-        n_l, N = trans_perms.shape
-        n_a = N // n_l
-        length = n_a * 9 * N
-        U = np.zeros(shape=(length, vecs.shape[1]), dtype="double")
+        n_lp, N = trans_perms.shape
+        n_a = N // n_lp
+        U = np.zeros(shape=(n_a * 9 * N, vecs.shape[1]), dtype="double")
         compr_idx = get_lat_trans_compr_indices(trans_perms)
         decompr_idx = get_lat_trans_decompr_indices(trans_perms)
         for i, vec in enumerate(vecs.T):
@@ -218,33 +254,3 @@ class FCBasisSet:
             )
 
         self._basis_set = U
-
-    def _get_compact_fc_basis_set(self) -> Optional[np.ndarray]:
-        if self._basis_set is None:
-            return None
-
-        trans_perms = self._spg_reps.translation_permutations
-        n_l, N = trans_perms.shape
-        n_a = N // n_l
-        # fc_basis_set = np.zeros(
-        #     (self._basis_set.shape[1], len(indep_atoms), N, 3, 3), dtype="double"
-        # )
-        compr_block = get_lat_trans_compr_matrix_block_i(
-            self._spg_reps.translation_permutations, 0
-        )
-        basis_part = compr_block @ self._basis_set.reshape(n_a, N * 9, -1)
-        fc_basis_set = basis_part.reshape(n_a * N * 9, -1).T.reshape(-1, n_a, N, 3, 3)
-        return fc_basis_set
-
-    def _get_fc_basis_set(self) -> Optional[np.ndarray]:
-        """Return fc basis set by (num_basis, N, N, 3, 3) array.
-
-        This is a large dense-array, so no reason to employ low-mem approach.
-
-        """
-        if self._basis_set is None:
-            return None
-        fc_basis_set = (self.compression_matrix @ self._basis_set).T.reshape(
-            (self._basis_set.shape[1], self._natom, self._natom, 3, 3)
-        )
-        return fc_basis_set
