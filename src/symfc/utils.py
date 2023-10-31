@@ -1,5 +1,6 @@
 """Functions to handle matrix indices."""
 import itertools
+from typing import Literal
 
 import numpy as np
 from scipy.sparse import coo_array
@@ -10,18 +11,6 @@ from symfc.spg_reps import SpgReps
 def to_serial(i: int, a: int, j: int, b: int, natom: int) -> int:
     """Return NN33-1D index."""
     return (i * 9 * natom) + (j * 9) + (a * 3) + b
-
-
-def convert_basis_set_matrix_form(basis_set) -> list[np.ndarray]:
-    """Convert basis set to matrix form."""
-    b_mat_all = []
-    for b in basis_set:
-        b_seq = b.transpose((0, 2, 1, 3))
-        b_mat = b_seq.reshape(
-            (b_seq.shape[0] * b_seq.shape[1], b_seq.shape[2] * b_seq.shape[3])
-        )
-        b_mat_all.append(b_mat)
-    return b_mat_all
 
 
 def get_spg_projector(
@@ -36,12 +25,9 @@ def get_spg_projector(
 
     """
     coset_reps_sum = kron_sum_c(spg_reps, compression_mat)
-    # lattice translation and index permutation symmetry are projected.
     C_perm = get_perm_compr_matrix(natom)
     perm = C_perm.T @ compression_mat
-    perm = C_perm @ perm
-    perm = compression_mat.T @ perm
-
+    perm = perm.T @ perm
     return coset_reps_sum @ perm
 
 
@@ -182,7 +168,9 @@ def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
     return indices
 
 
-def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
+def get_lat_trans_decompr_indices(
+    trans_perms: np.ndarray, shape: Literal["NN33", "N3,N3"] = "NN33"
+) -> np.ndarray:
     """Return indices to de-compress compressed matrix by lat-trans-sym.
 
     Usage
@@ -203,7 +191,8 @@ def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
     -------
     indices : ndarray
         Indices of n_a * N9 elements.
-        shape=(N^2*9,), dtype='int_'.
+        shape=(N^2*9,) or (N3, N3)
+        dtype='int_'.
 
     """
     indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
@@ -213,13 +202,28 @@ def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
     size_row = (N * 3) ** 2
 
     n = 0
-    indices = np.zeros(size_row, dtype="int_")
-    for i_patom in indep_atoms:
-        for j in range(N):
-            for a, b in itertools.product(range(3), range(3)):
-                for i_trans, j_trans in zip(trans_perms[:, i_patom], trans_perms[:, j]):
-                    indices[to_serial(i_trans, a, j_trans, b, N)] = n
-                n += 1
+    if shape == "NN33":
+        indices = np.zeros(size_row, dtype="int_")
+        for i_patom in indep_atoms:
+            index_shift_i = trans_perms[:, i_patom] * N * 9
+            for j in range(N):
+                index_shift = index_shift_i + trans_perms[:, j] * 9
+                for ab in range(9):
+                    for shift in index_shift:
+                        indices[shift + ab] = n
+                    n += 1
+    elif shape == "N3,N3":
+        indices = np.zeros((N * 3, N * 3), dtype="int_")
+        for i_patom in indep_atoms:
+            index_shift_i = trans_perms[:, i_patom] * 3
+            for j in range(N):
+                index_shift_j = trans_perms[:, j] * 3
+                for a, b in np.ndindex((3, 3)):
+                    for i_t, j_t in zip(index_shift_i, index_shift_j):
+                        indices[i_t + a, j_t + b] = n
+                    n += 1
+    else:
+        raise RuntimeError("This should not happen.")
     assert n * n_lp == size_row
     return indices
 

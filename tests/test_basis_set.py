@@ -8,8 +8,18 @@ import pytest
 
 from symfc.basis_set import FCBasisSet
 from symfc.spg_reps import SpgReps
+from symfc.utils import get_lat_trans_decompr_indices
 
 cwd = Path(__file__).parent
+
+
+def convert_basis_set_matrix_form(basis_set, trans_perms) -> list[np.ndarray]:
+    """Convert basis set to matrix form (n_basis, 3N, 3N)."""
+    decompr_idx = get_lat_trans_decompr_indices(trans_perms, shape="N3,N3")
+    b_mat_all = []
+    for b in basis_set.T:
+        b_mat_all.append(b[decompr_idx] / np.sqrt(trans_perms.shape[0]))
+    return b_mat_all
 
 
 @pytest.mark.parametrize("mode", ["fast", "lowmem"])
@@ -28,9 +38,11 @@ def test_fc_basis_set(mode: Literal["fast", "lowmem"]):
     positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]]).T
     types = [0, 0]
 
-    sym_op_reps = SpgReps(lattice, positions, types).run()
-    sbs = FCBasisSet(sym_op_reps, log_level=1).run(mode=mode)
-    basis = sbs.basis_set_matrix_form
+    spg_reps = SpgReps(lattice, positions, types).run()
+    sbs = FCBasisSet(spg_reps, log_level=1).run(mode=mode)
+    basis = convert_basis_set_matrix_form(
+        sbs.basis_set, spg_reps.translation_permutations
+    )
     np.testing.assert_allclose(basis[0], basis_ref, atol=1e-6)
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
 
@@ -45,7 +57,7 @@ def test_fc_NaCl_222(bs_nacl_222: FCBasisSet, mode: Literal["fast", "lowmem"]):
 
 
     """
-    basis_set = bs_nacl_222.run(mode=mode).basis_set
+    basis_set = bs_nacl_222.run(mode=mode)
     ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]
@@ -62,10 +74,7 @@ def test_fc_NaCl_222(bs_nacl_222: FCBasisSet, mode: Literal["fast", "lowmem"]):
     #     (31, 64, 64, 3, 3)
     # )
 
-    Bf = np.einsum("ijklm,nkm->injl", basis_set, d).reshape(basis_set.shape[0], -1)
-    c = -f.ravel() @ np.linalg.pinv(Bf)
-    fc = np.einsum("i,ijklm->jklm", c, basis_set)
-    fc_compact = fc[ph.primitive.p2s_map]
+    fc_compact = basis_set.solve(d, f)
 
     # To save force constants in phonopy-yaml.
     # save_settings = {
@@ -165,14 +174,11 @@ def _compare_fc_with_alm(
     filename: str, fc_basis_set: FCBasisSet, mode: Literal["fast", "lowmem"] = "fast"
 ) -> np.ndarray:
     pytest.importorskip("alm")
-    basis_set = fc_basis_set.run(mode=mode).basis_set
+    basis_set = fc_basis_set.run(mode=mode)
     ph = phonopy.load(cwd / filename, fc_calculator="alm")
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]
-    Bf = np.einsum("ijklm,nkm->injl", basis_set, d).reshape(basis_set.shape[0], -1)
-    c = -f.ravel() @ np.linalg.pinv(Bf)
-    fc = np.einsum("i,ijklm->jklm", c, basis_set)
-    fc_compact = fc[ph.primitive.p2s_map]
+    fc_compact = basis_set.solve(d, f)
     np.testing.assert_allclose(ph.force_constants, fc_compact, atol=1e-6)
     return fc_compact
 
