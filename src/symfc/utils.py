@@ -228,37 +228,6 @@ def get_lat_trans_decompr_indices(
     return indices
 
 
-def get_lat_trans_compr_matrix_block_i(
-    trans_perms: np.ndarray, i_lattice: int
-) -> coo_array:
-    """Return compression matrix by lattice translation symmetry.
-
-    Matrix shape is (N33, N33), where n_a is the number of independent
-    atoms by lattice translation symmetry.
-
-    Parameters
-    ----------
-    trans_perms : ndarray
-        Permutation of atomic indices by lattice translational symmetry.
-        dtype='intc'.
-        shape=(n_l, N), where n_l and N are the numbers of lattce points and
-        atoms in supercell.
-    i_lattcie : int
-        Left most index of (N, N, 3, 3).
-
-    """
-    n_lp, N = trans_perms.shape
-    val = 1.0 / np.sqrt(n_lp) * np.eye(9)
-    block = np.zeros(shape=(9 * N, 9 * N), dtype="double")
-    n = 0
-    for j in range(N):
-        j_for_i = trans_perms[i_lattice, j]
-        block[j_for_i * 9 : j_for_i * 9 + 9, n : n + 9] = val
-        n += 9
-    assert n == block.shape[1]
-    return block
-
-
 def get_perm_compr_matrix(natom: int) -> coo_array:
     """Return compression matrix by permutation symmetry.
 
