@@ -9,7 +9,6 @@ from phonopy.interface.phonopy_yaml import read_cell_yaml
 from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.basis_set import FCBasisSet
-from symfc.spg_reps import SpgReps
 
 cwd = Path(__file__).parent
 scope: Final = "function"
@@ -63,12 +62,7 @@ def ph_gan_222() -> Phonopy:
 def bs_nacl_222() -> FCBasisSet:
     """Return basis set of NaCl222."""
     ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
-    sym_op_reps = SpgReps(
-        ph.supercell.cell.T,
-        ph.supercell.scaled_positions.T,
-        ph.supercell.numbers,
-    ).run()
-    sbs = FCBasisSet(sym_op_reps, log_level=1)
+    sbs = FCBasisSet(ph.supercell, log_level=1)
     return sbs
 
 
@@ -76,12 +70,7 @@ def bs_nacl_222() -> FCBasisSet:
 def bs_sno2_223() -> FCBasisSet:
     """Return basis set of SnO2-223."""
     ph = phonopy.load(cwd / "phonopy_SnO2_223_rd.yaml.xz", produce_fc=False)
-    sym_op_reps = SpgReps(
-        ph.supercell.cell.T,
-        ph.supercell.scaled_positions.T,
-        ph.supercell.numbers,
-    ).run()
-    sbs = FCBasisSet(sym_op_reps, log_level=1)
+    sbs = FCBasisSet(ph.supercell, log_level=1)
     return sbs
 
 
@@ -89,12 +78,7 @@ def bs_sno2_223() -> FCBasisSet:
 def bs_sno2_222() -> FCBasisSet:
     """Return basis set of SnO2-222."""
     ph = phonopy.load(cwd / "phonopy_SnO2_222_rd.yaml.xz", produce_fc=False)
-    sym_op_reps = SpgReps(
-        ph.supercell.cell.T,
-        ph.supercell.scaled_positions.T,
-        ph.supercell.numbers,
-    ).run()
-    sbs = FCBasisSet(sym_op_reps, log_level=1)
+    sbs = FCBasisSet(ph.supercell, log_level=1)
     return sbs
 
 
@@ -102,12 +86,7 @@ def bs_sno2_222() -> FCBasisSet:
 def bs_sio2_222() -> FCBasisSet:
     """Return basis set of SiO2-222."""
     ph = phonopy.load(cwd / "phonopy_SiO2_222_rd.yaml.xz", produce_fc=False)
-    sym_op_reps = SpgReps(
-        ph.supercell.cell.T,
-        ph.supercell.scaled_positions.T,
-        ph.supercell.numbers,
-    ).run()
-    sbs = FCBasisSet(sym_op_reps, log_level=1)
+    sbs = FCBasisSet(ph.supercell, log_level=1)
     return sbs
 
 
@@ -115,12 +94,7 @@ def bs_sio2_222() -> FCBasisSet:
 def bs_sio2_221() -> FCBasisSet:
     """Return basis set of SiO2-221."""
     ph = phonopy.load(cwd / "phonopy_SiO2_221_rd.yaml.xz", produce_fc=False)
-    sym_op_reps = SpgReps(
-        ph.supercell.cell.T,
-        ph.supercell.scaled_positions.T,
-        ph.supercell.numbers,
-    ).run()
-    sbs = FCBasisSet(sym_op_reps, log_level=1)
+    sbs = FCBasisSet(ph.supercell, log_level=1)
     return sbs
 
 
@@ -128,12 +102,7 @@ def bs_sio2_221() -> FCBasisSet:
 def bs_gan_442() -> FCBasisSet:
     """Return basis set of GaN-442."""
     ph = phonopy.load(cwd / "phonopy_GaN_442_rd.yaml.xz", produce_fc=False)
-    sym_op_reps = SpgReps(
-        ph.supercell.cell.T,
-        ph.supercell.scaled_positions.T,
-        ph.supercell.numbers,
-    ).run()
-    sbs = FCBasisSet(sym_op_reps, log_level=1)
+    sbs = FCBasisSet(ph.supercell, log_level=1)
     return sbs
 
 
@@ -141,10 +110,5 @@ def bs_gan_442() -> FCBasisSet:
 def bs_gan_222() -> FCBasisSet:
     """Return basis set of GaN-222."""
     ph = phonopy.load(cwd / "phonopy_GaN_222_rd.yaml.xz", produce_fc=False)
-    sym_op_reps = SpgReps(
-        ph.supercell.cell.T,
-        ph.supercell.scaled_positions.T,
-        ph.supercell.numbers,
-    ).run()
-    sbs = FCBasisSet(sym_op_reps, log_level=1)
+    sbs = FCBasisSet(ph.supercell, log_level=1)
     return sbs

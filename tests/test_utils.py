@@ -17,11 +17,7 @@ from symfc.utils import (
 def test_get_indep_atoms_by_lattice_translation(ph_nacl_222: Phonopy):
     """Test get_indep_atoms_by_lattice_translation."""
     ph = ph_nacl_222
-    sym_op_reps = SpgReps(
-        ph.supercell.cell.T,
-        ph.supercell.scaled_positions.T,
-        ph.supercell.numbers,
-    )
+    sym_op_reps = SpgReps(ph.supercell)
     trans_perms = sym_op_reps.translation_permutations
     assert trans_perms.shape == (32, 64)
     indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
@@ -37,11 +33,7 @@ def test_get_lat_trans_decompr_indices(cell_nacl_111: PhonopyAtoms, shape: str):
 
     """
     unitcell = cell_nacl_111
-    sym_op_reps = SpgReps(
-        unitcell.cell.T,
-        unitcell.scaled_positions.T,
-        unitcell.numbers,
-    )
+    sym_op_reps = SpgReps(unitcell)
     trans_perms = sym_op_reps.translation_permutations
     assert trans_perms.shape == (4, 8)
     compr_mat = get_lat_trans_compr_matrix(trans_perms).toarray()
@@ -63,11 +55,7 @@ def test_get_lat_trans_compr_indices(cell_nacl_111: PhonopyAtoms):
 
     """
     unitcell = cell_nacl_111
-    sym_op_reps = SpgReps(
-        unitcell.cell.T,
-        unitcell.scaled_positions.T,
-        unitcell.numbers,
-    )
+    sym_op_reps = SpgReps(unitcell)
     trans_perms = sym_op_reps.translation_permutations
     assert trans_perms.shape == (4, 8)
     compr_mat = get_lat_trans_compr_matrix(trans_perms).toarray()

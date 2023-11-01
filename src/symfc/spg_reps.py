@@ -5,6 +5,7 @@ from typing import Optional
 
 import numpy as np
 import spglib
+from phonopy.structure.atoms import PhonopyAtoms
 from phonopy.structure.cells import compute_all_sg_permutations
 from phonopy.utils import similarity_transformation
 from scipy.sparse import coo_array
@@ -15,31 +16,20 @@ import symfc._symfc as symfcc
 class SpgReps:
     """Reps of space group operations with respect to atomic coordinate basis."""
 
-    def __init__(
-        self,
-        lattice: np.ndarray,
-        positions: np.ndarray,
-        numbers: np.ndarray,
-    ):
+    def __init__(self, supercell: PhonopyAtoms):
         """Init method.
 
         Parameters
         ----------
-        lattice : array_like
-            Basis vectors as column vectors. shape=(3, 3), dtype='double'
-        positions : array_like
-            Position vectors given as column vectors. shape=(3, natom),
-            dtype='double'
-        numbers : array_like
-            Atomic IDs idicated by integers larger or eqaul to 0.
-        only_coset_representatives : bool
-            Matrix reps are computed for only coset representatives. Default is
-            True.
+        supercell : PhonopyAtoms
+            Supercell.
 
         """
-        self._lattice = np.array(lattice, dtype="double", order="C")
-        self._positions = np.array(positions, dtype="double", order="C")
-        self._numbers = numbers
+        self._lattice = np.array(supercell.cell, dtype="double", order="C")
+        self._positions = np.array(
+            supercell.scaled_positions, dtype="double", order="C"
+        )
+        self._numbers = supercell.numbers
         self._reps: Optional[list[coo_array]] = None
         self._translation_permutations: Optional[np.ndarray] = None
 
@@ -143,7 +133,7 @@ class SpgReps:
     def _prepare(self):
         self._rotations, translations = self._get_symops()
         self._permutations = compute_all_sg_permutations(
-            self._positions.T, self._rotations, translations, self._lattice, 1e-5
+            self._positions, self._rotations, translations, self._lattice.T, 1e-5
         )
         self._translation_permutations, _ = self._get_translation_permutations(
             self._permutations, self._rotations
@@ -207,9 +197,7 @@ class SpgReps:
             (n_symops, 3), dtype='double'.
 
         """
-        symops = spglib.get_symmetry(
-            (self._lattice.T, self._positions.T, self._numbers)
-        )
+        symops = spglib.get_symmetry((self._lattice, self._positions, self._numbers))
         return symops["rotations"], symops["translations"]
 
     def _compute_reps(
@@ -251,7 +239,7 @@ class SpgReps:
             idxs = rotation_indices
         reps = []
         for perm, r in zip(permutations[idxs], rotations[idxs]):
-            rot_cart = similarity_transformation(self._lattice, r)
+            rot_cart = similarity_transformation(self._lattice.T, r)
             nonzero_r_row, nonzero_r_col = np.nonzero(np.abs(rot_cart) > tol)
             row = np.add.outer(perm * 3, nonzero_r_row).ravel()
             col = np.add.outer(atom_indices * 3, nonzero_r_col).ravel()

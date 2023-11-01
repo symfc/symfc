@@ -3,6 +3,7 @@ from typing import Literal, Optional
 
 import numpy as np
 import scipy
+from phonopy.structure.atoms import PhonopyAtoms
 from scipy.sparse import coo_array
 
 from symfc.spg_reps import SpgReps
@@ -18,36 +19,31 @@ from symfc.utils import (
 class FCBasisSet:
     """Symmetry adapted basis set for force constants.
 
-    Strategy
-    --------
-    Construct compression matrix using lattice translation symmetry C. The
-    matrix shape is (NN33, n_aN33) where N=n_a * n_l. n_a and n_l is the number
-    of atoms in primitive cell and the number of lattice points in the
-    supercell. This matrix expands elements of full elements NN33 of matrix.
-    (C.T @ C) is made to be identity matrix. The projection matrix of space
-    group operations is multipiled by C from both side, and the resultant matrix
-    is diagonalized. In addition, (C_perm @ C_perm.T) that is the projector of
-    index permutation symmetry is multiplied.
+    Attributes
+    ----------
+    basis_set : ndarray
+        Force constants basis set.
+        shape=(n_a * N * 9, n_basis), dtype='double'
 
     """
 
     def __init__(
         self,
-        spg_reps: SpgReps,
+        supercell: PhonopyAtoms,
         log_level: int = 0,
     ):
         """Init method.
 
         Parameters
         ----------
-        spg_reps : list[coo_array]
-            3Nx3N matrix representations of symmetry operations.
+        supercell : PhonopyAtoms
+            Supercell.
         log_level : int, optional
             Log level. Default is 0.
 
         """
-        self._spg_reps = spg_reps
-        self._natom = len(self._spg_reps.numbers)
+        self._spg_reps = SpgReps(supercell).run()
+        self._natom = len(supercell)
         self._log_level = log_level
         self._basis_set: Optional[np.ndarray] = None
         self._mode = Literal["lowmem"]
@@ -55,17 +51,40 @@ class FCBasisSet:
 
     @property
     def basis_set(self) -> Optional[np.ndarray]:
-        """Return basi set in (n_a * N * 9, n_basis) array."""
+        """Return basis set in (n_a * N * 9, n_basis) array."""
         return self._basis_set
 
     @property
-    def compression_matrix(self) -> coo_array:
-        """Return compression matrix."""
-        if self._compression_mat is None:
-            self._compression_mat = get_lat_trans_compr_matrix(
-                self._spg_reps.translation_permutations
-            )
-        return self._compression_mat
+    def decompression_indices(self):
+        """Return decompression indices in (N,N,3,3) order.
+
+        shape=(N^2*9,), dtype='int_'.
+
+        """
+        trans_perms = self._spg_reps.translation_permutations
+        return get_lat_trans_decompr_indices(trans_perms)
+
+    @property
+    def compression_indices(self):
+        """Return compression indices in (n_a,N,3,3) order.
+
+        shape=(n_a*N*9, n_lp), dtype='int_'.
+
+        """
+        trans_perms = self._spg_reps.translation_permutations
+        return get_lat_trans_compr_indices(trans_perms)
+
+    @property
+    def translation_permutations(self):
+        """Return permutations by lattice translation.
+
+        Returns
+        --------
+        Atom indices after lattice translations.
+        shape=(lattice_translations, supercell_atoms), dtype=int
+
+        """
+        return self._spg_reps.translation_permutations
 
     def run(self, mode: Literal["fast", "lowmem"] = "lowmem", tol: float = 1e-8):
         """Compute force constants basis.
@@ -78,46 +97,59 @@ class FCBasisSet:
 
         """
         self._mode = mode
-        vecs = self._step1(tol=tol)
-        U = self._step2(vecs)
+        compression_mat = get_lat_trans_compr_matrix(
+            self._spg_reps.translation_permutations
+        )
+        vecs = self._step1(compression_mat, tol=tol)
+        U = self._step2(vecs, compression_mat)
         self._step3(U, tol=tol)
         return self
 
-    def solve(self, displacements: np.ndarray, forces: np.ndarray, is_compact_fc=True):
+    def solve(
+        self, displacements: np.ndarray, forces: np.ndarray, is_compact_fc=True
+    ) -> Optional[np.ndarray]:
         """Solve force constants.
 
         Parameters
         ----------
         displacements : ndarray
-            Displacements of atoms in Cartesian coordinates.
-            shape=(n_snapshot, N, 3), dtype='double'
+            Displacements of atoms in Cartesian coordinates. shape=(n_snapshot,
+            N, 3), dtype='double'
         forces : ndarray
-            Forces of atoms in Cartesian coordinates.
-            shape=(n_snapshot, N, 3), dtype='double'
+            Forces of atoms in Cartesian coordinates. shape=(n_snapshot, N, 3),
+            dtype='double'
+        is_compact_fc : bool
+            Shape of force constants array is (n_a, N, 3, 3) if True or (N, N,
+            3, 3) if False.
 
         Returns
         -------
         ndarray
             Force constants.
-            shape=(N, N, 3, 3), dtype='double', order='C'
+            shape=(n_a, N, 3, 3) or (N, N, 3, 3). See `is_compact_fc` parameter.
+            dtype='double', order='C'
 
         """
+        if self._basis_set is None:
+            return None
         assert displacements.shape == forces.shape
-        coeff = self._get_coeff(displacements, forces)
+        coeff = self._get_basis_coeff(displacements, forces)
         trans_perms = self._spg_reps.translation_permutations
-        decompr_idx = get_lat_trans_decompr_indices(trans_perms)
         N = self._natom
+        decompr_idx = get_lat_trans_decompr_indices(trans_perms)
         fc = (self._basis_set @ coeff)[decompr_idx].reshape(N, N, 3, 3)
         if is_compact_fc:
             indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
             return np.array(fc[indep_atoms], dtype="double", order="C")
         return fc
 
-    def _get_coeff(
+    def _get_basis_coeff(
         self,
         displacements: np.ndarray,
         forces: np.ndarray,
-    ):
+    ) -> Optional[np.ndarray]:
+        if self._basis_set is None:
+            return None
         trans_perms = self._spg_reps.translation_permutations
         decompr_idx = get_lat_trans_decompr_indices(trans_perms, shape="N3,N3")
         n_snapshot = displacements.shape[0]
@@ -133,6 +165,7 @@ class FCBasisSet:
 
     def _step1(
         self,
+        compression_mat: coo_array,
         tol: float = 1e-8,
     ) -> np.ndarray:
         """Compute eigenvectors of projection matrix.
@@ -153,10 +186,8 @@ class FCBasisSet:
         compression_spg_mat = get_spg_projector(
             self._spg_reps,
             self._natom,
-            self.compression_matrix,
+            compression_mat,
         )
-        if self._mode == "lowmem":
-            self._compression_mat = None
         rank = int(round(compression_spg_mat.diagonal(k=0).sum()))
         if self._log_level:
             N = self._natom**2 * 9
@@ -171,9 +202,9 @@ class FCBasisSet:
         np.testing.assert_allclose(vals, 1.0, rtol=0, atol=tol)
         return vecs
 
-    def _step2(self, vecs: np.ndarray) -> np.ndarray:
+    def _step2(self, vecs: np.ndarray, compression_mat: coo_array) -> np.ndarray:
         if self._mode == "fast":
-            return self._step2_fast(vecs)
+            return self._step2_fast(vecs, compression_mat)
         elif self._mode == "lowmem":
             return self._step2_lowmem(vecs)
         else:
@@ -204,7 +235,7 @@ class FCBasisSet:
         basis = basis[compr_idx].sum(axis=1) / (compr_idx.shape[1] * N)
         return vec - basis
 
-    def _step2_fast(self, vecs: np.ndarray) -> np.ndarray:
+    def _step2_fast(self, vecs: np.ndarray, compression_mat: coo_array) -> np.ndarray:
         """Multiply sum rule project to basis vectors.
 
         Compute P_sum B, where
@@ -218,7 +249,7 @@ class FCBasisSet:
         """
         if self._log_level:
             print("Multiply sum rule projector with current basis set...")
-        U = self.compression_matrix @ vecs
+        U = compression_mat @ vecs
         for i in range(self._natom):
             prod = (
                 U[i * self._natom * 9 : (i + 1) * self._natom * 9, :]
@@ -228,7 +259,7 @@ class FCBasisSet:
             )
             for j in range(self._natom):
                 U[(i * self._natom + j) * 9 : (i * self._natom + j + 1) * 9, :] -= prod
-        U = self.compression_matrix.T @ U
+        U = compression_mat.T @ U
         return U
 
     def _step3(self, U: np.ndarray, tol: float = 1e-8):

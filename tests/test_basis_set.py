@@ -5,19 +5,22 @@ from typing import Literal
 import numpy as np
 import phonopy
 import pytest
+from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.basis_set import FCBasisSet
-from symfc.spg_reps import SpgReps
-from symfc.utils import get_lat_trans_decompr_indices
 
 cwd = Path(__file__).parent
 
 
-def convert_basis_set_matrix_form(basis_set, trans_perms) -> list[np.ndarray]:
+def convert_basis_set_matrix_form(basis_set: FCBasisSet) -> list[np.ndarray]:
     """Convert basis set to matrix form (n_basis, 3N, 3N)."""
-    decompr_idx = get_lat_trans_decompr_indices(trans_perms, shape="N3,N3")
+    trans_perms = basis_set.translation_permutations
+    N = trans_perms.shape[1]
+    decompr_idx = np.transpose(
+        basis_set.decompression_indices.reshape(N, N, 3, 3), (0, 2, 1, 3)
+    ).reshape(N * 3, N * 3)
     b_mat_all = []
-    for b in basis_set.T:
+    for b in basis_set.basis_set.T:
         b_mat_all.append(b[decompr_idx] / np.sqrt(trans_perms.shape[0]))
     return b_mat_all
 
@@ -35,14 +38,11 @@ def test_fc_basis_set(mode: Literal["fast", "lowmem"]):
     ]
 
     lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
-    positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]]).T
-    types = [0, 0]
-
-    spg_reps = SpgReps(lattice, positions, types).run()
-    sbs = FCBasisSet(spg_reps, log_level=1).run(mode=mode)
-    basis = convert_basis_set_matrix_form(
-        sbs.basis_set, spg_reps.translation_permutations
-    )
+    positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
+    numbers = [1, 1]
+    supercell = PhonopyAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
+    sbs = FCBasisSet(supercell, log_level=1).run(mode=mode)
+    basis = convert_basis_set_matrix_form(sbs)
     np.testing.assert_allclose(basis[0], basis_ref, atol=1e-6)
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
 
