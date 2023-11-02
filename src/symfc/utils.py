@@ -1,6 +1,5 @@
 """Functions to handle matrix indices."""
 import itertools
-from typing import Literal
 
 import numpy as np
 from scipy.sparse import coo_array
@@ -13,19 +12,17 @@ def to_serial(i: int, a: int, j: int, b: int, natom: int) -> int:
     return (i * 9 * natom) + (j * 9) + (a * 3) + b
 
 
-def get_spg_projector(
-    spg_reps: SpgReps,
-    natom: int,
-    compression_mat: coo_array,
-) -> coo_array:
+def get_spg_projector(spg_reps: SpgReps, decompr_idx: np.ndarray) -> coo_array:
     """Compute compact spg projector matrix.
 
     This computes C.T @ spg_proj (kron_c) @ perm_proj @ C,
     where C is ``compression_mat``.
 
     """
+    n_lp, N = spg_reps.translation_permutations.shape
+    compression_mat = get_lat_trans_compr_matrix(decompr_idx, N, n_lp)
     coset_reps_sum = kron_sum_c(spg_reps, compression_mat)
-    C_perm = get_perm_compr_matrix(natom)
+    C_perm = get_perm_compr_matrix(N)
     perm = C_perm.T @ compression_mat
     perm = perm.T @ perm
     return coset_reps_sum @ perm
@@ -89,41 +86,27 @@ def kron_sum_c(
     return mat_sum
 
 
-def get_lat_trans_compr_matrix(trans_perms: np.ndarray) -> coo_array:
+def get_lat_trans_compr_matrix(decompr_idx: np.ndarray, N: int, n_lp: int) -> coo_array:
     """Return compression matrix by lattice translation symmetry.
+
+    `decompr_idx` is obtained by `get_lat_trans_decompr_indices`.
 
     Matrix shape is (NN33, n_a*N33), where n_a is the number of independent
     atoms by lattice translation symmetry.
 
     Data order is (N, N, 3, 3, n_a, N, 3, 3) if it is in dense array.
 
-    trans_perms : ndarray
-        Permutation of atomic indices by lattice translational symmetry.
-        dtype='intc'.
-        shape=(n_l, N), where n_l and N are the numbers of lattce points and
-        atoms in supercell.
-
     """
-    col, row, data = [], [], []
-    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
-    n_a = len(indep_atoms)
-    N = trans_perms.shape[1]
-    n_lp = N // n_a
-    val = 1.0 / np.sqrt(n_lp)
-    size_row = (N * 3) ** 2
-
-    n = 0
-    for i_patom in indep_atoms:
-        for j in range(N):
-            for a, b in itertools.product(range(3), range(3)):
-                for i_trans, j_trans in zip(trans_perms[:, i_patom], trans_perms[:, j]):
-                    data.append(val)
-                    col.append(n)
-                    row.append(to_serial(i_trans, a, j_trans, b, N))
-                n += 1
-
-    assert n * n_lp == size_row
-    return coo_array((data, (row, col)), shape=(size_row, n), dtype="double")
+    NN9 = N**2 * 9
+    compression_mat = coo_array(
+        (
+            np.full(NN9, 1 / np.sqrt(n_lp), dtype="double"),
+            (np.arange(NN9, dtype=int), decompr_idx),
+        ),
+        shape=(NN9, NN9 // n_lp),
+        dtype="double",
+    )
+    return compression_mat
 
 
 def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
@@ -156,21 +139,18 @@ def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
 
     n = 0
     indices = np.zeros((n_a * N * 9, n_lp), dtype="int_")
-    nums = np.zeros(n_a * N * 9, dtype="int_")
     for i_patom in indep_atoms:
         for j in range(N):
-            for a, b in itertools.product(range(3), range(3)):
-                for i_trans, j_trans in zip(trans_perms[:, i_patom], trans_perms[:, j]):
-                    indices[n, nums[n]] = to_serial(i_trans, a, j_trans, b, N)
-                    nums[n] += 1
+            for ab in range(9):
+                indices[n, :] = (
+                    trans_perms[:, i_patom] * 9 * N + trans_perms[:, j] * 9 + ab
+                )
                 n += 1
     assert n * n_lp == size_row
     return indices
 
 
-def get_lat_trans_decompr_indices(
-    trans_perms: np.ndarray, shape: Literal["NN33", "N3,N3"] = "NN33"
-) -> np.ndarray:
+def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
     """Return indices to de-compress compressed matrix by lat-trans-sym.
 
     Usage
@@ -191,8 +171,7 @@ def get_lat_trans_decompr_indices(
     -------
     indices : ndarray
         Indices of n_a * N9 elements.
-        shape=(N^2*9,) or (N3, N3)
-        dtype='int_'.
+        shape=(N^2*9,), dtype='int_'.
 
     """
     indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
@@ -202,28 +181,14 @@ def get_lat_trans_decompr_indices(
     size_row = (N * 3) ** 2
 
     n = 0
-    if shape == "NN33":
-        indices = np.zeros(size_row, dtype="int_")
-        for i_patom in indep_atoms:
-            index_shift_i = trans_perms[:, i_patom] * N * 9
-            for j in range(N):
-                index_shift = index_shift_i + trans_perms[:, j] * 9
-                for ab in range(9):
-                    for shift in index_shift:
-                        indices[shift + ab] = n
-                    n += 1
-    elif shape == "N3,N3":
-        indices = np.zeros((N * 3, N * 3), dtype="int_")
-        for i_patom in indep_atoms:
-            index_shift_i = trans_perms[:, i_patom] * 3
-            for j in range(N):
-                index_shift_j = trans_perms[:, j] * 3
-                for a, b in np.ndindex((3, 3)):
-                    for i_t, j_t in zip(index_shift_i, index_shift_j):
-                        indices[i_t + a, j_t + b] = n
-                    n += 1
-    else:
-        raise RuntimeError("This should not happen.")
+    indices = np.zeros(size_row, dtype="int_")
+    for i_patom in indep_atoms:
+        index_shift_i = trans_perms[:, i_patom] * N * 9
+        for j in range(N):
+            index_shift = index_shift_i + trans_perms[:, j] * 9
+            for ab in range(9):
+                indices[index_shift + ab] = n
+                n += 1
     assert n * n_lp == size_row
     return indices
 
