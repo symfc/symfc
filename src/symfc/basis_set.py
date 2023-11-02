@@ -1,16 +1,13 @@
 """Generate symmetrized force constants using compact projection matrix."""
-from typing import Literal, Optional
+from typing import Optional
 
 import numpy as np
 import scipy
 from phonopy.structure.atoms import PhonopyAtoms
-from scipy.sparse import coo_array
 
 from symfc.spg_reps import SpgReps
 from symfc.utils import (
-    get_indep_atoms_by_lat_trans,
     get_lat_trans_compr_indices,
-    get_lat_trans_compr_matrix,
     get_lat_trans_decompr_indices,
     get_spg_projector,
 )
@@ -46,7 +43,6 @@ class FCBasisSet:
         self._natom = len(supercell)
         self._log_level = log_level
         self._basis_set: Optional[np.ndarray] = None
-        self._mode = Literal["lowmem"]
         self._compression_mat = None
 
     @property
@@ -86,22 +82,20 @@ class FCBasisSet:
         """
         return self._spg_reps.translation_permutations
 
-    def run(self, mode: Literal["fast", "lowmem"] = "lowmem", tol: float = 1e-8):
+    def run(self, tol: float = 1e-8):
         """Compute force constants basis.
 
         Parameters
         ----------
-        mode : Lietral["fast", "lowmem"]
-            With "fact", basis set is computed faster but with more memory usage
-            and with "lowmem" slower but less memory usage. Default is "fast".
+        tol : float
+            Tolerance to identify zero eigenvalues. Default=1e-8.
 
         """
-        self._mode = mode
-        compression_mat = get_lat_trans_compr_matrix(
+        decompr_idx = get_lat_trans_decompr_indices(
             self._spg_reps.translation_permutations
         )
-        vecs = self._step1(compression_mat, tol=tol)
-        U = self._step2(vecs, compression_mat)
+        vecs = self._step1(decompr_idx, tol=tol)
+        U = self._step2(decompr_idx, vecs)
         self._step3(U, tol=tol)
         return self
 
@@ -134,13 +128,13 @@ class FCBasisSet:
             return None
         assert displacements.shape == forces.shape
         coeff = self._get_basis_coeff(displacements, forces)
-        trans_perms = self._spg_reps.translation_permutations
         N = self._natom
-        decompr_idx = get_lat_trans_decompr_indices(trans_perms)
-        fc = (self._basis_set @ coeff)[decompr_idx].reshape(N, N, 3, 3)
         if is_compact_fc:
-            indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
-            return np.array(fc[indep_atoms], dtype="double", order="C")
+            fc = (self._basis_set @ coeff).reshape(-1, N, 3, 3)
+        else:
+            trans_perms = self._spg_reps.translation_permutations
+            decompr_idx = get_lat_trans_decompr_indices(trans_perms)
+            fc = (self._basis_set @ coeff)[decompr_idx].reshape(N, N, 3, 3)
         return fc
 
     def _get_basis_coeff(
@@ -151,7 +145,10 @@ class FCBasisSet:
         if self._basis_set is None:
             return None
         trans_perms = self._spg_reps.translation_permutations
-        decompr_idx = get_lat_trans_decompr_indices(trans_perms, shape="N3,N3")
+        N = trans_perms.shape[1]
+        decompr_idx = np.transpose(
+            get_lat_trans_decompr_indices(trans_perms).reshape(N, N, 3, 3), (0, 2, 1, 3)
+        ).reshape(N * 3, N * 3)
         n_snapshot = displacements.shape[0]
         disps = displacements.reshape(n_snapshot, -1)
         N = self._natom
@@ -163,11 +160,7 @@ class FCBasisSet:
         coeff = -(np.linalg.pinv(d_basis) @ forces.ravel())
         return coeff
 
-    def _step1(
-        self,
-        compression_mat: coo_array,
-        tol: float = 1e-8,
-    ) -> np.ndarray:
+    def _step1(self, decompr_idx: np.ndarray, tol: float = 1e-8) -> np.ndarray:
         """Compute eigenvectors of projection matrix.
 
         Projection matrix is made of the product of the projection matrices of
@@ -183,11 +176,7 @@ class FCBasisSet:
                 "Construct projector matrix of space group and "
                 "index permutation symmetry..."
             )
-        compression_spg_mat = get_spg_projector(
-            self._spg_reps,
-            self._natom,
-            compression_mat,
-        )
+        compression_spg_mat = get_spg_projector(self._spg_reps, decompr_idx)
         rank = int(round(compression_spg_mat.diagonal(k=0).sum()))
         if self._log_level:
             N = self._natom**2 * 9
@@ -202,15 +191,7 @@ class FCBasisSet:
         np.testing.assert_allclose(vals, 1.0, rtol=0, atol=tol)
         return vecs
 
-    def _step2(self, vecs: np.ndarray, compression_mat: coo_array) -> np.ndarray:
-        if self._mode == "fast":
-            return self._step2_fast(vecs, compression_mat)
-        elif self._mode == "lowmem":
-            return self._step2_lowmem(vecs)
-        else:
-            raise RuntimeError("This should not happen.")
-
-    def _step2_lowmem(self, vecs: np.ndarray) -> np.ndarray:
+    def _step2(self, decompr_idx: np.ndarray, vecs: np.ndarray) -> np.ndarray:
         if self._log_level:
             print("Multiply sum rule projector with current basis set...")
         trans_perms = self._spg_reps.translation_permutations
@@ -218,48 +199,11 @@ class FCBasisSet:
         n_a = N // n_lp
         U = np.zeros(shape=(n_a * 9 * N, vecs.shape[1]), dtype="double")
         compr_idx = get_lat_trans_compr_indices(trans_perms)
-        decompr_idx = get_lat_trans_decompr_indices(trans_perms)
         for i, vec in enumerate(vecs.T):
-            U[:, i] = self._get_U_basis(vec, compr_idx, decompr_idx)
-        return U
-
-    def _get_U_basis(
-        self,
-        vec: np.ndarray,
-        compr_idx: np.ndarray,
-        decompr_idx: np.ndarray,
-    ):
-        N = self._natom
-        basis = vec[decompr_idx].reshape(N, N, 9).sum(axis=1)
-        basis = np.tile(basis, N).ravel()
-        basis = basis[compr_idx].sum(axis=1) / (compr_idx.shape[1] * N)
-        return vec - basis
-
-    def _step2_fast(self, vecs: np.ndarray, compression_mat: coo_array) -> np.ndarray:
-        """Multiply sum rule project to basis vectors.
-
-        Compute P_sum B, where
-
-        P_sum = I - M_sum = I - np.kron(np.eye(natom, natom),
-                                      np.tile(np.eye(9) / natom, (natom,
-                                      natom)))
-
-        and B is the set of fc basis vectors determined by P_SG and P_perm.
-
-        """
-        if self._log_level:
-            print("Multiply sum rule projector with current basis set...")
-        U = compression_mat @ vecs
-        for i in range(self._natom):
-            prod = (
-                U[i * self._natom * 9 : (i + 1) * self._natom * 9, :]
-                .reshape(self._natom, 9, -1)
-                .sum(axis=0)
-                / self._natom
-            )
-            for j in range(self._natom):
-                U[(i * self._natom + j) * 9 : (i * self._natom + j + 1) * 9, :] -= prod
-        U = compression_mat.T @ U
+            basis = vec[decompr_idx].reshape(N, N, 9).sum(axis=1)
+            basis = np.tile(basis, N).ravel()
+            basis = basis[compr_idx].sum(axis=1) / (compr_idx.shape[1] * N)
+            U[:, i] = vec - basis
         return U
 
     def _step3(self, U: np.ndarray, tol: float = 1e-8):
