@@ -83,7 +83,7 @@ class FCBasisSet:
         return self._spg_reps.translation_permutations
 
     def run(self, tol: float = 1e-8):
-        """Compute force constants basis.
+        """Compute compressed force constants basis set.
 
         Parameters
         ----------
@@ -94,9 +94,9 @@ class FCBasisSet:
         decompr_idx = get_lat_trans_decompr_indices(
             self._spg_reps.translation_permutations
         )
-        vecs = self._step1(decompr_idx, tol=tol)
-        U = self._step2(decompr_idx, vecs)
-        self._step3(U, tol=tol)
+        vecs = self._get_tilde_basis_set(decompr_idx, tol=tol)
+        U = self._multiply_sum_rule_projector(decompr_idx, vecs)
+        self._extract_basis_set(U, tol=tol)
         return self
 
     def solve(
@@ -160,7 +160,9 @@ class FCBasisSet:
         coeff = -(np.linalg.pinv(d_basis) @ forces.ravel())
         return coeff
 
-    def _step1(self, decompr_idx: np.ndarray, tol: float = 1e-8) -> np.ndarray:
+    def _get_tilde_basis_set(
+        self, decompr_idx: np.ndarray, tol: float = 1e-8
+    ) -> np.ndarray:
         """Compute eigenvectors of projection matrix.
 
         Projection matrix is made of the product of the projection matrices of
@@ -191,7 +193,9 @@ class FCBasisSet:
         np.testing.assert_allclose(vals, 1.0, rtol=0, atol=tol)
         return vecs
 
-    def _step2(self, decompr_idx: np.ndarray, vecs: np.ndarray) -> np.ndarray:
+    def _multiply_sum_rule_projector(
+        self, decompr_idx: np.ndarray, vecs: np.ndarray
+    ) -> np.ndarray:
         if self._log_level:
             print("Multiply sum rule projector with current basis set...")
         trans_perms = self._spg_reps.translation_permutations
@@ -206,7 +210,7 @@ class FCBasisSet:
             U[:, i] = vec - basis
         return U
 
-    def _step3(self, U: np.ndarray, tol: float = 1e-8):
+    def _extract_basis_set(self, U: np.ndarray, tol: float = 1e-8):
         """Extract basis vectors that satisfies sum rule.
 
         Eigenvectors corresponding to SVD eigenvalues that are not 1 are

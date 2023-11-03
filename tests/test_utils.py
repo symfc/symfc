@@ -6,15 +6,17 @@ from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.spg_reps import SpgReps
 from symfc.utils import (
+    _get_perm_compr_matrix_reference,
     get_indep_atoms_by_lat_trans,
     get_lat_trans_compr_indices,
     get_lat_trans_compr_matrix,
     get_lat_trans_decompr_indices,
+    get_perm_compr_matrix,
 )
 
 
 def test_get_indep_atoms_by_lattice_translation(ph_nacl_222: Phonopy):
-    """Test get_indep_atoms_by_lattice_translation."""
+    """Test of get_indep_atoms_by_lattice_translation."""
     ph = ph_nacl_222
     sym_op_reps = SpgReps(ph.supercell)
     trans_perms = sym_op_reps.translation_permutations
@@ -23,8 +25,16 @@ def test_get_indep_atoms_by_lattice_translation(ph_nacl_222: Phonopy):
     np.testing.assert_array_equal(indep_atoms, [0, 32])
 
 
+def test_get_perm_compr_matrix():
+    """Test of get_perm_compr_matrix."""
+    C1 = get_perm_compr_matrix(8)
+    C2 = _get_perm_compr_matrix_reference(8)
+    np.testing.assert_array_almost_equal((C1 @ C1.T).toarray(), (C2 @ C2.T).toarray())
+    np.testing.assert_array_almost_equal((C1.T @ C1).toarray(), (C2.T @ C2).toarray())
+
+
 def test_get_lat_trans_decompr_indices(cell_nacl_111: PhonopyAtoms):
-    """Test get_lat_trans_decompr_indices.
+    """Test of get_lat_trans_decompr_indices.
 
     The one dimensional array with row-size of compr-mat.
     Every element indicates column position.
