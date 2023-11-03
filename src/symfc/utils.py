@@ -7,11 +7,6 @@ from scipy.sparse import coo_array
 from symfc.spg_reps import SpgReps
 
 
-def to_serial(i: int, a: int, j: int, b: int, natom: int) -> int:
-    """Return NN33-1D index."""
-    return (i * 9 * natom) + (j * 9) + (a * 3) + b
-
-
 def get_spg_projector(spg_reps: SpgReps, decompr_idx: np.ndarray) -> coo_array:
     """Compute compact spg projector matrix.
 
@@ -196,11 +191,58 @@ def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
 def get_perm_compr_matrix(natom: int) -> coo_array:
     """Return compression matrix by permutation symmetry.
 
+    Parameters
+    ----------
+    natom : int
+        Number of atoms in supercell.
+
     Matrix shape is (NN33,(N*3)(N*3+1)/2).
     Non-zero only ijab and jiba column elements for ijab rows.
     Rows upper right NN33 matrix elements are selected for rows.
 
+    For the computational performance, get_perm_compr_matrix is implemented in a
+    tricky way effectively using numpy features, and so it is not easy to read.
+    What is expected may be found reading _get_perm_compr_matrix_reference.
+
     """
+    N = natom
+    A = np.transpose(
+        np.arange(N**2 * 9).reshape(N, N, 3, 3), axes=(0, 2, 1, 3)
+    ).reshape(N * 3, N * 3)
+    ut = np.triu_indices_from(A, k=1)
+    diag = np.diagonal(A)
+    row = np.hstack((np.stack((A[ut], A.T[ut]), axis=1).ravel(), diag))
+    col = np.hstack(
+        (
+            np.repeat(np.arange(len(ut[0]), dtype=int), 2),
+            np.arange(len(ut[0]), len(ut[0]) + len(diag), dtype=int),
+        )
+    )
+    data = np.hstack((np.full(len(ut[0]) * 2, np.sqrt(2) / 2), np.full(len(diag), 1)))
+    return coo_array(
+        (data, (row, col)),
+        shape=(N**2 * 9, (N * 3 * (N * 3 + 1)) // 2),
+        dtype="double",
+    )
+
+
+def _get_perm_compr_matrix_reference(natom: int) -> coo_array:
+    """Return compression matrix by permutation symmetry.
+
+    This is a reference implementation of get_perm_compr_matrix. The order of
+    columns is difference from get_perm_compr_matrix, but it is OK if C.T@C
+    is the same.
+
+    Matrix shape is (NN33,(N*3)(N*3+1)/2). Non-zero only ijab and jiba column
+    elements for ijab rows. Rows upper right NN33 matrix elements are selected
+    for rows.
+
+    """
+
+    def to_serial(i: int, a: int, j: int, b: int, natom: int) -> int:
+        """Return NN33-1D index."""
+        return (i * 9 * natom) + (j * 9) + (a * 3) + b
+
     col, row, data = [], [], []
     val = np.sqrt(2) / 2
     size_row = natom**2 * 9
