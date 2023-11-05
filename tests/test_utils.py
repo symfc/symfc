@@ -7,6 +7,7 @@ from phonopy.structure.atoms import PhonopyAtoms
 from symfc.spg_reps import SpgReps
 from symfc.utils import (
     _get_perm_compr_matrix_reference,
+    get_atomic_lat_trans_decompr_indices,
     get_indep_atoms_by_lat_trans,
     get_lat_trans_compr_indices,
     get_lat_trans_compr_matrix,
@@ -642,3 +643,84 @@ def test_get_lat_trans_compr_indices(cell_nacl_111: PhonopyAtoms):
     for c, elem_idx in enumerate(compr_idx):
         for r in elem_idx:
             np.testing.assert_almost_equal(compr_mat[r, c], 0.5)
+
+
+def test_get_atomic_lat_trans_decompr_indices(cell_nacl_111: PhonopyAtoms):
+    """Test of get_atomic_lat_trans_decompr_indices.
+
+    This function is an atomic version of get_lat_trans_decompr_indices.
+    The one dimensional array with row-size of compr-mat.
+    Every element indicates column position.
+
+    """
+    ref = [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        1,
+        0,
+        3,
+        2,
+        5,
+        4,
+        7,
+        6,
+        2,
+        3,
+        0,
+        1,
+        6,
+        7,
+        4,
+        5,
+        3,
+        2,
+        1,
+        0,
+        7,
+        6,
+        5,
+        4,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        9,
+        8,
+        11,
+        10,
+        13,
+        12,
+        15,
+        14,
+        10,
+        11,
+        8,
+        9,
+        14,
+        15,
+        12,
+        13,
+        11,
+        10,
+        9,
+        8,
+        15,
+        14,
+        13,
+        12,
+    ]
+    spg_reps = SpgReps(cell_nacl_111)
+    trans_perms = spg_reps.translation_permutations
+    assert trans_perms.shape == (4, 8)
+    atomic_decompr_idx = get_atomic_lat_trans_decompr_indices(trans_perms)
+    np.testing.assert_array_equal(ref, atomic_decompr_idx)

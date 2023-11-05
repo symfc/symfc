@@ -9,7 +9,7 @@ from symfc.spg_reps import SpgReps
 from symfc.utils import (
     get_lat_trans_compr_indices,
     get_lat_trans_decompr_indices,
-    get_spg_projector,
+    get_spg_perm_projector,
 )
 
 
@@ -39,11 +39,10 @@ class FCBasisSet:
             Log level. Default is 0.
 
         """
-        self._spg_reps = SpgReps(supercell).run()
+        self._spg_reps = SpgReps(supercell)
         self._natom = len(supercell)
         self._log_level = log_level
         self._basis_set: Optional[np.ndarray] = None
-        self._compression_mat = None
 
     @property
     def basis_set(self) -> Optional[np.ndarray]:
@@ -67,8 +66,7 @@ class FCBasisSet:
         shape=(n_a*N*9, n_lp), dtype='int_'.
 
         """
-        trans_perms = self._spg_reps.translation_permutations
-        return get_lat_trans_compr_indices(trans_perms)
+        return get_lat_trans_compr_indices(self.translation_permutations)
 
     @property
     def translation_permutations(self):
@@ -144,7 +142,7 @@ class FCBasisSet:
     ) -> Optional[np.ndarray]:
         if self._basis_set is None:
             return None
-        trans_perms = self._spg_reps.translation_permutations
+        trans_perms = self.translation_permutations
         N = trans_perms.shape[1]
         decompr_idx = np.transpose(
             get_lat_trans_decompr_indices(trans_perms).reshape(N, N, 3, 3), (0, 2, 1, 3)
@@ -155,8 +153,12 @@ class FCBasisSet:
         d_basis = np.zeros(
             (n_snapshot * N * 3, self._basis_set.shape[1]), dtype="double", order="C"
         )
+        if self._log_level:
+            print("Computing product of displacements and basis set...")
         for i, vec in enumerate(self._basis_set.T):
             d_basis[:, i] = (disps @ vec[decompr_idx]).ravel()
+        if self._log_level:
+            print("Solving basis-set coefficients...")
         coeff = -(np.linalg.pinv(d_basis) @ forces.ravel())
         return coeff
 
@@ -178,7 +180,7 @@ class FCBasisSet:
                 "Construct projector matrix of space group and "
                 "index permutation symmetry..."
             )
-        compression_spg_mat = get_spg_projector(self._spg_reps, decompr_idx)
+        compression_spg_mat = get_spg_perm_projector(self._spg_reps, decompr_idx)
         rank = int(round(compression_spg_mat.diagonal(k=0).sum()))
         if self._log_level:
             N = self._natom**2 * 9

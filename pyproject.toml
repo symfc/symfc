@@ -1,5 +1,5 @@
 [build-system]
-requires = ["numpy", "wheel", "setuptools"]
+requires = ["setuptools"]
 
 [tool.flake8]
 max-line-length = 88
