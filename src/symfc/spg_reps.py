@@ -31,6 +31,8 @@ class SpgReps:
         )
         self._numbers = supercell.numbers
         self._reps: Optional[list[coo_array]] = None
+        self._r2_reps: Optional[list[coo_array]] = None
+        self._unique_rotation_indices: Optional[np.ndarray] = None
         self._translation_permutations: Optional[np.ndarray] = None
 
         self._prepare()
@@ -57,19 +59,53 @@ class SpgReps:
         """
         return self._translation_permutations
 
-    def run(self, only_coset_representatives=True):
-        """Compute matrix representations of rotations for force constants."""
-        unique_rotation_indices = self._get_unique_rotation_indices(self._rotations)
-        if only_coset_representatives:
-            self._reps = self._compute_reps(
-                self._permutations, self._rotations, unique_rotation_indices
-            )
-        else:
-            self._reps = self._compute_reps(self._permutations, self._rotations)
-        self._check_rep_dtypes()
-        return self
+    @property
+    def unique_rotation_indices(self) -> Optional[np.ndarray]:
+        """Return indices of coset representatives of space group operations."""
+        return self._unique_rotation_indices
 
-    def get_fc2_rep(self, i: int) -> Optional[coo_array]:
+    @property
+    def r2_reps(self) -> Optional[list[coo_array]]:
+        """Return 2nd rank tensor rotation matricies."""
+        return self._r2_reps
+
+    def get_fc2_rep(self, i: int, mode: str = "new") -> Optional[coo_array]:
+        """Return i'th matrix representation for fc2."""
+        if mode == "new":
+            return self._get_fc2_rep(i)
+        else:
+            if self._reps is None:
+                self._reps = self._compute_reps_order1(
+                    self._permutations, self._rotations, self._unique_rotation_indices
+                )
+                self._check_rep_dtypes()
+            return self._get_fc2_rep_by_kron(i)
+
+    def get_sigma2_rep(self, i: int) -> coo_array:
+        """Compute and return i-th atomic pair permutation matrix.
+
+        Parameters
+        ----------
+        i : int
+            Index of coset presentations of space group operations.
+
+        """
+        data, row, col, shape = self._get_sigma2_rep_data(i)
+        return coo_array((data, (row, col)), shape=shape)
+
+    def _compute_r2_reps(self, tol=1e-10) -> list:
+        """Compute and return 2nd rank tensor rotation matricies."""
+        uri = self._unique_rotation_indices
+        r2_reps = []
+        for r in self._rotations[uri]:
+            r_c = self._lattice.T @ r @ np.linalg.inv(self._lattice.T)
+            r2_rep = np.kron(r_c, r_c)
+            row, col = np.nonzero(np.abs(r2_rep) > tol)
+            data = r2_rep[(row, col)]
+            r2_reps.append(coo_array((data, (row, col)), shape=r2_rep.shape))
+        return r2_reps
+
+    def _get_fc2_rep_by_kron(self, i: int) -> Optional[coo_array]:
         """Return i'th matrix representation for fc2.
 
         kron
@@ -135,9 +171,19 @@ class SpgReps:
         self._permutations = compute_all_sg_permutations(
             self._positions, self._rotations, translations, self._lattice.T, 1e-5
         )
-        self._translation_permutations, _ = self._get_translation_permutations(
+        self._translation_permutations = self._get_translation_permutations(
             self._permutations, self._rotations
         )
+        self._unique_rotation_indices = self._get_unique_rotation_indices(
+            self._rotations
+        )
+        N = len(self._numbers)
+        a = np.arange(N)
+        self._atom_pairs = np.stack(np.meshgrid(a, a), axis=-1).reshape(-1, 2)
+        self._coeff = np.array([1, N], dtype=int)
+        self._col = self._atom_pairs @ self._coeff
+        self._data = np.ones(N * N, dtype=int)
+        self._r2_reps = self._compute_r2_reps()
 
     def _check_rep_dtypes(self):
         """Return data types of reps."""
@@ -153,19 +199,13 @@ class SpgReps:
         assert data_dtype is np.dtype("double")
         assert self._reps[0].data.flags.contiguous
 
-    def _get_translation_permutations(
-        self, permutations, rotations
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def _get_translation_permutations(self, permutations, rotations) -> np.ndarray:
         eye3 = np.eye(3, dtype=int)
         trans_perms = []
-        trans_indices = []
-        for i, (r, perm) in enumerate(zip(rotations, permutations)):
+        for r, perm in zip(rotations, permutations):
             if np.array_equal(r, eye3):
                 trans_perms.append(perm)
-                trans_indices.append(i)
-        return np.array(trans_perms, dtype="intc", order="C"), np.array(
-            trans_indices, dtype="intc"
-        )
+        return np.array(trans_perms, dtype="intc", order="C")
 
     def _get_unique_rotation_indices(self, rotations: np.ndarray) -> list[int]:
         unique_rotations: list[np.ndarray] = []
@@ -200,7 +240,7 @@ class SpgReps:
         symops = spglib.get_symmetry((self._lattice, self._positions, self._numbers))
         return symops["rotations"], symops["translations"]
 
-    def _compute_reps(
+    def _compute_reps_order1(
         self,
         permutations: np.ndarray,
         rotations: np.ndarray,
@@ -249,3 +289,26 @@ class SpgReps:
             data = np.tile(nonzero_r_elems, len(self._numbers))
             reps.append(coo_array((data, (row, col)), shape=(size, size)))
         return reps
+
+    def _get_sigma2_rep_data(self, i: int) -> coo_array:
+        uri = self._unique_rotation_indices
+        permutation = self._permutations[uri[i]]
+        NN = len(self._numbers) ** 2
+        row = permutation[self._atom_pairs] @ self._coeff
+        return self._data, row, self._col, (NN, NN)
+
+    def _get_fc2_rep(self, i: int):
+        """Return fc2 rep.
+
+        Slightly faster than `scipy.sparse.kron(_get_sigma2_rep(permutation),
+        r2_rep)`, but not fast enough.
+
+        """
+        r2_rep = self._r2_reps[i]
+        data, row, col, shape = self._get_sigma2_rep_data(i)
+        NN9 = shape[0] * 9
+        n = r2_rep.nnz
+        row = (np.repeat(row * 9, n).reshape(-1, n) + r2_rep.row).ravel()
+        col = (np.repeat(col * 9, n).reshape(-1, n) + r2_rep.col).ravel()
+        data = np.kron(data, r2_rep.data)
+        return coo_array((data, (row, col)), shape=(NN9, NN9), dtype="double")

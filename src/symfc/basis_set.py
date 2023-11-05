@@ -10,6 +10,7 @@ from symfc.utils import (
     get_lat_trans_compr_indices,
     get_lat_trans_decompr_indices,
     get_spg_projector,
+    get_spg_projector_by_kron,
 )
 
 
@@ -39,7 +40,7 @@ class FCBasisSet:
             Log level. Default is 0.
 
         """
-        self._spg_reps = SpgReps(supercell).run()
+        self._spg_reps = SpgReps(supercell)
         self._natom = len(supercell)
         self._log_level = log_level
         self._basis_set: Optional[np.ndarray] = None
@@ -161,7 +162,7 @@ class FCBasisSet:
         return coeff
 
     def _get_tilde_basis_set(
-        self, decompr_idx: np.ndarray, tol: float = 1e-8
+        self, decompr_idx: np.ndarray, mode: str = "new", tol: float = 1e-8
     ) -> np.ndarray:
         """Compute eigenvectors of projection matrix.
 
@@ -178,7 +179,10 @@ class FCBasisSet:
                 "Construct projector matrix of space group and "
                 "index permutation symmetry..."
             )
-        compression_spg_mat = get_spg_projector(self._spg_reps, decompr_idx)
+        if mode == "new":
+            compression_spg_mat = get_spg_projector(self._spg_reps, decompr_idx)
+        else:
+            compression_spg_mat = get_spg_projector_by_kron(self._spg_reps, decompr_idx)
         rank = int(round(compression_spg_mat.diagonal(k=0).sum()))
         if self._log_level:
             N = self._natom**2 * 9
