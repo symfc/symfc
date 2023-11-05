@@ -10,7 +10,6 @@ from symfc.utils import (
     get_lat_trans_compr_indices,
     get_lat_trans_decompr_indices,
     get_spg_projector,
-    get_spg_projector_by_kron,
 )
 
 
@@ -68,8 +67,7 @@ class FCBasisSet:
         shape=(n_a*N*9, n_lp), dtype='int_'.
 
         """
-        trans_perms = self._spg_reps.translation_permutations
-        return get_lat_trans_compr_indices(trans_perms)
+        return get_lat_trans_compr_indices(self.translation_permutations)
 
     @property
     def translation_permutations(self):
@@ -145,7 +143,7 @@ class FCBasisSet:
     ) -> Optional[np.ndarray]:
         if self._basis_set is None:
             return None
-        trans_perms = self._spg_reps.translation_permutations
+        trans_perms = self.translation_permutations
         N = trans_perms.shape[1]
         decompr_idx = np.transpose(
             get_lat_trans_decompr_indices(trans_perms).reshape(N, N, 3, 3), (0, 2, 1, 3)
@@ -162,7 +160,7 @@ class FCBasisSet:
         return coeff
 
     def _get_tilde_basis_set(
-        self, decompr_idx: np.ndarray, mode: str = "new", tol: float = 1e-8
+        self, decompr_idx: np.ndarray, tol: float = 1e-8
     ) -> np.ndarray:
         """Compute eigenvectors of projection matrix.
 
@@ -179,10 +177,7 @@ class FCBasisSet:
                 "Construct projector matrix of space group and "
                 "index permutation symmetry..."
             )
-        if mode == "new":
-            compression_spg_mat = get_spg_projector(self._spg_reps, decompr_idx)
-        else:
-            compression_spg_mat = get_spg_projector_by_kron(self._spg_reps, decompr_idx)
+        compression_spg_mat = get_spg_projector(self._spg_reps, decompr_idx)
         rank = int(round(compression_spg_mat.diagonal(k=0).sum()))
         if self._log_level:
             N = self._natom**2 * 9

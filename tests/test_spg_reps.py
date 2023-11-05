@@ -1,6 +1,5 @@
 """Tests of SpgReps class."""
 import numpy as np
-import pytest
 from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 from scipy.sparse import coo_array
@@ -38,26 +37,14 @@ def test_translation_permutations_shape_GaN_222(ph_gan_222: Phonopy):
     assert trans_perms.shape == (8, 32)
 
 
-def test_get_fc2_reps_NaCl_111(cell_nacl_111: PhonopyAtoms):
-    cell = cell_nacl_111
-    sym_reps = SpgReps(cell)
-    for i, unique_i in enumerate(sym_reps.unique_rotation_indices):
-        print(i)
-        print(sym_reps._rotations[unique_i])
-        reps_new = sym_reps.get_fc2_rep(i, mode="new")
-        reps_old = sym_reps.get_fc2_rep(i, mode="old")
-        np.testing.assert_array_almost_equal(reps_new.toarray(), reps_old.toarray())
-
-
-@pytest.mark.parametrize("mode", ["new", "old"])
-def test_get_fc2_reps_GaN_111(ph_gan_222: Phonopy, mode: str):
+def test_get_fc2_reps_GaN_111(ph_gan_222: Phonopy):
     cell = ph_gan_222.unitcell
     sym_reps = SpgReps(cell)
     for i, (r, perm) in enumerate(zip(sym_reps._rotations, sym_reps._permutations)):
         if (r == [[1, -1, 0], [1, 0, 0], [0, 0, 1]]).all() and (
             perm == [1, 0, 3, 2]
         ).all():
-            reps = sym_reps.get_fc2_rep(i, mode=mode)
+            reps = sym_reps.get_fc2_rep(i)
             break
     array_ref = [
         [45, 0, 0.25],

@@ -7,22 +7,6 @@ from scipy.sparse import coo_array, kron
 from symfc.spg_reps import SpgReps
 
 
-def get_spg_projector_by_kron(spg_reps: SpgReps, decompr_idx: np.ndarray) -> coo_array:
-    """Compute compact spg projector matrix using kron.
-
-    This computes C.T @ spg_proj (kron_c) @ perm_proj @ C,
-    where C is ``compression_mat``.
-
-    """
-    n_lp, N = spg_reps.translation_permutations.shape
-    compression_mat = get_lat_trans_compr_matrix(decompr_idx, N, n_lp)
-    coset_reps_sum = _kron_sum_c(spg_reps, compression_mat)
-    C_perm = get_perm_compr_matrix(N)
-    perm = C_perm.T @ compression_mat
-    perm = perm.T @ perm
-    return coset_reps_sum @ perm
-
-
 def get_spg_projector(spg_reps: SpgReps, decompr_idx: np.ndarray) -> coo_array:
     """Compute compact spg projector matrix using kron.
 
@@ -33,11 +17,18 @@ def get_spg_projector(spg_reps: SpgReps, decompr_idx: np.ndarray) -> coo_array:
     trans_perms = spg_reps.translation_permutations
     n_lp, N = trans_perms.shape
     compression_mat = get_lat_trans_compr_matrix(decompr_idx, N, n_lp)
-    coset_reps_sum = coo_array(
-        ([], ([], [])),
-        shape=(compression_mat.shape[1], compression_mat.shape[1]),
-        dtype="double",
-    )
+    coset_reps_sum = _get_compr_coset_reps_sum(spg_reps)
+    C_perm = get_perm_compr_matrix(N)
+    perm = C_perm.T @ compression_mat
+    perm = perm.T @ perm
+    return coset_reps_sum @ perm
+
+
+def _get_compr_coset_reps_sum(spg_reps: SpgReps):
+    trans_perms = spg_reps.translation_permutations
+    n_lp, N = trans_perms.shape
+    size = N**2 * 9 // n_lp
+    coset_reps_sum = coo_array(([], ([], [])), shape=(size, size), dtype="double")
     atomic_decompr_idx = get_atomic_lat_trans_decompr_indices(trans_perms)
     C = coo_array(
         (
@@ -46,16 +37,13 @@ def get_spg_projector(spg_reps: SpgReps, decompr_idx: np.ndarray) -> coo_array:
         ),
         shape=(N**2, N**2 // n_lp),
     )
+    factor = 1 / n_lp / len(spg_reps.unique_rotation_indices)
     for i, _ in enumerate(spg_reps.unique_rotation_indices):
         mat = spg_reps.get_sigma2_rep(i)
         mat = mat @ C
         mat = C.T @ mat
-        coset_reps_sum += kron(mat, spg_reps.r2_reps[i] / n_lp)
-    coset_reps_sum /= len(spg_reps.unique_rotation_indices)
-    C_perm = get_perm_compr_matrix(N)
-    perm = C_perm.T @ compression_mat
-    perm = perm.T @ perm
-    return coset_reps_sum @ perm
+        coset_reps_sum += kron(mat, spg_reps.r2_reps[i] * factor)
+    return coset_reps_sum
 
 
 def get_indep_atoms_by_lat_trans(trans_perms: np.ndarray) -> np.ndarray:
@@ -315,32 +303,3 @@ def _get_perm_compr_matrix_reference(natom: int) -> coo_array:
     else:
         assert ((natom * 3) // 2) * (natom * 3 + 1) == n, f"{natom}, {n}"
     return coo_array((data, (row, col)), shape=(size_row, n), dtype="double")
-
-
-def _kron_sum_c(
-    spg_reps: SpgReps,
-    C: coo_array,
-):
-    """Compute sum_r kron(r, r) / N_r in NN33 order in C.
-
-    Sum of kron(r, r) are computed for unique r.
-
-    Parameters
-    ----------
-    reps : list[coo_array]
-        Symmetry operation representations in 3Nx3N.
-    natom : int
-        Number of atoms in supercell.
-    C : coo_array
-        Compression matrix.
-
-    """
-    mat_sum = coo_array(([], ([], [])), shape=(C.shape[1], C.shape[1]), dtype="double")
-    for i, _ in enumerate(spg_reps.unique_rotation_indices):
-        mat = spg_reps.get_fc2_rep(i)
-        mat = mat @ C
-        mat = C.T @ mat
-        mat_sum += mat
-    mat_sum /= len(spg_reps.unique_rotation_indices)
-
-    return mat_sum
