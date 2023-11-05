@@ -34,11 +34,6 @@ class SpgReps:
         self._prepare()
 
     @property
-    def numbers(self):
-        """Return atomic numbers."""
-        return self._numbers
-
-    @property
     def translation_permutations(self) -> Optional[np.ndarray]:
         """Return permutations by lattice translation.
 
@@ -60,10 +55,6 @@ class SpgReps:
         """Return 2nd rank tensor rotation matricies."""
         return self._r2_reps
 
-    def get_fc2_rep(self, i: int) -> Optional[coo_array]:
-        """Return i'th matrix representation for fc2."""
-        return self._get_fc2_rep(i)
-
     def get_sigma2_rep(self, i: int) -> coo_array:
         """Compute and return i-th atomic pair permutation matrix.
 
@@ -75,18 +66,6 @@ class SpgReps:
         """
         data, row, col, shape = self._get_sigma2_rep_data(i)
         return coo_array((data, (row, col)), shape=shape)
-
-    def _compute_r2_reps(self, tol=1e-10) -> list:
-        """Compute and return 2nd rank tensor rotation matricies."""
-        uri = self._unique_rotation_indices
-        r2_reps = []
-        for r in self._rotations[uri]:
-            r_c = self._lattice.T @ r @ np.linalg.inv(self._lattice.T)
-            r2_rep = np.kron(r_c, r_c)
-            row, col = np.nonzero(np.abs(r2_rep) > tol)
-            data = r2_rep[(row, col)]
-            r2_reps.append(coo_array((data, (row, col)), shape=r2_rep.shape))
-        return r2_reps
 
     def _prepare(self):
         self._rotations, translations = self._get_symops()
@@ -106,6 +85,18 @@ class SpgReps:
         self._col = self._atom_pairs @ self._coeff
         self._data = np.ones(N * N, dtype=int)
         self._r2_reps = self._compute_r2_reps()
+
+    def _compute_r2_reps(self, tol=1e-10) -> list:
+        """Compute and return 2nd rank tensor rotation matricies."""
+        uri = self._unique_rotation_indices
+        r2_reps = []
+        for r in self._rotations[uri]:
+            r_c = self._lattice.T @ r @ np.linalg.inv(self._lattice.T)
+            r2_rep = np.kron(r_c, r_c)
+            row, col = np.nonzero(np.abs(r2_rep) > tol)
+            data = r2_rep[(row, col)]
+            r2_reps.append(coo_array((data, (row, col)), shape=r2_rep.shape))
+        return r2_reps
 
     def _get_translation_permutations(self, permutations, rotations) -> np.ndarray:
         eye3 = np.eye(3, dtype=int)
@@ -154,19 +145,3 @@ class SpgReps:
         NN = len(self._numbers) ** 2
         row = permutation[self._atom_pairs] @ self._coeff
         return self._data, row, self._col, (NN, NN)
-
-    def _get_fc2_rep(self, i: int):
-        """Return fc2 rep.
-
-        Slightly faster than `scipy.sparse.kron(_get_sigma2_rep(permutation),
-        r2_rep)`, but not fast enough.
-
-        """
-        r2_rep = self._r2_reps[i]
-        data, row, col, shape = self._get_sigma2_rep_data(i)
-        NN9 = shape[0] * 9
-        n = r2_rep.nnz
-        row = (np.repeat(row * 9, n).reshape(-1, n) + r2_rep.row).ravel()
-        col = (np.repeat(col * 9, n).reshape(-1, n) + r2_rep.col).ravel()
-        data = np.kron(data, r2_rep.data)
-        return coo_array((data, (row, col)), shape=(NN9, NN9), dtype="double")

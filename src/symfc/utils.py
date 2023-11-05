@@ -7,11 +7,11 @@ from scipy.sparse import coo_array, kron
 from symfc.spg_reps import SpgReps
 
 
-def get_spg_projector(spg_reps: SpgReps, decompr_idx: np.ndarray) -> coo_array:
-    """Compute compact spg projector matrix using kron.
+def get_spg_perm_projector(spg_reps: SpgReps, decompr_idx: np.ndarray) -> coo_array:
+    """Compute compact spg+perm projector matrix using kron.
 
-    This computes C.T @ spg_proj (kron_c) @ perm_proj @ C,
-    where C is ``compression_mat``.
+    This computes C.T @ spg_proj @ perm_proj @ C, where C is
+    ``compression_mat``.
 
     """
     trans_perms = spg_reps.translation_permutations
@@ -22,28 +22,6 @@ def get_spg_projector(spg_reps: SpgReps, decompr_idx: np.ndarray) -> coo_array:
     perm = C_perm.T @ compression_mat
     perm = perm.T @ perm
     return coset_reps_sum @ perm
-
-
-def _get_compr_coset_reps_sum(spg_reps: SpgReps):
-    trans_perms = spg_reps.translation_permutations
-    n_lp, N = trans_perms.shape
-    size = N**2 * 9 // n_lp
-    coset_reps_sum = coo_array(([], ([], [])), shape=(size, size), dtype="double")
-    atomic_decompr_idx = get_atomic_lat_trans_decompr_indices(trans_perms)
-    C = coo_array(
-        (
-            np.ones(N**2, dtype=int),
-            (np.arange(N**2, dtype=int), atomic_decompr_idx),
-        ),
-        shape=(N**2, N**2 // n_lp),
-    )
-    factor = 1 / n_lp / len(spg_reps.unique_rotation_indices)
-    for i, _ in enumerate(spg_reps.unique_rotation_indices):
-        mat = spg_reps.get_sigma2_rep(i)
-        mat = mat @ C
-        mat = C.T @ mat
-        coset_reps_sum += kron(mat, spg_reps.r2_reps[i] * factor)
-    return coset_reps_sum
 
 
 def get_indep_atoms_by_lat_trans(trans_perms: np.ndarray) -> np.ndarray:
@@ -259,6 +237,28 @@ def get_atomic_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
             n += 1
     assert n * n_lp == size_row
     return indices
+
+
+def _get_compr_coset_reps_sum(spg_reps: SpgReps):
+    trans_perms = spg_reps.translation_permutations
+    n_lp, N = trans_perms.shape
+    size = N**2 * 9 // n_lp
+    coset_reps_sum = coo_array(([], ([], [])), shape=(size, size), dtype="double")
+    atomic_decompr_idx = get_atomic_lat_trans_decompr_indices(trans_perms)
+    C = coo_array(
+        (
+            np.ones(N**2, dtype=int),
+            (np.arange(N**2, dtype=int), atomic_decompr_idx),
+        ),
+        shape=(N**2, N**2 // n_lp),
+    )
+    factor = 1 / n_lp / len(spg_reps.unique_rotation_indices)
+    for i, _ in enumerate(spg_reps.unique_rotation_indices):
+        mat = spg_reps.get_sigma2_rep(i)
+        mat = mat @ C
+        mat = C.T @ mat
+        coset_reps_sum += kron(mat, spg_reps.r2_reps[i] * factor)
+    return coset_reps_sum
 
 
 def _get_perm_compr_matrix_reference(natom: int) -> coo_array:
