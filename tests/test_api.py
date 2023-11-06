@@ -1,8 +1,9 @@
 """Tests of Symfc."""
-from symfc import Symfc
-from phonopy import Phonopy
 import numpy as np
 import pytest
+from phonopy import Phonopy
+
+from symfc import Symfc
 
 
 def test_api_NaCl_222(ph_nacl_222: Phonopy):
