@@ -1,8 +1,10 @@
 """Symfc API."""
 
 from typing import Optional, Union
+
 import numpy as np
 from phonopy.structure.atoms import PhonopyAtoms
+
 from symfc.basis_set import FCBasisSet
 
 
