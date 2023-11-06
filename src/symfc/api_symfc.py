@@ -1,8 +1,10 @@
 """Symfc API."""
 
 from typing import Optional, Union
+
 import numpy as np
 from phonopy.structure.atoms import PhonopyAtoms
+
 from symfc.basis_set import FCBasisSet
 
 
@@ -16,6 +18,7 @@ class Symfc:
         forces: Optional[np.ndarray] = None,
         log_level: int = 0,
     ):
+        """Init method."""
         self._supercell: PhonopyAtoms = supercell
         self._displacements: Optional[np.ndarray] = displacements
         self._forces: Optional[np.ndarray] = forces
