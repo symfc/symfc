@@ -1,11 +1,12 @@
 """Generate symmetrized force constants using compact projection matrix."""
+from abc import ABC, abstractmethod
 from typing import Optional
 
 import numpy as np
 import scipy
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.spg_reps import SpgReps
+from symfc.spg_reps import SpgReps, SpgRepsO2
 from symfc.utils import (
     get_lat_trans_compr_indices,
     get_lat_trans_decompr_indices,
@@ -13,7 +14,88 @@ from symfc.utils import (
 )
 
 
-class FCBasisSet:
+class FCBasisSet(ABC):
+    """Symmetry adapted basis set for force constants.
+
+    Attributes
+    ----------
+    basis_set : ndarray
+        Force constants basis set.
+    decompression_indices : ndarray
+        Indices to decompress compressed basis set.
+    compression_indices : ndarray
+        Indices to compress basis set.
+
+    """
+
+    def __init__(
+        self,
+        supercell: PhonopyAtoms,
+        log_level: int = 0,
+    ):
+        """Init method.
+
+        Parameters
+        ----------
+        supercell : PhonopyAtoms
+            Supercell.
+        log_level : int, optional
+            Log level. Default is 0.
+
+        """
+        self._natom = len(supercell)
+        self._log_level = log_level
+        self._basis_set: Optional[np.ndarray] = None
+        self._spg_reps: Optional[SpgReps] = None
+
+    @property
+    def basis_set(self) -> Optional[np.ndarray]:
+        """Return basis set.
+
+        Returns
+        -------
+        FC2:
+            shape=(n_a * N * 9, n_basis), dtype='double'
+
+        """
+        return self._basis_set
+
+    @abstractmethod
+    def decompression_indices(self):
+        """Return decompression indices."""
+        pass
+
+    @abstractmethod
+    def compression_indices(self):
+        """Return compression indices."""
+        pass
+
+    @property
+    def translation_permutations(self) -> Optional[np.ndarray]:
+        """Return permutations by lattice translation.
+
+        Returns
+        --------
+        Atom indices after lattice translations.
+        shape=(lattice_translations, supercell_atoms), dtype=int
+
+        """
+        if self._spg_reps is None:
+            return None
+        return self._spg_reps.translation_permutations
+
+    @abstractmethod
+    def run(self):
+        """Run basis set calculation."""
+        pass
+
+    @abstractmethod
+    def solve(self):
+        """Solve force constants."""
+        pass
+
+
+class FCBasisSetO2(FCBasisSet):
     """Symmetry adapted basis set for force constants.
 
     Attributes
@@ -39,15 +121,8 @@ class FCBasisSet:
             Log level. Default is 0.
 
         """
-        self._spg_reps = SpgReps(supercell)
-        self._natom = len(supercell)
-        self._log_level = log_level
-        self._basis_set: Optional[np.ndarray] = None
-
-    @property
-    def basis_set(self) -> Optional[np.ndarray]:
-        """Return basis set in (n_a * N * 9, n_basis) array."""
-        return self._basis_set
+        super().__init__(supercell, log_level=log_level)
+        self._spg_reps = SpgRepsO2(supercell)
 
     @property
     def decompression_indices(self):
@@ -67,18 +142,6 @@ class FCBasisSet:
 
         """
         return get_lat_trans_compr_indices(self.translation_permutations)
-
-    @property
-    def translation_permutations(self):
-        """Return permutations by lattice translation.
-
-        Returns
-        --------
-        Atom indices after lattice translations.
-        shape=(lattice_translations, supercell_atoms), dtype=int
-
-        """
-        return self._spg_reps.translation_permutations
 
     def run(self, tol: float = 1e-8):
         """Compute compressed force constants basis set.

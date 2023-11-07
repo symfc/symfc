@@ -5,7 +5,7 @@ from typing import Optional, Union
 import numpy as np
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.basis_set import FCBasisSet
+from symfc.basis_set import FCBasisSetO2
 
 
 class Symfc:
@@ -22,7 +22,7 @@ class Symfc:
         self._supercell: PhonopyAtoms = supercell
         self._displacements: Optional[np.ndarray] = displacements
         self._forces: Optional[np.ndarray] = forces
-        self._basis_set = FCBasisSet(supercell, log_level=log_level)
+        self._basis_set = FCBasisSetO2(supercell, log_level=log_level)
         self._force_constants: Optional[np.ndarray] = None
         if self._displacements is not None and self._forces is not None:
             self._check_dataset()
