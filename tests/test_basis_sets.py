@@ -8,6 +8,7 @@ from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.basis_sets import FCBasisSet, FCBasisSetO2
+from symfc.solvers import FCSolverO2
 
 cwd = Path(__file__).parent
 
@@ -78,7 +79,10 @@ def test_fc_NaCl_222(ph_nacl_222: Phonopy):
     #     (31, 64, 64, 3, 3)
     # )
 
-    fc_compact = basis_set.solve(d, f)
+    solver = FCSolverO2(
+        basis_set.basis_set, basis_set.translation_permutations, log_level=1
+    )
+    fc_compact = solver.solve(d, f)
 
     # To save force constants in phonopy-yaml.
     # save_settings = {
@@ -217,7 +221,10 @@ def _compare_fc_with_alm(
     ph = phonopy.load(cwd / filename, fc_calculator="alm", is_compact_fc=is_compact_fc)
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]
-    fc_compact = basis_set.solve(d, f, is_compact_fc=is_compact_fc)
+    solver = FCSolverO2(
+        basis_set.basis_set, basis_set.translation_permutations, log_level=1
+    )
+    fc_compact = solver.solve(d, f, is_compact_fc=is_compact_fc)
     np.testing.assert_allclose(ph.force_constants, fc_compact, atol=1e-6)
     return fc_compact
 

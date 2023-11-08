@@ -7,6 +7,7 @@ import numpy as np
 from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.basis_sets import FCBasisSet, FCBasisSetO2
+from symfc.solvers import FCSolverO2
 
 
 class Symfc:
@@ -25,8 +26,12 @@ class Symfc:
         self._displacements: Optional[np.ndarray] = displacements
         self._forces: Optional[np.ndarray] = forces
         self._basis_set: Optional[FCBasisSet] = None
-        if order == 2:
-            self._basis_set = FCBasisSetO2(supercell, log_level=log_level)
+        self._order = order
+        self._log_level = log_level
+        if self._order == 2:
+            self._basis_set = FCBasisSetO2(supercell, log_level=self._log_level)
+        else:
+            raise NotImplementedError("Only order-2 is implemented.")
         self._force_constants: Optional[np.ndarray] = None
         if (
             self._basis_set
@@ -77,9 +82,17 @@ class Symfc:
 
     def solve(self, is_compact_fc=True) -> Symfc:
         """Calculate force constants."""
-        self._force_constants = self._basis_set.solve(
-            self._displacements, self._forces, is_compact_fc=is_compact_fc
-        )
+        if self._order == 2:
+            solver = FCSolverO2(
+                self._basis_set.basis_set,
+                self._basis_set.translation_permutations,
+                log_level=self._log_level,
+            )
+            self._force_constants = solver.solve(
+                self._displacements, self._forces, is_compact_fc=is_compact_fc
+            )
+        else:
+            raise NotImplementedError("Only order-2 is implemented.")
         return self
 
     def calculate_basis_set(self) -> Symfc:
