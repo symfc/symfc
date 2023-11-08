@@ -46,8 +46,7 @@ def test_fc_basis_set():
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
 
 
-@pytest.mark.parametrize("is_compact_fc", [True, False])
-def test_fc_NaCl_222(ph_nacl_222: Phonopy, is_compact_fc: bool):
+def test_fc_NaCl_222(ph_nacl_222: Phonopy):
     """Test force constants by NaCl 64 atoms supercell and compared with ALM.
 
     Also test force constants by NaCl 64 atoms supercell.
@@ -73,7 +72,7 @@ def test_fc_NaCl_222(ph_nacl_222: Phonopy, is_compact_fc: bool):
     #     (31, 64, 64, 3, 3)
     # )
 
-    fc_compact = basis_set.solve(d, f, is_compact_fc=is_compact_fc)
+    fc_compact = basis_set.solve(d, f)
 
     # To save force constants in phonopy-yaml.
     # save_settings = {
@@ -86,18 +85,21 @@ def test_fc_NaCl_222(ph_nacl_222: Phonopy, is_compact_fc: bool):
     #     settings=save_settings
     # )
 
-    if is_compact_fc:
-        ph_ref = phonopy.load(cwd / "phonopy_NaCl_222_fc.yaml.xz", produce_fc=False)
-        np.testing.assert_allclose(ph_ref.force_constants, fc_compact, atol=1e-6)
+    ph_ref = phonopy.load(cwd / "phonopy_NaCl_222_fc.yaml.xz", produce_fc=False)
+    np.testing.assert_allclose(ph_ref.force_constants, fc_compact, atol=1e-6)
 
-    _ = _compare_fc_with_alm(
-        "phonopy_NaCl_222_rd.yaml.xz",
-        basis_set,
-        is_compact_fc=is_compact_fc,
-    )
     # _write_phonopy_fc_yaml(
     #     "phonopy_NaCl_222_fc.yaml", "phonopy_NaCl_222_rd.yaml.xz", fc_compact
     # )
+
+
+@pytest.mark.parametrize("is_compact_fc", [True, False])
+def test_fc_NaCl_222_wrt_ALM(ph_nacl_222: Phonopy, is_compact_fc: bool):
+    _ = _compare_fc_with_alm(
+        "phonopy_NaCl_222_rd.yaml.xz",
+        FCBasisSetO2(ph_nacl_222.supercell, log_level=1),
+        is_compact_fc=is_compact_fc,
+    )
 
 
 @pytest.mark.parametrize("is_compact_fc", [True, False])
@@ -185,6 +187,20 @@ def test_fc_GaN_222_wrt_ALM(ph_gan_222: Phonopy, is_compact_fc: bool):
     # )
 
 
+def test_full_basis_set_NaCl222_wrt_ALM(ph_nacl_222: Phonopy):
+    _ = _full_basis_set_compare_with_alm(
+        "phonopy_NaCl_222_rd.yaml.xz",
+        FCBasisSetO2(ph_nacl_222.supercell, log_level=1),
+    )
+
+
+def test_full_basis_set_SnO2_223_wrt_ALM(ph_sno2_223: Phonopy):
+    _ = _full_basis_set_compare_with_alm(
+        "phonopy_SnO2_223_rd.yaml.xz",
+        FCBasisSetO2(ph_sno2_223.supercell, log_level=1),
+    )
+
+
 def _compare_fc_with_alm(
     filename: str,
     fc_basis_set: FCBasisSetO2,
@@ -198,6 +214,30 @@ def _compare_fc_with_alm(
     fc_compact = basis_set.solve(d, f, is_compact_fc=is_compact_fc)
     np.testing.assert_allclose(ph.force_constants, fc_compact, atol=1e-6)
     return fc_compact
+
+
+def _full_basis_set_compare_with_alm(
+    filename: str,
+    fc_basis_set: FCBasisSetO2,
+):
+    """This is the test for FCBasisSetO2.full_basis_set."""
+    pytest.importorskip("alm")
+    basis_set = fc_basis_set.run()
+    ph = phonopy.load(cwd / filename, fc_calculator="alm", is_compact_fc=False)
+    f = ph.dataset["forces"]
+    d = ph.dataset["displacements"]
+    full_basis_set = basis_set.full_basis_set
+    n_basis = full_basis_set.shape[-1]
+    N = len(ph.supercell)
+    square_basis_set = full_basis_set.reshape(N, N, 3, 3, n_basis)
+    coeff = (
+        -np.linalg.pinv(
+            np.einsum("ijk,jlkmn->ilmn", d, square_basis_set).reshape(-1, n_basis)
+        )
+        @ f.ravel()
+    )
+    full_fc = (full_basis_set @ coeff).reshape(N, N, 3, 3)
+    np.testing.assert_allclose(ph.force_constants, full_fc, atol=1e-6)
 
 
 def _write_phonopy_fc_yaml(output_filename, input_filename, fc_compact):

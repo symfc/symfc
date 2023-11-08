@@ -1,4 +1,6 @@
 """Generate symmetrized force constants using compact projection matrix."""
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -15,18 +17,7 @@ from symfc.utils import (
 
 
 class FCBasisSet(ABC):
-    """Symmetry adapted basis set for force constants.
-
-    Attributes
-    ----------
-    basis_set : ndarray
-        Force constants basis set.
-    decompression_indices : ndarray
-        Indices to decompress compressed basis set.
-    compression_indices : ndarray
-        Indices to compress basis set.
-
-    """
+    """Base class of symmetry adapted basis set for force constants."""
 
     def __init__(
         self,
@@ -50,15 +41,13 @@ class FCBasisSet(ABC):
 
     @property
     def basis_set(self) -> Optional[np.ndarray]:
-        """Return basis set.
-
-        Returns
-        -------
-        FC2:
-            shape=(n_a * N * 9, n_basis), dtype='double'
-
-        """
+        """Return compressed basis set."""
         return self._basis_set
+
+    @abstractmethod
+    def full_basis_set(self):
+        """Return full (decompressed) basis set."""
+        pass
 
     @abstractmethod
     def decompression_indices(self):
@@ -71,17 +60,8 @@ class FCBasisSet(ABC):
         pass
 
     @property
-    def translation_permutations(self) -> Optional[np.ndarray]:
-        """Return permutations by lattice translation.
-
-        Returns
-        --------
-        Atom indices after lattice translations.
-        shape=(lattice_translations, supercell_atoms), dtype=int
-
-        """
-        if self._spg_reps is None:
-            return None
+    def translation_permutations(self) -> np.ndarray:
+        """Return permutations by lattice translation."""
         return self._spg_reps.translation_permutations
 
     @abstractmethod
@@ -101,8 +81,20 @@ class FCBasisSetO2(FCBasisSet):
     Attributes
     ----------
     basis_set : ndarray
-        Force constants basis set.
+        Compressed force constants basis set.
         shape=(n_a * N * 9, n_basis), dtype='double'
+    full_basis_set : ndarray
+        Full (decompressed) force constants basis set.
+        shape=(N * N * 9, n_basis), dtype='double'
+    decompression_indices : ndarray
+        Decompression indices in (N,N,3,3) order.
+        shape=(N^2*9,), dtype='int_'.
+    compresssion_indices : ndarray
+        Compression indices in (n_a,N,3,3) order.
+        shape=(n_a*N*9, n_lp), dtype='int_'.
+    translation_permutations : ndarray
+        Atom indices after lattice translations.
+        shape=(lattice_translations, supercell_atoms), dtype=int.
 
     """
 
@@ -125,25 +117,24 @@ class FCBasisSetO2(FCBasisSet):
         self._spg_reps = SpgRepsO2(supercell)
 
     @property
-    def decompression_indices(self):
-        """Return decompression indices in (N,N,3,3) order.
+    def full_basis_set(self) -> Optional[np.ndarray]:
+        """Return full (decompressed) basis set."""
+        if self._basis_set is None:
+            return None
+        return self._basis_set[self.decompression_indices, :]
 
-        shape=(N^2*9,), dtype='int_'.
-
-        """
+    @property
+    def decompression_indices(self) -> np.ndarray:
+        """Return decompression indices in (N,N,3,3) order."""
         trans_perms = self._spg_reps.translation_permutations
         return get_lat_trans_decompr_indices(trans_perms)
 
     @property
-    def compression_indices(self):
-        """Return compression indices in (n_a,N,3,3) order.
-
-        shape=(n_a*N*9, n_lp), dtype='int_'.
-
-        """
+    def compression_indices(self) -> np.ndarray:
+        """Return compression indices in (n_a,N,3,3) order."""
         return get_lat_trans_compr_indices(self.translation_permutations)
 
-    def run(self, tol: float = 1e-8):
+    def run(self, tol: float = 1e-8) -> FCBasisSetO2:
         """Compute compressed force constants basis set.
 
         Parameters
@@ -188,15 +179,12 @@ class FCBasisSetO2(FCBasisSet):
         if self._basis_set is None:
             return None
         assert displacements.shape == forces.shape
-        coeff = self._get_basis_coeff(displacements, forces)
         N = self._natom
+        fc = self._basis_set @ self._get_basis_coeff(displacements, forces)
         if is_compact_fc:
-            fc = (self._basis_set @ coeff).reshape(-1, N, 3, 3)
+            return fc.reshape(-1, N, 3, 3)
         else:
-            trans_perms = self._spg_reps.translation_permutations
-            decompr_idx = get_lat_trans_decompr_indices(trans_perms)
-            fc = (self._basis_set @ coeff)[decompr_idx].reshape(N, N, 3, 3)
-        return fc
+            return fc[self.decompression_indices].reshape(N, N, 3, 3)
 
     def _get_basis_coeff(
         self,
@@ -205,14 +193,12 @@ class FCBasisSetO2(FCBasisSet):
     ) -> Optional[np.ndarray]:
         if self._basis_set is None:
             return None
-        trans_perms = self.translation_permutations
-        N = trans_perms.shape[1]
+        N = self._natom
         decompr_idx = np.transpose(
-            get_lat_trans_decompr_indices(trans_perms).reshape(N, N, 3, 3), (0, 2, 1, 3)
+            self.decompression_indices.reshape(N, N, 3, 3), (0, 2, 1, 3)
         ).reshape(N * 3, N * 3)
         n_snapshot = displacements.shape[0]
-        disps = displacements.reshape(n_snapshot, -1)
-        N = self._natom
+        disps = displacements.reshape(n_snapshot, N * 3)
         d_basis = np.zeros(
             (n_snapshot * N * 3, self._basis_set.shape[1]), dtype="double", order="C"
         )

@@ -1,11 +1,12 @@
 """Symfc API."""
+from __future__ import annotations
 
 from typing import Optional, Union
 
 import numpy as np
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.basis_set import FCBasisSetO2
+from symfc.basis_set import FCBasisSet, FCBasisSetO2
 
 
 class Symfc:
@@ -14,6 +15,7 @@ class Symfc:
     def __init__(
         self,
         supercell: PhonopyAtoms,
+        order: int = 2,
         displacements: Optional[np.ndarray] = None,
         forces: Optional[np.ndarray] = None,
         log_level: int = 0,
@@ -22,12 +24,23 @@ class Symfc:
         self._supercell: PhonopyAtoms = supercell
         self._displacements: Optional[np.ndarray] = displacements
         self._forces: Optional[np.ndarray] = forces
-        self._basis_set = FCBasisSetO2(supercell, log_level=log_level)
+        self._basis_set: Optional[FCBasisSet] = None
+        if order == 2:
+            self._basis_set = FCBasisSetO2(supercell, log_level=log_level)
         self._force_constants: Optional[np.ndarray] = None
-        if self._displacements is not None and self._forces is not None:
+        if (
+            self._basis_set
+            and self._displacements is not None
+            and self._forces is not None
+        ):
             self._check_dataset()
             self._basis_set.run()
             self.solve()
+
+    @property
+    def basis_set(self) -> Optional[FCBasisSet]:
+        """Return basis set instance."""
+        return self._basis_set
 
     @property
     def force_constants(self) -> Optional[np.ndarray]:
@@ -62,13 +75,17 @@ class Symfc:
     def forces(self, forces: Union[np.ndarray, list, tuple]):
         self._forces = np.array(forces, dtype="double", order="C")
 
-    def solve(self):
+    def solve(self, is_compact_fc=True) -> Symfc:
         """Calculate force constants."""
-        self._force_constants = self._basis_set.solve(self._displacements, self._forces)
+        self._force_constants = self._basis_set.solve(
+            self._displacements, self._forces, is_compact_fc=is_compact_fc
+        )
+        return self
 
-    def calculate_basis_set(self):
+    def calculate_basis_set(self) -> Symfc:
         """Calculate force constants basis set."""
         self._basis_set.run()
+        return self
 
     def _check_dataset(self):
         if self._displacements is None:
