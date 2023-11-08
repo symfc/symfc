@@ -6,7 +6,7 @@ from typing import Optional, Union
 import numpy as np
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.basis_set import FCBasisSet, FCBasisSetO2
+from symfc.basis_sets import FCBasisSet, FCBasisSetO2
 
 
 class Symfc:

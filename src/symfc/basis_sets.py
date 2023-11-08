@@ -1,4 +1,4 @@
-"""Generate symmetrized force constants using compact projection matrix."""
+"""Symmetry adapted basis sets of force constants."""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

@@ -7,7 +7,7 @@ import pytest
 from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.basis_set import FCBasisSet, FCBasisSetO2
+from symfc.basis_sets import FCBasisSet, FCBasisSetO2
 
 cwd = Path(__file__).parent
 
