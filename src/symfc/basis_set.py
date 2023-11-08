@@ -17,7 +17,7 @@ from symfc.utils import (
 
 
 class FCBasisSet(ABC):
-    """Base class of symmetry adapted basis set for force constants."""
+    """Abstract base class of symmetry adapted basis set for force constants."""
 
     def __init__(
         self,
@@ -126,7 +126,7 @@ class FCBasisSetO2(FCBasisSet):
     @property
     def decompression_indices(self) -> np.ndarray:
         """Return decompression indices in (N,N,3,3) order."""
-        trans_perms = self._spg_reps.translation_permutations
+        trans_perms = self.translation_permutations
         return get_lat_trans_decompr_indices(trans_perms)
 
     @property
@@ -143,9 +143,7 @@ class FCBasisSetO2(FCBasisSet):
             Tolerance to identify zero eigenvalues. Default=1e-8.
 
         """
-        decompr_idx = get_lat_trans_decompr_indices(
-            self._spg_reps.translation_permutations
-        )
+        decompr_idx = get_lat_trans_decompr_indices(self.translation_permutations)
         vecs = self._get_tilde_basis_set(decompr_idx, tol=tol)
         U = self._multiply_sum_rule_projector(decompr_idx, vecs)
         self._extract_basis_set(U, tol=tol)
@@ -249,7 +247,7 @@ class FCBasisSetO2(FCBasisSet):
     ) -> np.ndarray:
         if self._log_level:
             print("Multiply sum rule projector with current basis set...")
-        trans_perms = self._spg_reps.translation_permutations
+        trans_perms = self.translation_permutations
         n_lp, N = trans_perms.shape
         n_a = N // n_lp
         U = np.zeros(shape=(n_a * 9 * N, vecs.shape[1]), dtype="double")

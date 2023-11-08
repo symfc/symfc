@@ -7,7 +7,7 @@ import pytest
 from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.basis_set import FCBasisSetO2
+from symfc.basis_set import FCBasisSet, FCBasisSetO2
 
 cwd = Path(__file__).parent
 
@@ -23,6 +23,12 @@ def convert_basis_set_matrix_form(basis_set: FCBasisSetO2) -> list[np.ndarray]:
     for b in basis_set.basis_set.T:
         b_mat_all.append(b[decompr_idx] / np.sqrt(trans_perms.shape[0]))
     return b_mat_all
+
+
+def test_base_fc_basis_set(ph_nacl_222: Phonopy):
+    """Test that FCBasisSet can not be instantiate."""
+    with pytest.raises(TypeError):
+        _ = FCBasisSet(ph_nacl_222.supercell)
 
 
 def test_fc_basis_set():
