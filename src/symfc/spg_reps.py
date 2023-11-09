@@ -11,7 +11,7 @@ from scipy.sparse import coo_array
 
 
 class SpgReps:
-    """Reps of space group operations with respect to atomic coordinate basis."""
+    """Base class of reps of space group operations."""
 
     def __init__(self, supercell: PhonopyAtoms):
         """Init method.
@@ -27,10 +27,9 @@ class SpgReps:
             supercell.scaled_positions, dtype="double", order="C"
         )
         self._numbers = supercell.numbers
-        self._r2_reps: Optional[list[coo_array]] = None
         self._unique_rotation_indices: Optional[np.ndarray] = None
         self._translation_permutations: Optional[np.ndarray] = None
-
+        self._r_reps: Optional[list[coo_array]] = None
         self._prepare()
 
     @property
@@ -50,23 +49,6 @@ class SpgReps:
         """Return indices of coset representatives of space group operations."""
         return self._unique_rotation_indices
 
-    @property
-    def r2_reps(self) -> Optional[list[coo_array]]:
-        """Return 2nd rank tensor rotation matricies."""
-        return self._r2_reps
-
-    def get_sigma2_rep(self, i: int) -> coo_array:
-        """Compute and return i-th atomic pair permutation matrix.
-
-        Parameters
-        ----------
-        i : int
-            Index of coset presentations of space group operations.
-
-        """
-        data, row, col, shape = self._get_sigma2_rep_data(i)
-        return coo_array((data, (row, col)), shape=shape)
-
     def _prepare(self):
         self._rotations, translations = self._get_symops()
         self._permutations = compute_all_sg_permutations(
@@ -78,25 +60,6 @@ class SpgReps:
         self._unique_rotation_indices = self._get_unique_rotation_indices(
             self._rotations
         )
-        N = len(self._numbers)
-        a = np.arange(N)
-        self._atom_pairs = np.stack(np.meshgrid(a, a), axis=-1).reshape(-1, 2)
-        self._coeff = np.array([1, N], dtype=int)
-        self._col = self._atom_pairs @ self._coeff
-        self._data = np.ones(N * N, dtype=int)
-        self._r2_reps = self._compute_r2_reps()
-
-    def _compute_r2_reps(self, tol=1e-10) -> list:
-        """Compute and return 2nd rank tensor rotation matricies."""
-        uri = self._unique_rotation_indices
-        r2_reps = []
-        for r in self._rotations[uri]:
-            r_c = self._lattice.T @ r @ np.linalg.inv(self._lattice.T)
-            r2_rep = np.kron(r_c, r_c)
-            row, col = np.nonzero(np.abs(r2_rep) > tol)
-            data = r2_rep[(row, col)]
-            r2_reps.append(coo_array((data, (row, col)), shape=r2_rep.shape))
-        return r2_reps
 
     def _get_translation_permutations(self, permutations, rotations) -> np.ndarray:
         eye3 = np.eye(3, dtype=int)
@@ -138,6 +101,60 @@ class SpgReps:
         """
         symops = spglib.get_symmetry((self._lattice, self._positions, self._numbers))
         return symops["rotations"], symops["translations"]
+
+
+class SpgRepsO2(SpgReps):
+    """Class of reps of space group operations for fc2."""
+
+    def __init__(self, supercell: PhonopyAtoms):
+        """Init method.
+
+        Parameters
+        ----------
+        supercell : PhonopyAtoms
+            Supercell.
+
+        """
+        super().__init__(supercell)
+
+    @property
+    def r_reps(self) -> Optional[list[coo_array]]:
+        """Return 2nd rank tensor rotation matricies."""
+        return self._r_reps
+
+    def get_sigma2_rep(self, i: int) -> coo_array:
+        """Compute and return i-th atomic pair permutation matrix.
+
+        Parameters
+        ----------
+        i : int
+            Index of coset presentations of space group operations.
+
+        """
+        data, row, col, shape = self._get_sigma2_rep_data(i)
+        return coo_array((data, (row, col)), shape=shape)
+
+    def _prepare(self):
+        super()._prepare()
+        N = len(self._numbers)
+        a = np.arange(N)
+        self._atom_pairs = np.stack(np.meshgrid(a, a), axis=-1).reshape(-1, 2)
+        self._coeff = np.array([1, N], dtype=int)
+        self._col = self._atom_pairs @ self._coeff
+        self._data = np.ones(N * N, dtype=int)
+        self._r_reps = self._compute_r2_reps()
+
+    def _compute_r2_reps(self, tol=1e-10) -> list:
+        """Compute and return 2nd rank tensor rotation matricies."""
+        uri = self._unique_rotation_indices
+        r2_reps = []
+        for r in self._rotations[uri]:
+            r_c = self._lattice.T @ r @ np.linalg.inv(self._lattice.T)
+            r2_rep = np.kron(r_c, r_c)
+            row, col = np.nonzero(np.abs(r2_rep) > tol)
+            data = r2_rep[(row, col)]
+            r2_reps.append(coo_array((data, (row, col)), shape=r2_rep.shape))
+        return r2_reps
 
     def _get_sigma2_rep_data(self, i: int) -> coo_array:
         uri = self._unique_rotation_indices

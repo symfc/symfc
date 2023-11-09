@@ -1,11 +1,14 @@
 """Symfc API."""
+from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Optional, Union
 
 import numpy as np
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.basis_set import FCBasisSet
+from symfc.basis_sets import FCBasisSet, FCBasisSetO2
+from symfc.solvers import FCSolverO2
 
 
 class Symfc:
@@ -16,22 +19,43 @@ class Symfc:
         supercell: PhonopyAtoms,
         displacements: Optional[np.ndarray] = None,
         forces: Optional[np.ndarray] = None,
+        orders: Optional[Sequence[int]] = None,
         log_level: int = 0,
     ):
         """Init method."""
         self._supercell: PhonopyAtoms = supercell
         self._displacements: Optional[np.ndarray] = displacements
         self._forces: Optional[np.ndarray] = forces
-        self._basis_set = FCBasisSet(supercell, log_level=log_level)
-        self._force_constants: Optional[np.ndarray] = None
-        if self._displacements is not None and self._forces is not None:
-            self._check_dataset()
-            self._basis_set.run()
-            self.solve()
+        self._log_level = log_level
+
+        self._basis_set: dict[FCBasisSet] = {}
+        self._force_constants: dict[np.ndarray] = {}
+
+        if orders:
+            self.run(orders)
 
     @property
-    def force_constants(self) -> Optional[np.ndarray]:
-        """Return force constants."""
+    def basis_set(self) -> dict[FCBasisSet]:
+        """Return basis set instance.
+
+        Returns
+        -------
+        dict[FCBasisSet]
+            The key is the order of basis set in int.
+
+        """
+        return self._basis_set
+
+    @property
+    def force_constants(self) -> dict[np.ndarray]:
+        """Return force constants.
+
+        Returns
+        -------
+        dict[np.ndarray]
+            The key is the order of force_constants in int.
+
+        """
         return self._force_constants
 
     @property
@@ -62,13 +86,50 @@ class Symfc:
     def forces(self, forces: Union[np.ndarray, list, tuple]):
         self._forces = np.array(forces, dtype="double", order="C")
 
-    def solve(self):
-        """Calculate force constants."""
-        self._force_constants = self._basis_set.solve(self._displacements, self._forces)
+    def run(self, orders: Sequence[int]):
+        """Run basis set and force constants calculation."""
+        if (
+            orders is not None
+            and self._displacements is not None
+            and self._forces is not None
+        ):
+            for order in orders:
+                self.compute_basis_set(order)
+            self.solve(orders)
 
-    def calculate_basis_set(self):
-        """Calculate force constants basis set."""
-        self._basis_set.run()
+    def compute_basis_set(self, order: int):
+        """Set order of force constants."""
+        self._check_dataset()
+        if order == 2:
+            basis_set_o2 = FCBasisSetO2(
+                self._supercell, log_level=self._log_level
+            ).run()
+            self._basis_set[2] = basis_set_o2
+        else:
+            raise NotImplementedError("Only fc2 basis set is implemented.")
+
+    def solve(self, orders: Sequence[int], is_compact_fc=True) -> Symfc:
+        """Calculate force constants.
+
+        orders : Sequence[int]
+            Sequence of fc orders.
+
+        """
+        for order in orders:
+            if order == 2:
+                basis_set: FCBasisSetO2 = self._basis_set[2]
+                solver = FCSolverO2(
+                    basis_set.basis_set,
+                    basis_set.translation_permutations,
+                    log_level=self._log_level,
+                )
+                fc2 = solver.solve(
+                    self._displacements, self._forces, is_compact_fc=is_compact_fc
+                )
+                self._force_constants[2] = fc2
+            else:
+                raise NotImplementedError("Only order-2 is implemented.")
+        return self
 
     def _check_dataset(self):
         if self._displacements is None:

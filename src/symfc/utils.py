@@ -4,10 +4,10 @@ import itertools
 import numpy as np
 from scipy.sparse import coo_array, kron
 
-from symfc.spg_reps import SpgReps
+from symfc.spg_reps import SpgRepsO2
 
 
-def get_spg_perm_projector(spg_reps: SpgReps, decompr_idx: np.ndarray) -> coo_array:
+def get_spg_perm_projector(spg_reps: SpgRepsO2, decompr_idx: np.ndarray) -> coo_array:
     """Compute compact spg+perm projector matrix using kron.
 
     This computes C.T @ spg_proj @ perm_proj @ C, where C is
@@ -239,7 +239,7 @@ def get_atomic_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
     return indices
 
 
-def _get_compr_coset_reps_sum(spg_reps: SpgReps):
+def _get_compr_coset_reps_sum(spg_reps: SpgRepsO2):
     trans_perms = spg_reps.translation_permutations
     n_lp, N = trans_perms.shape
     size = N**2 * 9 // n_lp
@@ -257,7 +257,7 @@ def _get_compr_coset_reps_sum(spg_reps: SpgReps):
         mat = spg_reps.get_sigma2_rep(i)
         mat = mat @ C
         mat = C.T @ mat
-        coset_reps_sum += kron(mat, spg_reps.r2_reps[i] * factor)
+        coset_reps_sum += kron(mat, spg_reps.r_reps[i] * factor)
     return coset_reps_sum
 
 

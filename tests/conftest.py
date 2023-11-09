@@ -8,8 +8,6 @@ from phonopy import Phonopy
 from phonopy.interface.phonopy_yaml import read_cell_yaml
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.basis_set import FCBasisSet
-
 cwd = Path(__file__).parent
 scope: Final = "function"
 
@@ -58,57 +56,36 @@ def ph_gan_222() -> Phonopy:
     return ph
 
 
-@pytest.fixture(scope=scope)
-def bs_nacl_222() -> FCBasisSet:
-    """Return basis set of NaCl222."""
-    ph = phonopy.load(cwd / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
-    sbs = FCBasisSet(ph.supercell, log_level=1)
-    return sbs
-
-
-@pytest.fixture(scope=scope)
-def bs_sno2_223() -> FCBasisSet:
-    """Return basis set of SnO2-223."""
+@pytest.fixture(scope="session")
+def ph_sno2_223() -> Phonopy:
+    """Return phonopy instance of SnO2-223."""
     ph = phonopy.load(cwd / "phonopy_SnO2_223_rd.yaml.xz", produce_fc=False)
-    sbs = FCBasisSet(ph.supercell, log_level=1)
-    return sbs
+    return ph
 
 
-@pytest.fixture(scope=scope)
-def bs_sno2_222() -> FCBasisSet:
-    """Return basis set of SnO2-222."""
+@pytest.fixture(scope="session")
+def ph_sno2_222() -> Phonopy:
+    """Return phonopy instance of SnO2-222."""
     ph = phonopy.load(cwd / "phonopy_SnO2_222_rd.yaml.xz", produce_fc=False)
-    sbs = FCBasisSet(ph.supercell, log_level=1)
-    return sbs
+    return ph
 
 
-@pytest.fixture(scope=scope)
-def bs_sio2_222() -> FCBasisSet:
-    """Return basis set of SiO2-222."""
+@pytest.fixture(scope="session")
+def ph_sio2_222() -> Phonopy:
+    """Return phonopy instance of SiO2-222."""
     ph = phonopy.load(cwd / "phonopy_SiO2_222_rd.yaml.xz", produce_fc=False)
-    sbs = FCBasisSet(ph.supercell, log_level=1)
-    return sbs
+    return ph
 
 
-@pytest.fixture(scope=scope)
-def bs_sio2_221() -> FCBasisSet:
-    """Return basis set of SiO2-221."""
+@pytest.fixture(scope="session")
+def ph_sio2_221() -> Phonopy:
+    """Return phonopy instance of SiO2-221."""
     ph = phonopy.load(cwd / "phonopy_SiO2_221_rd.yaml.xz", produce_fc=False)
-    sbs = FCBasisSet(ph.supercell, log_level=1)
-    return sbs
+    return ph
 
 
-@pytest.fixture(scope=scope)
-def bs_gan_442() -> FCBasisSet:
-    """Return basis set of GaN-442."""
+@pytest.fixture(scope="session")
+def ph_gan_442() -> Phonopy:
+    """Return phonopy instance of GaN-442."""
     ph = phonopy.load(cwd / "phonopy_GaN_442_rd.yaml.xz", produce_fc=False)
-    sbs = FCBasisSet(ph.supercell, log_level=1)
-    return sbs
-
-
-@pytest.fixture(scope=scope)
-def bs_gan_222() -> FCBasisSet:
-    """Return basis set of GaN-222."""
-    ph = phonopy.load(cwd / "phonopy_GaN_222_rd.yaml.xz", produce_fc=False)
-    sbs = FCBasisSet(ph.supercell, log_level=1)
-    return sbs
+    return ph
