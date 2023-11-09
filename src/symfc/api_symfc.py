@@ -99,7 +99,6 @@ class Symfc:
 
     def compute_basis_set(self, order: int):
         """Set order of force constants."""
-        self._check_dataset()
         if order == 2:
             basis_set_o2 = FCBasisSetO2(
                 self._supercell, log_level=self._log_level
@@ -115,6 +114,7 @@ class Symfc:
             Sequence of fc orders.
 
         """
+        self._check_dataset()
         for order in orders:
             if order == 2:
                 basis_set: FCBasisSetO2 = self._basis_set[2]
