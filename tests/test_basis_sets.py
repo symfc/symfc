@@ -13,27 +13,14 @@ from symfc.solvers import FCSolverO2
 cwd = Path(__file__).parent
 
 
-def convert_basis_set_matrix_form(basis_set: FCBasisSetO2) -> list[np.ndarray]:
-    """Convert basis set to matrix form (n_bases, 3N, 3N)."""
-    trans_perms = basis_set.translation_permutations
-    N = trans_perms.shape[1]
-    decompr_idx = np.transpose(
-        basis_set.decompression_indices.reshape(N, N, 3, 3), (0, 2, 1, 3)
-    ).reshape(N * 3, N * 3)
-    b_mat_all = []
-    for b in basis_set.basis_set.T:
-        b_mat_all.append(b[decompr_idx] / np.sqrt(trans_perms.shape[0]))
-    return b_mat_all
-
-
 def test_base_fc_basis_set(ph_nacl_222: Phonopy):
     """Test that FCBasisSet can not be instantiate."""
     with pytest.raises(TypeError):
         _ = FCBasisSet(ph_nacl_222.supercell)
 
 
-def test_fc_basis_set():
-    """Test symmetry adapted basis sets of FC."""
+def test_fc_basis_set_o2():
+    """Test symmetry adapted basis sets of fc2."""
     basis_ref = [
         [-0.28867513, 0, 0, 0.28867513, 0, 0],
         [0, -0.28867513, 0, 0, 0.28867513, 0],
@@ -48,12 +35,12 @@ def test_fc_basis_set():
     numbers = [1, 1]
     supercell = PhonopyAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
     sbs = FCBasisSetO2(supercell, log_level=1).run()
-    basis = convert_basis_set_matrix_form(sbs)
+    basis = _convert_basis_set_o2_matrix_form(sbs)
     np.testing.assert_allclose(basis[0], basis_ref, atol=1e-6)
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
 
 
-def test_fc_NaCl_222(ph_nacl_222: Phonopy):
+def test_fc2_NaCl_222(ph_nacl_222: Phonopy):
     """Test force constants by NaCl 64 atoms supercell and compared with ALM.
 
     Also test force constants by NaCl 64 atoms supercell.
@@ -104,7 +91,7 @@ def test_fc_NaCl_222(ph_nacl_222: Phonopy):
 
 
 @pytest.mark.parametrize("is_compact_fc", [True, False])
-def test_fc_NaCl_222_wrt_ALM(ph_nacl_222: Phonopy, is_compact_fc: bool):
+def test_fc2_NaCl_222_wrt_ALM(ph_nacl_222: Phonopy, is_compact_fc: bool):
     _ = _compare_fc2_with_alm(
         "phonopy_NaCl_222_rd.yaml.xz",
         FCBasisSetO2(ph_nacl_222.supercell, log_level=1),
@@ -113,7 +100,7 @@ def test_fc_NaCl_222_wrt_ALM(ph_nacl_222: Phonopy, is_compact_fc: bool):
 
 
 @pytest.mark.parametrize("is_compact_fc", [True, False])
-def test_fc_SnO2_223_wrt_ALM(ph_sno2_223: Phonopy, is_compact_fc: bool):
+def test_fc2_SnO2_223_wrt_ALM(ph_sno2_223: Phonopy, is_compact_fc: bool):
     """Test force constants by SnO2 72 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -126,7 +113,7 @@ def test_fc_SnO2_223_wrt_ALM(ph_sno2_223: Phonopy, is_compact_fc: bool):
     )
 
 
-def test_fc_SnO2_222_wrt_ALM(ph_sno2_222: Phonopy):
+def test_fc2_SnO2_222_wrt_ALM(ph_sno2_222: Phonopy):
     """Test force constants by SnO2 48 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -138,7 +125,7 @@ def test_fc_SnO2_222_wrt_ALM(ph_sno2_222: Phonopy):
 
 
 @pytest.mark.big
-def test_fc_SiO2_222_wrt_ALM(ph_sio2_222: Phonopy):
+def test_fc2_SiO2_222_wrt_ALM(ph_sio2_222: Phonopy):
     """Test force constants by SiO2 72 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -152,7 +139,7 @@ def test_fc_SiO2_222_wrt_ALM(ph_sio2_222: Phonopy):
     # )
 
 
-def test_fc_SiO2_221_wrt_ALM(ph_sio2_221: Phonopy):
+def test_fc2_SiO2_221_wrt_ALM(ph_sio2_221: Phonopy):
     """Test force constants by SiO2 36 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -166,7 +153,7 @@ def test_fc_SiO2_221_wrt_ALM(ph_sio2_221: Phonopy):
     # )
 
 
-def test_fc_GaN_442_wrt_ALM(ph_gan_442: Phonopy):
+def test_fc2_GaN_442_wrt_ALM(ph_gan_442: Phonopy):
     """Test force constants by GaN 128 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -181,7 +168,7 @@ def test_fc_GaN_442_wrt_ALM(ph_gan_442: Phonopy):
 
 
 @pytest.mark.parametrize("is_compact_fc", [True, False])
-def test_fc_GaN_222_wrt_ALM(ph_gan_222: Phonopy, is_compact_fc: bool):
+def test_fc2_GaN_222_wrt_ALM(ph_gan_222: Phonopy, is_compact_fc: bool):
     """Test force constants by GaN 32 atoms supercell and compared with ALM.
 
     This test is skipped when ALM is not installed.
@@ -197,14 +184,14 @@ def test_fc_GaN_222_wrt_ALM(ph_gan_222: Phonopy, is_compact_fc: bool):
     # )
 
 
-def test_full_basis_set_NaCl222_wrt_ALM(ph_nacl_222: Phonopy):
+def test_full_basis_set_o2_NaCl222_wrt_ALM(ph_nacl_222: Phonopy):
     _ = _full_basis_set_o2_compare_with_alm(
         "phonopy_NaCl_222_rd.yaml.xz",
         FCBasisSetO2(ph_nacl_222.supercell, log_level=1),
     )
 
 
-def test_full_basis_set_SnO2_223_wrt_ALM(ph_sno2_223: Phonopy):
+def test_full_basis_set_o2_SnO2_223_wrt_ALM(ph_sno2_223: Phonopy):
     _ = _full_basis_set_o2_compare_with_alm(
         "phonopy_SnO2_223_rd.yaml.xz",
         FCBasisSetO2(ph_sno2_223.supercell, log_level=1),
@@ -262,3 +249,16 @@ def _write_phonopy_fc_yaml(output_filename, input_filename, fc_compact):
         "force_constants": True,
     }
     ph.save(output_filename, settings=save_settings)
+
+
+def _convert_basis_set_o2_matrix_form(basis_set_o2: FCBasisSetO2) -> list[np.ndarray]:
+    """Convert basis set to matrix form (n_bases, 3N, 3N)."""
+    trans_perms = basis_set_o2.translation_permutations
+    N = trans_perms.shape[1]
+    decompr_idx = np.transpose(
+        basis_set_o2.decompression_indices.reshape(N, N, 3, 3), (0, 2, 1, 3)
+    ).reshape(N * 3, N * 3)
+    b_mat_all = []
+    for b in basis_set_o2.basis_set.T:
+        b_mat_all.append(b[decompr_idx] / np.sqrt(trans_perms.shape[0]))
+    return b_mat_all
