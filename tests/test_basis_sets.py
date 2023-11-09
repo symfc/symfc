@@ -14,7 +14,7 @@ cwd = Path(__file__).parent
 
 
 def convert_basis_set_matrix_form(basis_set: FCBasisSetO2) -> list[np.ndarray]:
-    """Convert basis set to matrix form (n_basis, 3N, 3N)."""
+    """Convert basis set to matrix form (n_bases, 3N, 3N)."""
     trans_perms = basis_set.translation_permutations
     N = trans_perms.shape[1]
     decompr_idx = np.transpose(
@@ -105,7 +105,7 @@ def test_fc_NaCl_222(ph_nacl_222: Phonopy):
 
 @pytest.mark.parametrize("is_compact_fc", [True, False])
 def test_fc_NaCl_222_wrt_ALM(ph_nacl_222: Phonopy, is_compact_fc: bool):
-    _ = _compare_fc_with_alm(
+    _ = _compare_fc2_with_alm(
         "phonopy_NaCl_222_rd.yaml.xz",
         FCBasisSetO2(ph_nacl_222.supercell, log_level=1),
         is_compact_fc=is_compact_fc,
@@ -119,7 +119,7 @@ def test_fc_SnO2_223_wrt_ALM(ph_sno2_223: Phonopy, is_compact_fc: bool):
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm(
+    _ = _compare_fc2_with_alm(
         "phonopy_SnO2_223_rd.yaml.xz",
         FCBasisSetO2(ph_sno2_223.supercell, log_level=1),
         is_compact_fc=is_compact_fc,
@@ -132,7 +132,7 @@ def test_fc_SnO2_222_wrt_ALM(ph_sno2_222: Phonopy):
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm(
+    _ = _compare_fc2_with_alm(
         "phonopy_SnO2_222_rd.yaml.xz", FCBasisSetO2(ph_sno2_222.supercell, log_level=1)
     )
 
@@ -144,7 +144,7 @@ def test_fc_SiO2_222_wrt_ALM(ph_sio2_222: Phonopy):
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm(
+    _ = _compare_fc2_with_alm(
         "phonopy_SiO2_222_rd.yaml.xz", FCBasisSetO2(ph_sio2_222.supercell, log_level=1)
     )
     # _write_phonopy_fc_yaml(
@@ -158,7 +158,7 @@ def test_fc_SiO2_221_wrt_ALM(ph_sio2_221: Phonopy):
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm(
+    _ = _compare_fc2_with_alm(
         "phonopy_SiO2_221_rd.yaml.xz", FCBasisSetO2(ph_sio2_221.supercell, log_level=1)
     )
     # _write_phonopy_fc_yaml(
@@ -172,7 +172,7 @@ def test_fc_GaN_442_wrt_ALM(ph_gan_442: Phonopy):
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm(
+    _ = _compare_fc2_with_alm(
         "phonopy_GaN_442_rd.yaml.xz", FCBasisSetO2(ph_gan_442.supercell, log_level=1)
     )
     # _write_phonopy_fc_yaml(
@@ -187,7 +187,7 @@ def test_fc_GaN_222_wrt_ALM(ph_gan_222: Phonopy, is_compact_fc: bool):
     This test is skipped when ALM is not installed.
 
     """
-    _ = _compare_fc_with_alm(
+    _ = _compare_fc2_with_alm(
         "phonopy_GaN_222_rd.yaml.xz",
         FCBasisSetO2(ph_gan_222.supercell, log_level=1),
         is_compact_fc=is_compact_fc,
@@ -198,20 +198,20 @@ def test_fc_GaN_222_wrt_ALM(ph_gan_222: Phonopy, is_compact_fc: bool):
 
 
 def test_full_basis_set_NaCl222_wrt_ALM(ph_nacl_222: Phonopy):
-    _ = _full_basis_set_compare_with_alm(
+    _ = _full_basis_set_o2_compare_with_alm(
         "phonopy_NaCl_222_rd.yaml.xz",
         FCBasisSetO2(ph_nacl_222.supercell, log_level=1),
     )
 
 
 def test_full_basis_set_SnO2_223_wrt_ALM(ph_sno2_223: Phonopy):
-    _ = _full_basis_set_compare_with_alm(
+    _ = _full_basis_set_o2_compare_with_alm(
         "phonopy_SnO2_223_rd.yaml.xz",
         FCBasisSetO2(ph_sno2_223.supercell, log_level=1),
     )
 
 
-def _compare_fc_with_alm(
+def _compare_fc2_with_alm(
     filename: str,
     fc_basis_set: FCBasisSetO2,
     is_compact_fc: bool = True,
@@ -229,7 +229,7 @@ def _compare_fc_with_alm(
     return fc_compact
 
 
-def _full_basis_set_compare_with_alm(
+def _full_basis_set_o2_compare_with_alm(
     filename: str,
     fc_basis_set: FCBasisSetO2,
 ):
@@ -240,12 +240,12 @@ def _full_basis_set_compare_with_alm(
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]
     full_basis_set = basis_set.full_basis_set
-    n_basis = full_basis_set.shape[-1]
+    n_bases = full_basis_set.shape[-1]
     N = len(ph.supercell)
-    square_basis_set = full_basis_set.reshape(N, N, 3, 3, n_basis)
+    square_basis_set = full_basis_set.reshape(N, N, 3, 3, n_bases)
     coeff = (
         -np.linalg.pinv(
-            np.einsum("ijk,jlkmn->ilmn", d, square_basis_set).reshape(-1, n_basis)
+            np.einsum("ijk,jlkmn->ilmn", d, square_basis_set).reshape(-1, n_bases)
         )
         @ f.ravel()
     )

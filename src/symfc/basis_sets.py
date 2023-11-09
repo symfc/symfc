@@ -39,10 +39,10 @@ class FCBasisSet(ABC):
         self._basis_set: Optional[np.ndarray] = None
         self._spg_reps: Optional[SpgReps] = None
 
-    @property
-    def basis_set(self) -> Optional[np.ndarray]:
-        """Return compressed basis set."""
-        return self._basis_set
+    @abstractmethod
+    def basis_set(self):
+        """Return (compressed) basis set."""
+        pass
 
     @abstractmethod
     def full_basis_set(self):
@@ -77,10 +77,10 @@ class FCBasisSetO2(FCBasisSet):
     ----------
     basis_set : ndarray
         Compressed force constants basis set.
-        shape=(n_a * N * 9, n_basis), dtype='double'
+        shape=(n_a * N * 9, n_bases), dtype='double'
     full_basis_set : ndarray
         Full (decompressed) force constants basis set.
-        shape=(N * N * 9, n_basis), dtype='double'
+        shape=(N * N * 9, n_bases), dtype='double'
     decompression_indices : ndarray
         Decompression indices in (N,N,3,3) order.
         shape=(N^2*9,), dtype='int_'.
@@ -112,8 +112,25 @@ class FCBasisSetO2(FCBasisSet):
         self._spg_reps = SpgRepsO2(supercell)
 
     @property
+    def basis_set(self) -> Optional[np.ndarray]:
+        """Return compressed basis set.
+
+        shape=(n_a*N*3*3, n_bases), dtype='double'.
+
+        Data in first dimension is ordered by (n_a,N,3,3).
+
+        """
+        return self._basis_set
+
+    @property
     def full_basis_set(self) -> Optional[np.ndarray]:
-        """Return full (decompressed) basis set."""
+        """Return full (decompressed) basis set.
+
+        shape=(N*N*3*3, n_bases), dtype='double'.
+
+        Data in first dimension is ordered by (N,N,3,3).
+
+        """
         if self._basis_set is None:
             return None
         return self._basis_set[self.decompression_indices, :]

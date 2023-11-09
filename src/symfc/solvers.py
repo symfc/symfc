@@ -1,4 +1,5 @@
 """Force constants solvers."""
+from abc import ABC
 from typing import Optional
 
 import numpy as np
@@ -6,7 +7,13 @@ import numpy as np
 from symfc.utils import get_lat_trans_decompr_indices
 
 
-class FCSolverO2:
+class FCSolver(ABC):
+    """Abstract base class of force constants solvers."""
+
+    pass
+
+
+class FCSolverO2(FCSolver):
     """Second order force constants solver."""
 
     def __init__(
