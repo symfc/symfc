@@ -12,11 +12,11 @@ def test_api_NaCl_222(ph_nacl_222: Phonopy):
     pytest.importorskip("alm")
     ph = ph_nacl_222
     symfc = Symfc(ph.supercell)
+    symfc.compute_basis_set(2)
     symfc.displacements = ph.displacements
     np.testing.assert_array_almost_equal(symfc.displacements, ph.displacements)
     symfc.forces = ph.forces
     np.testing.assert_array_almost_equal(symfc.forces, ph.forces)
-    symfc.compute_basis_set(2)
     symfc.solve(
         [
             2,
@@ -46,6 +46,20 @@ def test_api_NaCl_222_with_dataset(ph_nacl_222: Phonopy):
         fc_calculator="alm", calculate_full_force_constants=False
     )
     np.testing.assert_array_almost_equal(fc, ph.force_constants)
+
+
+def test_api_NaCl_222_exception(ph_nacl_222: Phonopy):
+    """Test Symfc class with displacements and forces as input."""
+    pytest.importorskip("alm")
+    ph = ph_nacl_222
+    symfc = Symfc(ph.supercell)
+    symfc.compute_basis_set(2)
+    with pytest.raises(RuntimeError):
+        symfc.solve(
+            orders=[
+                2,
+            ]
+        )
 
 
 def test_api_full_basis_set_SnO2_223(ph_sno2_223: Phonopy):
