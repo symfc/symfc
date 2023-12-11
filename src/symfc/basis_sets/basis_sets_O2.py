@@ -8,7 +8,7 @@ import scipy
 from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.spg_reps import SpgRepsO2
-from symfc.utils import (
+from symfc.utils.utils_O2 import (
     get_lat_trans_compr_indices,
     get_lat_trans_decompr_indices,
     get_spg_perm_projector,

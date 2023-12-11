@@ -31,7 +31,7 @@ class SpgRepsO1(SpgRepsBase):
         return self._r1_reps
 
     def get_sigma1_rep(self, i: int) -> coo_array:
-        """Compute and return i-th atomic pair permutation matrix.
+        """Compute and return i-th atomic permutation matrix.
 
         Parameters
         ----------
@@ -43,17 +43,21 @@ class SpgRepsO1(SpgRepsBase):
         return coo_array((data, (row, col)), shape=shape)
 
     def _prepare(self):
-        rotations = super()._prepare()
+        super()._prepare()
         N = len(self._numbers)
         self._col = np.arange(N, dtype=int)
         self._data = np.ones(N, dtype=int)
-        self._compute_r1_reps(rotations)
+        self._compute_r1_reps()
 
-    def _compute_r1_reps(self, rotations: np.ndarray, tol: float = 1e-10):
-        """Compute and return 1st rank tensor rotation matricies."""
-        uri = self._unique_rotation_indices
+    def _compute_r1_reps(self, tol: float = 1e-10):
+        """Compute and return 1st rank tensor rotation matricies.
+
+        This is equivalent to rotation matrix of atomic position in Cartesian
+        coordinates.
+
+        """
         r1_reps = []
-        for r in rotations[uri]:
+        for r in self._unique_rotations:
             r1_rep: np.ndarray = self._lattice.T @ r @ np.linalg.inv(self._lattice.T)
             row, col = np.nonzero(np.abs(r1_rep) > tol)
             data = r1_rep[(row, col)]

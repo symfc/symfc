@@ -1,4 +1,4 @@
-"""Functions to handle matrix indices."""
+"""Utility functions for second order force constants."""
 import itertools
 
 import numpy as np
@@ -16,105 +16,12 @@ def get_spg_perm_projector(spg_reps: SpgRepsO2, decompr_idx: np.ndarray) -> coo_
     """
     trans_perms = spg_reps.translation_permutations
     n_lp, N = trans_perms.shape
-    compression_mat = get_lat_trans_compr_matrix(decompr_idx, N, n_lp)
+    compression_mat = _get_lat_trans_compr_matrix(decompr_idx, N, n_lp)
     coset_reps_sum = _get_compr_coset_reps_sum(spg_reps)
-    C_perm = get_perm_compr_matrix(N)
+    C_perm = _get_perm_compr_matrix(N)
     perm = C_perm.T @ compression_mat
     perm = perm.T @ perm
     return coset_reps_sum @ perm
-
-
-def get_indep_atoms_by_lat_trans(trans_perms: np.ndarray) -> np.ndarray:
-    """Return independent atoms by lattice translation symmetry.
-
-    Parameters
-    ----------
-    trans_perms : np.ndarray
-        Atom indices after lattice translations.
-        shape=(lattice_translations, supercell_atoms)
-
-    Returns
-    -------
-    np.ndarray
-        Independent atoms.
-        shape=(n_indep_atoms_by_lattice_translation,), dtype=int
-
-    """
-    unique_atoms: list[int] = []
-    assert np.array_equal(trans_perms[0, :], range(trans_perms.shape[1]))
-    for i, perms in enumerate(trans_perms.T):
-        is_found = False
-        for j in unique_atoms:
-            if j in perms:
-                is_found = True
-                break
-        if not is_found:
-            unique_atoms.append(i)
-    return np.array(unique_atoms, dtype=int)
-
-
-def get_lat_trans_compr_matrix(decompr_idx: np.ndarray, N: int, n_lp: int) -> coo_array:
-    """Return compression matrix by lattice translation symmetry.
-
-    `decompr_idx` is obtained by `get_lat_trans_decompr_indices`.
-
-    Matrix shape is (NN33, n_a*N33), where n_a is the number of independent
-    atoms by lattice translation symmetry.
-
-    Data order is (N, N, 3, 3, n_a, N, 3, 3) if it is in dense array.
-
-    """
-    NN9 = N**2 * 9
-    compression_mat = coo_array(
-        (
-            np.full(NN9, 1 / np.sqrt(n_lp), dtype="double"),
-            (np.arange(NN9, dtype=int), decompr_idx),
-        ),
-        shape=(NN9, NN9 // n_lp),
-        dtype="double",
-    )
-    return compression_mat
-
-
-def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
-    """Return indices to compress matrix by lat-trans-sym.
-
-    Usage
-    -----
-    vec[indices] of shape (N**2*9,) vec gives an array of shape=(n_a*N*9, n_lp).
-    1/sqrt(n_lp) must be multiplied manually after compression to mimic
-    get_lat_trans_compr_matrix.
-
-    Parameters
-    ----------
-    trans_perms : ndarray
-        Permutation of atomic indices by lattice translational symmetry.
-        dtype='intc'. shape=(n_l, N), where n_l and N are the numbers of lattce
-        points and atoms in supercell.
-
-    Returns
-    -------
-    indices : ndarray
-        shape=(n_a*N9, n_lp), dtype='int_'.
-
-    """
-    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
-    n_a = len(indep_atoms)
-    N = trans_perms.shape[1]
-    n_lp = N // n_a
-    size_row = (N * 3) ** 2
-
-    n = 0
-    indices = np.zeros((n_a * N * 9, n_lp), dtype="int_")
-    for i_patom in indep_atoms:
-        for j in range(N):
-            for ab in range(9):
-                indices[n, :] = (
-                    trans_perms[:, i_patom] * 9 * N + trans_perms[:, j] * 9 + ab
-                )
-                n += 1
-    assert n * n_lp == size_row
-    return indices
 
 
 def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
@@ -141,7 +48,7 @@ def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
         shape=(N^2*9,), dtype='int_'.
 
     """
-    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+    indep_atoms = _get_indep_atoms_by_lat_trans(trans_perms)
     n_a = len(indep_atoms)
     N = trans_perms.shape[1]
     n_lp = N // n_a
@@ -160,7 +67,73 @@ def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
     return indices
 
 
-def get_perm_compr_matrix(natom: int) -> coo_array:
+def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
+    """Return indices to compress matrix by lat-trans-sym.
+
+    Usage
+    -----
+    vec[indices] of shape (N**2*9,) vec gives an array of shape=(n_a*N*9, n_lp).
+    1/sqrt(n_lp) must be multiplied manually after compression to mimic
+    get_lat_trans_compr_matrix.
+
+    Parameters
+    ----------
+    trans_perms : ndarray
+        Permutation of atomic indices by lattice translational symmetry.
+        dtype='intc'. shape=(n_l, N), where n_l and N are the numbers of lattce
+        points and atoms in supercell.
+
+    Returns
+    -------
+    indices : ndarray
+        shape=(n_a*N9, n_lp), dtype='int_'.
+
+    """
+    indep_atoms = _get_indep_atoms_by_lat_trans(trans_perms)
+    n_a = len(indep_atoms)
+    N = trans_perms.shape[1]
+    n_lp = N // n_a
+    size_row = (N * 3) ** 2
+
+    n = 0
+    indices = np.zeros((n_a * N * 9, n_lp), dtype="int_")
+    for i_patom in indep_atoms:
+        for j in range(N):
+            for ab in range(9):
+                indices[n, :] = (
+                    trans_perms[:, i_patom] * 9 * N + trans_perms[:, j] * 9 + ab
+                )
+                n += 1
+    assert n * n_lp == size_row
+    return indices
+
+
+def _get_lat_trans_compr_matrix(
+    decompr_idx: np.ndarray, N: int, n_lp: int
+) -> coo_array:
+    """Return compression matrix by lattice translation symmetry.
+
+    `decompr_idx` is obtained by `get_lat_trans_decompr_indices`.
+
+    Matrix shape is (NN33, n_a*N33), where n_a is the number of independent
+    atoms by lattice translation symmetry.
+
+    Data order is (N, N, 3, 3, n_a, N, 3, 3) if it is in dense array.
+
+    """
+    NN9 = N**2 * 9
+    compression_mat = coo_array(
+        (
+            np.full(NN9, 1 / np.sqrt(n_lp), dtype="double"),
+            (np.arange(NN9, dtype=int), decompr_idx),
+        ),
+        shape=(NN9, NN9 // n_lp),
+        dtype="double",
+    )
+    return compression_mat
+
+
+def _get_perm_compr_matrix(natom: int) -> coo_array:
     """Return compression matrix by permutation symmetry.
 
     Parameters
@@ -198,7 +171,7 @@ def get_perm_compr_matrix(natom: int) -> coo_array:
     )
 
 
-def get_atomic_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
+def _get_atomic_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
     """Return indices to de-compress compressed matrix by atom-lat-trans-sym.
 
     This is atomic permutation only version of get_lat_trans_decompr_indices.
@@ -223,7 +196,7 @@ def get_atomic_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
         shape=(N^2*,), dtype='int_'.
 
     """
-    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+    indep_atoms = _get_indep_atoms_by_lat_trans(trans_perms)
     n_lp, N = trans_perms.shape
     size_row = N**2
 
@@ -239,12 +212,41 @@ def get_atomic_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
     return indices
 
 
+def _get_indep_atoms_by_lat_trans(trans_perms: np.ndarray) -> np.ndarray:
+    """Return independent atoms by lattice translation symmetry.
+
+    Parameters
+    ----------
+    trans_perms : np.ndarray
+        Atom indices after lattice translations.
+        shape=(lattice_translations, supercell_atoms)
+
+    Returns
+    -------
+    np.ndarray
+        Independent atoms.
+        shape=(n_indep_atoms_by_lattice_translation,), dtype=int
+
+    """
+    unique_atoms: list[int] = []
+    assert np.array_equal(trans_perms[0, :], range(trans_perms.shape[1]))
+    for i, perms in enumerate(trans_perms.T):
+        is_found = False
+        for j in unique_atoms:
+            if j in perms:
+                is_found = True
+                break
+        if not is_found:
+            unique_atoms.append(i)
+    return np.array(unique_atoms, dtype=int)
+
+
 def _get_compr_coset_reps_sum(spg_reps: SpgRepsO2):
     trans_perms = spg_reps.translation_permutations
     n_lp, N = trans_perms.shape
     size = N**2 * 9 // n_lp
     coset_reps_sum = coo_array(([], ([], [])), shape=(size, size), dtype="double")
-    atomic_decompr_idx = get_atomic_lat_trans_decompr_indices(trans_perms)
+    atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
     C = coo_array(
         (
             np.ones(N**2, dtype=int),
