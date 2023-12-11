@@ -18,7 +18,7 @@ from .basis_sets_base import FCBasisSetBase
 
 
 class FCBasisSetO2(FCBasisSetBase):
-    """Symmetry adapted basis set for force constants.
+    """Symmetry adapted basis set for 2nd order force constants.
 
     Attributes
     ----------

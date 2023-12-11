@@ -6,7 +6,7 @@ import numpy as np
 import scipy
 from scipy.sparse import coo_matrix, csr_matrix
 
-from symfc.utils.eig_tools import dot_sp_mats
+from symfc.utils.eig_tools import dot_product_sparse
 
 
 def N3N3N3_to_NNN333(combinations_perm, N):
@@ -95,8 +95,8 @@ def compressed_complement_projector_sum_rules_algo1(C, N, mkl=False):
         c_sum_cplmt = c_sum_cplmt.tocsr()
 
     # bottleneck part
-    c_sum_cplmt_compr = dot_sp_mats(c_sum_cplmt.transpose(), C, mkl=mkl)
-    proj_sum_cplmt = dot_sp_mats(
+    c_sum_cplmt_compr = dot_product_sparse(c_sum_cplmt.transpose(), C, mkl=mkl)
+    proj_sum_cplmt = dot_product_sparse(
         c_sum_cplmt_compr.transpose(), c_sum_cplmt_compr, mkl=mkl
     )
     # bottleneck part: end
@@ -115,7 +115,7 @@ def compressed_complement_projector_sum_rules_algo2(C, N, mkl=False):
     for i in range(N):
         c_sum_cplmt_compr += C[i * NN333 : (i + 1) * NN333]
 
-    proj_sum_cplmt = dot_sp_mats(
+    proj_sum_cplmt = dot_product_sparse(
         c_sum_cplmt_compr.transpose(), c_sum_cplmt_compr, mkl=mkl
     )
     proj_sum_cplmt /= N
@@ -132,7 +132,7 @@ def compressed_complement_projector_sum_rules_algo3(C, N, mkl=False):
     NN333 = 27 * N**2
     proj_sum_cplmt = csr_matrix(([], ([], [])), shape=(C.shape[1], C.shape[1]))
     for i, j in itertools.product(range(N), range(N)):
-        proj_sum_cplmt += dot_sp_mats(
+        proj_sum_cplmt += dot_product_sparse(
             C[i * NN333 : (i + 1) * NN333].transpose(),
             C[j * NN333 : (j + 1) * NN333],
             mkl=mkl,

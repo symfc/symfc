@@ -5,7 +5,6 @@ from collections import defaultdict
 import numpy as np
 import scipy
 from scipy.sparse import coo_matrix
-from scipy.sparse.linalg import eigsh
 
 try:
     from sparse_dot_mkl import dot_product_mkl
@@ -13,7 +12,7 @@ except ImportError:
     pass
 
 
-def dot_sp_mats(A, B, mkl=False):
+def dot_product_sparse(A, B, mkl=False):
     """Compute dot-product of sparse matrices."""
     if mkl:
         return dot_product_mkl(A, B)
@@ -213,29 +212,3 @@ def eigsh_projector_memory_efficient(p, log=True, log_interval=10000):
 
     n_col = col_id
     return coo_matrix((data, (row, col)), shape=(p.shape[0], n_col))
-
-
-def solve_eig(p, rank_plus_one=True, log=True):
-    """Solve_eig is used only for test functions.
-
-    Note that this function is deprecated.
-
-    """
-    rank = int(round(sum(p.diagonal())))
-    if log:
-        print(" rank =", rank)
-
-    if rank == 0:
-        return None, None
-
-    if rank_plus_one and p.shape[0] > rank + 1:
-        eigvals, eigvecs = eigsh(p, k=rank + 1)
-    elif (not rank_plus_one) and p.shape[0] > rank:
-        eigvals, eigvecs = eigsh(p, k=rank)
-    else:
-        eigvals, eigvecs = np.linalg.eigh(p.toarray())
-
-    if log:
-        print(eigvecs.shape)
-        print(eigvals)
-    return eigvals, eigvecs
