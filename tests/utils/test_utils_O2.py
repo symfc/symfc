@@ -5,14 +5,14 @@ from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.spg_reps import SpgRepsBase
-from symfc.utils import (
+from symfc.utils.utils_O2 import (
+    _get_atomic_lat_trans_decompr_indices,
+    _get_indep_atoms_by_lat_trans,
+    _get_lat_trans_compr_matrix,
+    _get_perm_compr_matrix,
     _get_perm_compr_matrix_reference,
-    get_atomic_lat_trans_decompr_indices,
-    get_indep_atoms_by_lat_trans,
     get_lat_trans_compr_indices,
-    get_lat_trans_compr_matrix,
     get_lat_trans_decompr_indices,
-    get_perm_compr_matrix,
 )
 
 
@@ -22,13 +22,13 @@ def test_get_indep_atoms_by_lattice_translation(ph_nacl_222: Phonopy):
     sym_op_reps = SpgRepsBase(ph.supercell)
     trans_perms = sym_op_reps.translation_permutations
     assert trans_perms.shape == (32, 64)
-    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+    indep_atoms = _get_indep_atoms_by_lat_trans(trans_perms)
     np.testing.assert_array_equal(indep_atoms, [0, 32])
 
 
 def test_get_perm_compr_matrix():
     """Test of get_perm_compr_matrix."""
-    C1 = get_perm_compr_matrix(8)
+    C1 = _get_perm_compr_matrix(8)
     C2 = _get_perm_compr_matrix_reference(8)
     np.testing.assert_array_almost_equal((C1 @ C1.T).toarray(), (C2 @ C2.T).toarray())
     np.testing.assert_array_almost_equal((C1.T @ C1).toarray(), (C2.T @ C2).toarray())
@@ -619,10 +619,21 @@ def test_get_lat_trans_decompr_indices(cell_nacl_111: PhonopyAtoms):
         115,
         116,
     ]
+    trans_perms_ref = np.array(
+        [
+            [0, 1, 2, 3, 4, 5, 6, 7],
+            [3, 2, 1, 0, 7, 6, 5, 4],
+            [2, 3, 0, 1, 6, 7, 4, 5],
+            [1, 0, 3, 2, 5, 4, 7, 6],
+        ],
+        dtype=int,
+    )
+
     spg_reps = SpgRepsBase(cell_nacl_111)
     trans_perms = spg_reps.translation_permutations
     assert trans_perms.shape == (4, 8)
-    decompr_idx = get_lat_trans_decompr_indices(trans_perms)
+    check_trans_perms(trans_perms, trans_perms_ref)
+    decompr_idx = get_lat_trans_decompr_indices(trans_perms_ref)
     np.testing.assert_array_equal(ref, decompr_idx)
 
 
@@ -633,13 +644,24 @@ def test_get_lat_trans_compr_indices(cell_nacl_111: PhonopyAtoms):
     compression matrix elements are non-zero.
 
     """
+    trans_perms_ref = np.array(
+        [
+            [0, 1, 2, 3, 4, 5, 6, 7],
+            [3, 2, 1, 0, 7, 6, 5, 4],
+            [2, 3, 0, 1, 6, 7, 4, 5],
+            [1, 0, 3, 2, 5, 4, 7, 6],
+        ],
+        dtype=int,
+    )
+
     spg_reps = SpgRepsBase(cell_nacl_111)
     trans_perms = spg_reps.translation_permutations
     n_lp, N = trans_perms.shape
     assert trans_perms.shape == (4, 8)
-    decompr_mat = get_lat_trans_decompr_indices(trans_perms)
-    compr_mat = get_lat_trans_compr_matrix(decompr_mat, N, n_lp).toarray()
-    compr_idx = get_lat_trans_compr_indices(trans_perms)
+    check_trans_perms(trans_perms, trans_perms_ref)
+    decompr_mat = get_lat_trans_decompr_indices(trans_perms_ref)
+    compr_mat = _get_lat_trans_compr_matrix(decompr_mat, N, n_lp).toarray()
+    compr_idx = get_lat_trans_compr_indices(trans_perms_ref)
     for c, elem_idx in enumerate(compr_idx):
         for r in elem_idx:
             np.testing.assert_almost_equal(compr_mat[r, c], 0.5)
@@ -719,8 +741,33 @@ def test_get_atomic_lat_trans_decompr_indices(cell_nacl_111: PhonopyAtoms):
         13,
         12,
     ]
+    trans_perms_ref = np.array(
+        [
+            [0, 1, 2, 3, 4, 5, 6, 7],
+            [3, 2, 1, 0, 7, 6, 5, 4],
+            [2, 3, 0, 1, 6, 7, 4, 5],
+            [1, 0, 3, 2, 5, 4, 7, 6],
+        ],
+        dtype=int,
+    )
+
     spg_reps = SpgRepsBase(cell_nacl_111)
     trans_perms = spg_reps.translation_permutations
     assert trans_perms.shape == (4, 8)
-    atomic_decompr_idx = get_atomic_lat_trans_decompr_indices(trans_perms)
+    check_trans_perms(trans_perms, trans_perms_ref)
+    atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms_ref)
     np.testing.assert_array_equal(ref, atomic_decompr_idx)
+
+
+def check_trans_perms(trans_perms, trans_perms_ref):
+    """Check the order of rows of trans_perms.
+
+    The row order of trans_perms may depend on symmetry finding condition.
+
+    """
+    idxs = []
+    for row in trans_perms:
+        match = np.where(((trans_perms_ref - row) == 0).all(axis=1))[0]
+        assert len(match) == 1
+        idxs.append(match[0])
+    np.testing.assert_array_equal(np.sort(idxs), range(len(idxs)))

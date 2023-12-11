@@ -43,20 +43,19 @@ class SpgRepsO2(SpgRepsBase):
         return coo_array((data, (row, col)), shape=shape)
 
     def _prepare(self):
-        rotations = super()._prepare()
+        super()._prepare()
         N = len(self._numbers)
         a = np.arange(N)
         self._atom_pairs = np.stack(np.meshgrid(a, a), axis=-1).reshape(-1, 2)
         self._coeff = np.array([1, N], dtype=int)
         self._col = self._atom_pairs @ self._coeff
         self._data = np.ones(N * N, dtype=int)
-        self._compute_r2_reps(rotations)
+        self._compute_r2_reps()
 
-    def _compute_r2_reps(self, rotations: np.ndarray, tol: float = 1e-10):
+    def _compute_r2_reps(self, tol: float = 1e-10):
         """Compute and return 2nd rank tensor rotation matricies."""
-        uri = self._unique_rotation_indices
         r2_reps = []
-        for r in rotations[uri]:
+        for r in self._unique_rotations:
             r_c = self._lattice.T @ r @ np.linalg.inv(self._lattice.T)
             r2_rep = np.kron(r_c, r_c)
             row, col = np.nonzero(np.abs(r2_rep) > tol)

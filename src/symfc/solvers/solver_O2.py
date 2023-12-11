@@ -3,7 +3,7 @@ from typing import Optional
 
 import numpy as np
 
-from symfc.utils import get_lat_trans_decompr_indices
+from symfc.utils.utils_O2 import get_lat_trans_decompr_indices
 
 from .solver_base import FCSolverBase
 
