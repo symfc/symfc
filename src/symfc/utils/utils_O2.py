@@ -1,10 +1,12 @@
-"""Utility functions for second order force constants."""
+"""Utility functions for 2nd order force constants."""
 import itertools
 
 import numpy as np
 from scipy.sparse import coo_array, kron
 
 from symfc.spg_reps import SpgRepsO2
+
+from .utils import get_indep_atoms_by_lat_trans
 
 
 def get_spg_perm_projector(spg_reps: SpgRepsO2, decompr_idx: np.ndarray) -> coo_array:
@@ -48,7 +50,7 @@ def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
         shape=(N^2*9,), dtype='int_'.
 
     """
-    indep_atoms = _get_indep_atoms_by_lat_trans(trans_perms)
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
     n_a = len(indep_atoms)
     N = trans_perms.shape[1]
     n_lp = N // n_a
@@ -89,7 +91,7 @@ def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
         shape=(n_a*N9, n_lp), dtype='int_'.
 
     """
-    indep_atoms = _get_indep_atoms_by_lat_trans(trans_perms)
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
     n_a = len(indep_atoms)
     N = trans_perms.shape[1]
     n_lp = N // n_a
@@ -196,7 +198,7 @@ def _get_atomic_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray
         shape=(N^2*,), dtype='int_'.
 
     """
-    indep_atoms = _get_indep_atoms_by_lat_trans(trans_perms)
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
     n_lp, N = trans_perms.shape
     size_row = N**2
 
@@ -210,35 +212,6 @@ def _get_atomic_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray
             n += 1
     assert n * n_lp == size_row
     return indices
-
-
-def _get_indep_atoms_by_lat_trans(trans_perms: np.ndarray) -> np.ndarray:
-    """Return independent atoms by lattice translation symmetry.
-
-    Parameters
-    ----------
-    trans_perms : np.ndarray
-        Atom indices after lattice translations.
-        shape=(lattice_translations, supercell_atoms)
-
-    Returns
-    -------
-    np.ndarray
-        Independent atoms.
-        shape=(n_indep_atoms_by_lattice_translation,), dtype=int
-
-    """
-    unique_atoms: list[int] = []
-    assert np.array_equal(trans_perms[0, :], range(trans_perms.shape[1]))
-    for i, perms in enumerate(trans_perms.T):
-        is_found = False
-        for j in unique_atoms:
-            if j in perms:
-                is_found = True
-                break
-        if not is_found:
-            unique_atoms.append(i)
-    return np.array(unique_atoms, dtype=int)
 
 
 def _get_compr_coset_reps_sum(spg_reps: SpgRepsO2):
