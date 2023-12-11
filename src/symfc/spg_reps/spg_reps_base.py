@@ -26,7 +26,7 @@ class SpgRepsBase:
             supercell.scaled_positions, dtype="double", order="C"
         )
         self._numbers = supercell.numbers
-        self._unique_rotation: Optional[np.ndarray] = None
+        self._unique_rotations: Optional[np.ndarray] = None
         self._unique_rotation_indices: Optional[np.ndarray] = None
         self._translation_permutations: Optional[np.ndarray] = None
         self._prepare()

@@ -1,29 +1,17 @@
-"""Tests of matrix manipulating functions."""
+"""Tests of matrix manipulating functions for 2nd order force constants."""
 
 import numpy as np
-from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.utils_O2 import (
     _get_atomic_lat_trans_decompr_indices,
-    _get_indep_atoms_by_lat_trans,
     _get_lat_trans_compr_matrix,
     _get_perm_compr_matrix,
     _get_perm_compr_matrix_reference,
     get_lat_trans_compr_indices,
     get_lat_trans_decompr_indices,
 )
-
-
-def test_get_indep_atoms_by_lattice_translation(ph_nacl_222: Phonopy):
-    """Test of get_indep_atoms_by_lattice_translation."""
-    ph = ph_nacl_222
-    sym_op_reps = SpgRepsBase(ph.supercell)
-    trans_perms = sym_op_reps.translation_permutations
-    assert trans_perms.shape == (32, 64)
-    indep_atoms = _get_indep_atoms_by_lat_trans(trans_perms)
-    np.testing.assert_array_equal(indep_atoms, [0, 32])
 
 
 def test_get_perm_compr_matrix():
