@@ -1,76 +1,23 @@
-"""Symmetry adapted basis sets of force constants."""
+"""Symmetry adapted basis sets of 2nd order force constants."""
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from typing import Optional
 
 import numpy as np
 import scipy
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.spg_reps import SpgReps, SpgRepsO2
+from symfc.spg_reps import SpgRepsO2
 from symfc.utils import (
     get_lat_trans_compr_indices,
     get_lat_trans_decompr_indices,
     get_spg_perm_projector,
 )
 
-
-class FCBasisSet(ABC):
-    """Abstract base class of symmetry adapted basis set for force constants."""
-
-    def __init__(
-        self,
-        supercell: PhonopyAtoms,
-        log_level: int = 0,
-    ):
-        """Init method.
-
-        Parameters
-        ----------
-        supercell : PhonopyAtoms
-            Supercell.
-        log_level : int, optional
-            Log level. Default is 0.
-
-        """
-        self._natom = len(supercell)
-        self._log_level = log_level
-        self._basis_set: Optional[np.ndarray] = None
-        self._spg_reps: Optional[SpgReps] = None
-
-    @abstractmethod
-    def basis_set(self):
-        """Return (compressed) basis set."""
-        pass
-
-    @abstractmethod
-    def full_basis_set(self):
-        """Return full (decompressed) basis set."""
-        pass
-
-    @abstractmethod
-    def decompression_indices(self):
-        """Return decompression indices."""
-        pass
-
-    @abstractmethod
-    def compression_indices(self):
-        """Return compression indices."""
-        pass
-
-    @property
-    def translation_permutations(self) -> np.ndarray:
-        """Return permutations by lattice translation."""
-        return self._spg_reps.translation_permutations
-
-    @abstractmethod
-    def run(self):
-        """Run basis set calculation."""
-        pass
+from .basis_sets_base import FCBasisSetBase
 
 
-class FCBasisSetO2(FCBasisSet):
+class FCBasisSetO2(FCBasisSetBase):
     """Symmetry adapted basis set for force constants.
 
     Attributes

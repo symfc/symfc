@@ -1,4 +1,4 @@
-"""Reps of space group operations with respect to atomic coordinate basis."""
+"""Reps base of space group ops with respect to atomic coordinate basis."""
 from __future__ import annotations
 
 from typing import Optional
@@ -10,7 +10,7 @@ from phonopy.structure.cells import compute_all_sg_permutations
 from scipy.sparse import coo_array
 
 
-class SpgReps:
+class SpgRepsBase:
     """Base class of reps of space group operations."""
 
     def __init__(self, supercell: PhonopyAtoms):
@@ -101,7 +101,7 @@ class SpgReps:
         return symops["rotations"], symops["translations"]
 
 
-class SpgRepsO1(SpgReps):
+class SpgRepsO1(SpgRepsBase):
     """Class of reps of space group operations for fc1."""
 
     def __init__(self, supercell: PhonopyAtoms):
@@ -161,7 +161,7 @@ class SpgRepsO1(SpgReps):
         return self._data, row, self._col, (N, N)
 
 
-class SpgRepsO2(SpgReps):
+class SpgRepsO2(SpgRepsBase):
     """Class of reps of space group operations for fc2."""
 
     def __init__(self, supercell: PhonopyAtoms):

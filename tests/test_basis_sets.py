@@ -7,7 +7,7 @@ import pytest
 from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.basis_sets import FCBasisSet, FCBasisSetO2
+from symfc.basis_sets import FCBasisSetBase, FCBasisSetO2
 from symfc.solvers import FCSolverO2
 
 cwd = Path(__file__).parent
@@ -16,7 +16,7 @@ cwd = Path(__file__).parent
 def test_base_fc_basis_set(ph_nacl_222: Phonopy):
     """Test that FCBasisSet can not be instantiate."""
     with pytest.raises(TypeError):
-        _ = FCBasisSet(ph_nacl_222.supercell)
+        _ = FCBasisSetBase(ph_nacl_222.supercell)
 
 
 def test_fc_basis_set_o2():

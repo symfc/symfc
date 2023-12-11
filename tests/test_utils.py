@@ -4,7 +4,7 @@ import numpy as np
 from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.spg_reps import SpgReps
+from symfc.spg_reps import SpgRepsBase
 from symfc.utils import (
     _get_perm_compr_matrix_reference,
     get_atomic_lat_trans_decompr_indices,
@@ -19,7 +19,7 @@ from symfc.utils import (
 def test_get_indep_atoms_by_lattice_translation(ph_nacl_222: Phonopy):
     """Test of get_indep_atoms_by_lattice_translation."""
     ph = ph_nacl_222
-    sym_op_reps = SpgReps(ph.supercell)
+    sym_op_reps = SpgRepsBase(ph.supercell)
     trans_perms = sym_op_reps.translation_permutations
     assert trans_perms.shape == (32, 64)
     indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
@@ -619,7 +619,7 @@ def test_get_lat_trans_decompr_indices(cell_nacl_111: PhonopyAtoms):
         115,
         116,
     ]
-    spg_reps = SpgReps(cell_nacl_111)
+    spg_reps = SpgRepsBase(cell_nacl_111)
     trans_perms = spg_reps.translation_permutations
     assert trans_perms.shape == (4, 8)
     decompr_idx = get_lat_trans_decompr_indices(trans_perms)
@@ -633,7 +633,7 @@ def test_get_lat_trans_compr_indices(cell_nacl_111: PhonopyAtoms):
     compression matrix elements are non-zero.
 
     """
-    spg_reps = SpgReps(cell_nacl_111)
+    spg_reps = SpgRepsBase(cell_nacl_111)
     trans_perms = spg_reps.translation_permutations
     n_lp, N = trans_perms.shape
     assert trans_perms.shape == (4, 8)
@@ -719,7 +719,7 @@ def test_get_atomic_lat_trans_decompr_indices(cell_nacl_111: PhonopyAtoms):
         13,
         12,
     ]
-    spg_reps = SpgReps(cell_nacl_111)
+    spg_reps = SpgRepsBase(cell_nacl_111)
     trans_perms = spg_reps.translation_permutations
     assert trans_perms.shape == (4, 8)
     atomic_decompr_idx = get_atomic_lat_trans_decompr_indices(trans_perms)
