@@ -7,7 +7,7 @@ from typing import Optional, Union
 import numpy as np
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.basis_sets import FCBasisSet, FCBasisSetO2
+from symfc.basis_sets import FCBasisSetBase, FCBasisSetO2
 from symfc.solvers import FCSolverO2
 
 
@@ -28,14 +28,14 @@ class Symfc:
         self._forces: Optional[np.ndarray] = forces
         self._log_level = log_level
 
-        self._basis_set: dict[FCBasisSet] = {}
+        self._basis_set: dict[FCBasisSetBase] = {}
         self._force_constants: dict[np.ndarray] = {}
 
         if orders:
             self.run(orders)
 
     @property
-    def basis_set(self) -> dict[FCBasisSet]:
+    def basis_set(self) -> dict[FCBasisSetBase]:
         """Return basis set instance.
 
         Returns

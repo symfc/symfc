@@ -3,13 +3,13 @@ import numpy as np
 from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.spg_reps import SpgReps, SpgRepsO1
+from symfc.spg_reps import SpgRepsBase, SpgRepsO1
 
 
 def test_translation_permutations_NaCl_111(cell_nacl_111: PhonopyAtoms):
     """Test SpgReps.translation_permutations."""
     cell = cell_nacl_111
-    sym_reps = SpgReps(cell)
+    sym_reps = SpgRepsBase(cell)
     trans_perms = sym_reps.translation_permutations
     # for v in trans_perms:
     #     print("[", ", ".join([f"{x}" for x in v]), "],")
@@ -31,7 +31,7 @@ def test_translation_permutations_NaCl_111(cell_nacl_111: PhonopyAtoms):
 def test_translation_permutations_shape_GaN_222(ph_gan_222: Phonopy):
     """Test SpgReps.translation_permutations."""
     cell = ph_gan_222.supercell
-    sym_reps = SpgReps(cell)
+    sym_reps = SpgRepsBase(cell)
     trans_perms = sym_reps.translation_permutations
     assert trans_perms.shape == (8, 32)
 
