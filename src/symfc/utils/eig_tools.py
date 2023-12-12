@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import numpy as np
 import scipy
-from scipy.sparse import coo_matrix
+from scipy.sparse import csr_matrix
 
 try:
     from sparse_dot_mkl import dot_product_mkl
@@ -12,14 +12,20 @@ except ImportError:
     pass
 
 
-def dot_product_sparse(A, B, mkl=False):
+def dot_product_sparse(
+    A: csr_matrix,
+    B: csr_matrix,
+    use_mkl: bool = False,
+) -> csr_matrix:
     """Compute dot-product of sparse matrices."""
-    if mkl:
+    if use_mkl:
         return dot_product_mkl(A, B)
     return A @ B
 
 
-def eigsh_projector(p, log=True, log_interval=10000):
+def eigsh_projector(
+    p: csr_matrix, verbose: bool = True, log_interval: int = 10000
+) -> csr_matrix:
     """Solve eigenvalue problem for matrix p.
 
     Return sparse matrix for eigenvectors of matrix p.
@@ -45,7 +51,7 @@ def eigsh_projector(p, log=True, log_interval=10000):
     s_begin[1:] = s_end[:-1]
     p_data = np.ravel(p[r, c])
 
-    if log:
+    if verbose:
         print(" N (blocks) =", n_components)
         rank = int(round(sum(p.diagonal())))
         print(" rank (P) =", rank)
@@ -54,7 +60,7 @@ def eigsh_projector(p, log=True, log_interval=10000):
     row, col, data = [], [], []
     col_id = 0
     for i, (s1, s2, ids) in enumerate(zip(s_begin, s_end, group.values())):
-        if log and (i + 1) % log_interval == 0:
+        if verbose and (i + 1) % log_interval == 0:
             print(" eigsh_block:", i + 1)
 
         p_block1 = p_data[s1:s2]
@@ -89,10 +95,10 @@ def eigsh_projector(p, log=True, log_interval=10000):
                 col_id += 1
 
     n_col = col_id
-    return coo_matrix((data, (row, col)), shape=(p.shape[0], n_col))
+    return csr_matrix((data, (row, col)), shape=(p.shape[0], n_col))
 
 
-def eigsh_projector_sumrule(p, log=True, log_interval=10000):
+def eigsh_projector_sumrule(p: csr_matrix, verbose: bool = True) -> np.ndarray:
     """Solve eigenvalue problem for matrix p.
 
     Return dense matrix for eigenvectors of matrix p.
@@ -112,13 +118,13 @@ def eigsh_projector_sumrule(p, log=True, log_interval=10000):
     for i, l in enumerate(labels):
         group[l].append(i)
 
-    if log:
+    if verbose:
         print(" n_blocks in P =", n_components)
 
-    eigvecs_full = np.zeros(p.shape)
+    eigvecs_full = np.zeros(p.shape, dtype="double")
     col_id = 0
     for i, ids in enumerate(group.values()):
-        if log:
+        if verbose:
             print(" eigsh_block:", i, ": block_size =", len(ids))
 
         p_block = p[np.ix_(ids, ids)].toarray()
@@ -134,7 +140,7 @@ def eigsh_projector_sumrule(p, log=True, log_interval=10000):
     return eigvecs_full[:, :col_id]
 
 
-def connected_components(p):
+def connected_components(p: csr_matrix) -> np.ndarray:
     """Find connected matrix elements.
 
     This algorithm is simple but inefficient.
@@ -150,7 +156,9 @@ def connected_components(p):
     return labels
 
 
-def eigsh_projector_memory_efficient(p, log=True, log_interval=10000):
+def eigsh_projector_memory_efficient(
+    p: csr_matrix, verbose: bool = True, log_interval: int = 10000
+):
     """Eigenvalue solver for connected matrix elements.
 
     Sparse matrix p must be projector.
@@ -165,7 +173,7 @@ def eigsh_projector_memory_efficient(p, log=True, log_interval=10000):
     for i, l in enumerate(labels):
         group[l].append(i)
 
-    if log:
+    if verbose:
         print(" N (blocks) =", len(group.keys()))
         rank = int(round(sum(p.diagonal())))
         print(" rank (P) =", rank)
@@ -174,7 +182,7 @@ def eigsh_projector_memory_efficient(p, log=True, log_interval=10000):
     row, col, data = [], [], []
     col_id = 0
     for i, (key, ids) in enumerate(group.items()):
-        if log and (i + 1) % log_interval == 0:
+        if verbose and (i + 1) % log_interval == 0:
             print(" eigsh_block:", i + 1)
 
         if len(ids) > 1:
@@ -211,4 +219,4 @@ def eigsh_projector_memory_efficient(p, log=True, log_interval=10000):
                 col_id += 1
 
     n_col = col_id
-    return coo_matrix((data, (row, col)), shape=(p.shape[0], n_col))
+    return csr_matrix((data, (row, col)), shape=(p.shape[0], n_col))

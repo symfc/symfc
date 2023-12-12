@@ -2,14 +2,14 @@
 import itertools
 
 import numpy as np
-from scipy.sparse import coo_array, kron
+from scipy.sparse import csr_array, kron
 
 from symfc.spg_reps import SpgRepsO2
 
 from .utils import get_indep_atoms_by_lat_trans
 
 
-def get_spg_perm_projector(spg_reps: SpgRepsO2, decompr_idx: np.ndarray) -> coo_array:
+def get_spg_perm_projector(spg_reps: SpgRepsO2, decompr_idx: np.ndarray) -> csr_array:
     """Compute compact spg+perm projector matrix using kron.
 
     This computes C.T @ spg_proj @ perm_proj @ C, where C is
@@ -112,7 +112,7 @@ def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
 
 def _get_lat_trans_compr_matrix(
     decompr_idx: np.ndarray, N: int, n_lp: int
-) -> coo_array:
+) -> csr_array:
     """Return compression matrix by lattice translation symmetry.
 
     `decompr_idx` is obtained by `get_lat_trans_decompr_indices`.
@@ -124,7 +124,7 @@ def _get_lat_trans_compr_matrix(
 
     """
     NN9 = N**2 * 9
-    compression_mat = coo_array(
+    compression_mat = csr_array(
         (
             np.full(NN9, 1 / np.sqrt(n_lp), dtype="double"),
             (np.arange(NN9, dtype=int), decompr_idx),
@@ -135,7 +135,7 @@ def _get_lat_trans_compr_matrix(
     return compression_mat
 
 
-def _get_perm_compr_matrix(natom: int) -> coo_array:
+def _get_perm_compr_matrix(natom: int) -> csr_array:
     """Return compression matrix by permutation symmetry.
 
     Parameters
@@ -166,7 +166,7 @@ def _get_perm_compr_matrix(natom: int) -> coo_array:
         )
     )
     data = np.hstack((np.full(len(ut[0]) * 2, np.sqrt(2) / 2), np.full(len(diag), 1)))
-    return coo_array(
+    return csr_array(
         (data, (row, col)),
         shape=(N**2 * 9, (N * 3 * (N * 3 + 1)) // 2),
         dtype="double",
@@ -218,9 +218,9 @@ def _get_compr_coset_reps_sum(spg_reps: SpgRepsO2):
     trans_perms = spg_reps.translation_permutations
     n_lp, N = trans_perms.shape
     size = N**2 * 9 // n_lp
-    coset_reps_sum = coo_array(([], ([], [])), shape=(size, size), dtype="double")
+    coset_reps_sum = csr_array(([], ([], [])), shape=(size, size), dtype="double")
     atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
-    C = coo_array(
+    C = csr_array(
         (
             np.ones(N**2, dtype=int),
             (np.arange(N**2, dtype=int), atomic_decompr_idx),
@@ -236,7 +236,7 @@ def _get_compr_coset_reps_sum(spg_reps: SpgRepsO2):
     return coset_reps_sum
 
 
-def _get_perm_compr_matrix_reference(natom: int) -> coo_array:
+def _get_perm_compr_matrix_reference(natom: int) -> csr_array:
     """Return compression matrix by permutation symmetry.
 
     This is a reference implementation of get_perm_compr_matrix. The order of
@@ -277,4 +277,4 @@ def _get_perm_compr_matrix_reference(natom: int) -> coo_array:
         assert (natom * 3) * ((natom * 3 + 1) // 2) == n, f"{natom}, {n}"
     else:
         assert ((natom * 3) // 2) * (natom * 3 + 1) == n, f"{natom}, {n}"
-    return coo_array((data, (row, col)), shape=(size_row, n), dtype="double")
+    return csr_array((data, (row, col)), shape=(size_row, n), dtype="double")

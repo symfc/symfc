@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 from phonopy.structure.atoms import PhonopyAtoms
-from scipy.sparse import coo_array
+from scipy.sparse import csr_array
 
 from .spg_reps_base import SpgRepsBase
 
@@ -20,17 +20,17 @@ class SpgRepsO1(SpgRepsBase):
             Supercell.
 
         """
-        self._r1_reps: list[coo_array]
+        self._r1_reps: list[csr_array]
         self._col: np.ndarray
         self._data: np.ndarray
         super().__init__(supercell)
 
     @property
-    def r_reps(self) -> list[coo_array]:
+    def r_reps(self) -> list[csr_array]:
         """Return 1st rank tensor rotation matricies."""
         return self._r1_reps
 
-    def get_sigma1_rep(self, i: int) -> coo_array:
+    def get_sigma1_rep(self, i: int) -> csr_array:
         """Compute and return i-th atomic permutation matrix.
 
         Parameters
@@ -40,7 +40,7 @@ class SpgRepsO1(SpgRepsBase):
 
         """
         data, row, col, shape = self._get_sigma1_rep_data(i)
-        return coo_array((data, (row, col)), shape=shape)
+        return csr_array((data, (row, col)), shape=shape)
 
     def _prepare(self):
         super()._prepare()
@@ -61,10 +61,10 @@ class SpgRepsO1(SpgRepsBase):
             r1_rep: np.ndarray = self._lattice.T @ r @ np.linalg.inv(self._lattice.T)
             row, col = np.nonzero(np.abs(r1_rep) > tol)
             data = r1_rep[(row, col)]
-            r1_reps.append(coo_array((data, (row, col)), shape=r1_rep.shape))
+            r1_reps.append(csr_array((data, (row, col)), shape=r1_rep.shape))
         self._r1_reps = r1_reps
 
-    def _get_sigma1_rep_data(self, i: int) -> coo_array:
+    def _get_sigma1_rep_data(self, i: int) -> csr_array:
         uri = self._unique_rotation_indices
         permutation = self._permutations[uri[i]]
         N = len(self._numbers)

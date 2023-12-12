@@ -43,16 +43,6 @@ class FCBasisSetBase(ABC):
         """Return full (decompressed) basis set."""
         pass
 
-    @abstractmethod
-    def decompression_indices(self):
-        """Return decompression indices."""
-        pass
-
-    @abstractmethod
-    def compression_indices(self):
-        """Return compression indices."""
-        pass
-
     @property
     def translation_permutations(self) -> np.ndarray:
         """Return permutations by lattice translation."""
