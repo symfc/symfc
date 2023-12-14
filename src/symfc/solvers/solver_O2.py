@@ -18,11 +18,7 @@ class FCSolverO2(FCSolverBase):
         log_level: int = 0,
     ):
         """Init method."""
-        self._basis_set = basis_set
-        self._translation_permutations = translation_permutations
-        self._log_level = log_level
-
-        _, self._natom = self._translation_permutations.shape
+        super().__init__(basis_set, translation_permutations, log_level=log_level)
 
     def solve(
         self, displacements: np.ndarray, forces: np.ndarray, is_compact_fc=True
