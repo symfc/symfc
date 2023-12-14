@@ -55,7 +55,7 @@ class FCSolverO3(FCSolverBase):
         assert displacements.shape == forces.shape
 
         mat = self._get_basis_mat(displacements, compress_mat)
-        mat = np.linalg.pinv(mat.toarray())
+        mat = np.linalg.pinv(mat)
         coeff = -2 * (mat @ forces.ravel())
         fc = dot_product_sparse(compress_mat, self._basis_set @ coeff)
         return fc.reshape(N, N, N, 3, 3, 3)
@@ -85,14 +85,14 @@ class FCSolverO3(FCSolverBase):
         )
         compress_mat = self._get_compress_mat_NN33N3(compress_mat)
         print("disp, compress", disp_disps.shape, compress_mat.shape)
-        d_compr_mat = dot_product_sparse(disp_disps, compress_mat)
+        d_compr_mat = dot_product_sparse(disp_disps, compress_mat).toarray()
         d_compr_mat = d_compr_mat.reshape(-1, self._basis_set.shape[0])
         print("d_compr_mat", d_compr_mat.shape, type(d_compr_mat))
         return d_compr_mat
 
     def _get_mat(self, d_compr_mat):
         print("basis_set", self._basis_set.shape)
-        mat = dot_product_sparse(d_compr_mat, csr_array(self._basis_set))
+        mat = dot_product_sparse(d_compr_mat, self._basis_set)
         print("mat", mat.shape, type(mat))
         return mat
 
