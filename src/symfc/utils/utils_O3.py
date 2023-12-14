@@ -28,7 +28,7 @@ def get_atomic_lat_trans_decompr_indices_O3(trans_perms: np.ndarray) -> np.ndarr
     -------
     indices : ndarray
         Indices of n_a * N * N elements.
-        shape=(N^3*,), dtype='int_'.
+        shape=(N**3,), dtype='int_'.
 
     """
     indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)

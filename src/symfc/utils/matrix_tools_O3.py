@@ -1,11 +1,10 @@
 """Matrix utility functions for 3rd order force constants."""
 import itertools
 import math
-from typing import Union
 
 import numpy as np
 import scipy
-from scipy.sparse import coo_matrix, csr_matrix
+from scipy.sparse import csr_array
 
 from symfc.utils.eig_tools import dot_product_sparse
 
@@ -21,7 +20,7 @@ def N3N3N3_to_NNN333(combinations_perm: np.ndarray, N: int) -> np.ndarray:
     return vec
 
 
-def get_perm_compr_matrix_O3(natom: int) -> coo_matrix:
+def get_perm_compr_matrix_O3(natom: int) -> csr_array:
     """Return compression matrix by permutation symmetry.
 
     Matrix shape is (NNN333, (N*3)(N*3+1)(N*3+2)/6).
@@ -72,13 +71,15 @@ def get_perm_compr_matrix_O3(natom: int) -> coo_matrix:
     col[begin_id:] = np.array(range(n_col3 + n_col2, n_col))
     data[begin_id:] = 1.0
 
-    return coo_matrix((data, (row, col)), shape=(NNN333, n_col))
+    return csr_array((data, (row, col)), shape=(NNN333, n_col))
 
 
 def compressed_complement_projector_sum_rules_algo1(
-    C: Union[coo_matrix, csr_matrix], N: int, use_mkl: bool = False
-) -> csr_matrix:
+    compress_mat: csr_array, N: int, use_mkl: bool = False
+) -> csr_array:
     r"""Return complementary projection matrix for sum rule compressed by C.
+
+    C = compress_mat.
 
     proj_sum_cplmt = [C.T @ Csum(c)] @ [Csum(c).T @ C]
                    = c_sum_cplmt_compr.T @ c_sum_cplmt_compr
@@ -95,24 +96,24 @@ def compressed_complement_projector_sum_rules_algo1(
     col = np.tile(range(NN333), N)
     data = np.zeros(NNN333)
     data[:] = 1 / math.sqrt(N)
-    c_sum_cplmt = coo_matrix((data, (row, col)), shape=(NNN333, NN333))
+    c_sum_cplmt = csr_array((data, (row, col)), shape=(NNN333, NN333))
 
     if use_mkl:
-        C = C.tocsr()
+        compress_mat = compress_mat.tocsr()
         c_sum_cplmt = c_sum_cplmt.tocsr()
 
     # bottleneck part
-    c_sum_cplmt_compr = dot_product_sparse(c_sum_cplmt.transpose(), C, use_mkl=use_mkl)
+    c_sum_cplmt_compr = dot_product_sparse(c_sum_cplmt.T, compress_mat, use_mkl=use_mkl)
     proj_sum_cplmt = dot_product_sparse(
-        c_sum_cplmt_compr.transpose(), c_sum_cplmt_compr, use_mkl=use_mkl
+        c_sum_cplmt_compr.T, c_sum_cplmt_compr, use_mkl=use_mkl
     )
     # bottleneck part: end
     return proj_sum_cplmt
 
 
 def compressed_complement_projector_sum_rules_algo2(
-    C: Union[coo_matrix, csr_matrix], N: int, use_mkl: bool = False
-):
+    C: csr_array, N: int, use_mkl: bool = False
+) -> csr_array:
     """Return complementary projection matrix for sum rule compressed by C.
 
     proj_sum_cplmt = [C.T @ Csum(c)] @ [Csum(c).T @ C]
@@ -120,7 +121,7 @@ def compressed_complement_projector_sum_rules_algo2(
 
     """
     NN333 = 27 * N**2
-    c_sum_cplmt_compr = csr_matrix(([], ([], [])), shape=(NN333, C.shape[1]))
+    c_sum_cplmt_compr = csr_array(([], ([], [])), shape=(NN333, C.shape[1]))
     for i in range(N):
         c_sum_cplmt_compr += C[i * NN333 : (i + 1) * NN333]
 
@@ -132,8 +133,8 @@ def compressed_complement_projector_sum_rules_algo2(
 
 
 def compressed_complement_projector_sum_rules_algo3(
-    C: Union[coo_matrix, csr_matrix], N: int, use_mkl: bool = False
-) -> csr_matrix:
+    C: csr_array, N: int, use_mkl: bool = False
+) -> csr_array:
     """Return complementary projection matrix for sum rule compressed by C.
 
     proj_sum_cplmt = [C.T @ Csum(c)] @ [Csum(c).T @ C]
@@ -141,7 +142,7 @@ def compressed_complement_projector_sum_rules_algo3(
 
     """
     NN333 = 27 * N**2
-    proj_sum_cplmt = csr_matrix(([], ([], [])), shape=(C.shape[1], C.shape[1]))
+    proj_sum_cplmt = csr_array(([], ([], [])), shape=(C.shape[1], C.shape[1]))
     for i, j in itertools.product(range(N), range(N)):
         proj_sum_cplmt += dot_product_sparse(
             C[i * NN333 : (i + 1) * NN333].transpose(),
@@ -153,15 +154,19 @@ def compressed_complement_projector_sum_rules_algo3(
 
 
 def compressed_complement_projector_sum_rules(
-    C: Union[coo_matrix, csr_matrix], N: int, use_mkl: bool = False
-) -> csr_matrix:
+    compress_mat: csr_array, N: int, use_mkl: bool = False
+) -> csr_array:
     """Return complementary projection matrix for sum rule compressed by C."""
-    return compressed_complement_projector_sum_rules_algo1(C, N, use_mkl=use_mkl)
+    return compressed_complement_projector_sum_rules_algo1(
+        compress_mat, N, use_mkl=use_mkl
+    )
 
 
 def compressed_projector_sum_rules(
-    C: Union[coo_matrix, csr_matrix], N: int, use_mkl: bool = False
-) -> csr_matrix:
+    compress_mat: csr_array, N: int, use_mkl: bool = False
+) -> csr_array:
     """Return projection matrix for sum rule compressed by C."""
-    proj_cplmt = compressed_complement_projector_sum_rules(C, N, use_mkl=use_mkl)
+    proj_cplmt = compressed_complement_projector_sum_rules(
+        compress_mat, N, use_mkl=use_mkl
+    )
     return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt

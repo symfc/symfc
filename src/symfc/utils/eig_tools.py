@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import numpy as np
 import scipy
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_array
 
 try:
     from sparse_dot_mkl import dot_product_mkl
@@ -13,10 +13,10 @@ except ImportError:
 
 
 def dot_product_sparse(
-    A: csr_matrix,
-    B: csr_matrix,
+    A: csr_array,
+    B: csr_array,
     use_mkl: bool = False,
-) -> csr_matrix:
+) -> csr_array:
     """Compute dot-product of sparse matrices."""
     if use_mkl:
         return dot_product_mkl(A, B)
@@ -24,8 +24,8 @@ def dot_product_sparse(
 
 
 def eigsh_projector(
-    p: csr_matrix, verbose: bool = True, log_interval: int = 10000
-) -> csr_matrix:
+    p: csr_array, verbose: bool = True, log_interval: int = 10000
+) -> csr_array:
     """Solve eigenvalue problem for matrix p.
 
     Return sparse matrix for eigenvectors of matrix p.
@@ -95,10 +95,10 @@ def eigsh_projector(
                 col_id += 1
 
     n_col = col_id
-    return csr_matrix((data, (row, col)), shape=(p.shape[0], n_col))
+    return csr_array((data, (row, col)), shape=(p.shape[0], n_col))
 
 
-def eigsh_projector_sumrule(p: csr_matrix, verbose: bool = True) -> np.ndarray:
+def eigsh_projector_sumrule(p: csr_array, verbose: bool = True) -> np.ndarray:
     """Solve eigenvalue problem for matrix p.
 
     Return dense matrix for eigenvectors of matrix p.
@@ -140,7 +140,7 @@ def eigsh_projector_sumrule(p: csr_matrix, verbose: bool = True) -> np.ndarray:
     return eigvecs_full[:, :col_id]
 
 
-def connected_components(p: csr_matrix) -> np.ndarray:
+def connected_components(p: csr_array) -> np.ndarray:
     """Find connected matrix elements.
 
     This algorithm is simple but inefficient.
@@ -157,7 +157,7 @@ def connected_components(p: csr_matrix) -> np.ndarray:
 
 
 def eigsh_projector_memory_efficient(
-    p: csr_matrix, verbose: bool = True, log_interval: int = 10000
+    p: csr_array, verbose: bool = True, log_interval: int = 10000
 ):
     """Eigenvalue solver for connected matrix elements.
 
@@ -219,4 +219,4 @@ def eigsh_projector_memory_efficient(
                 col_id += 1
 
     n_col = col_id
-    return csr_matrix((data, (row, col)), shape=(p.shape[0], n_col))
+    return csr_array((data, (row, col)), shape=(p.shape[0], n_col))
