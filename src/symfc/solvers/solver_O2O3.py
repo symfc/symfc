@@ -49,7 +49,7 @@ def get_training_exact(
 
     t1 = time.time()
     full_basis_fc2 = compress_mat_fc2 @ compress_eigvecs_fc2
-    X2, _ = get_training_from_full_basis(
+    X2, y = get_training_from_full_basis(
         disps, forces, full_basis_fc2.T.reshape((n_basis_fc2, N, N, 3, 3))
     )
     t2 = time.time()
@@ -62,24 +62,30 @@ def get_training_exact(
     t2 = time.time()
     print(" reshape (compr_mat_fc3):", t2 - t1)
 
+    sparse_disps = True if use_mkl else False
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
     XTX = np.zeros((n_basis, n_basis), dtype=float)
     XTy = np.zeros(n_basis, dtype=float)
+
+    XTX[:n_basis_fc2, :n_basis_fc2] = X2.T @ X2
+    XTy[:n_basis_fc2] = X2.T @ y
     for begin, end in zip(begin_batch, end_batch):
         t01 = time.time()
-        disps_batch = set_2nd_disps(disps[begin:end], sparse=True)
+        disps_batch = set_2nd_disps(disps[begin:end], sparse=sparse_disps)
         X3 = (
             dot_product_sparse(
                 disps_batch, compress_mat_fc3, use_mkl=use_mkl, dense=True
             ).reshape((-1, n_compr_fc3))
             @ compress_eigvecs_fc3
         )
-        X = np.hstack([X2[begin * N3 : end * N3], X3])
         y = forces[begin:end].reshape(-1)
-        XTX += X.T @ X
-        XTy += X.T @ y
+        XTX[:n_basis_fc2, n_basis_fc2:] += X2[begin * N3 : end * N3].T @ X3
+        XTX[n_basis_fc2:, n_basis_fc2:] += X3.T @ X3
+        XTy[n_basis_fc2:] += X3.T @ y
         t02 = time.time()
         print(" solver_block:", end, ":, t =", t02 - t01)
+
+    XTX[n_basis_fc2:, :n_basis_fc2] = XTX[:n_basis_fc2, n_basis_fc2:].T
     t3 = time.time()
     print(" (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):", t3 - t2)
     return XTX, XTy

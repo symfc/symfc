@@ -314,12 +314,13 @@ def _get_training_exact(
     t2 = time.time()
     print(" reshape(compr):   ", t2 - t1)
 
+    sparse_disps = True if use_mkl else False
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
     XTX = np.zeros((n_basis, n_basis), dtype=float)
     XTy = np.zeros(n_basis, dtype=float)
     for begin, end in zip(begin_batch, end_batch):
         t01 = time.time()
-        disps_batch = set_2nd_disps(disps[begin:end], sparse=True)
+        disps_batch = set_2nd_disps(disps[begin:end], sparse=sparse_disps)
         X = (
             dot_product_sparse(
                 disps_batch, compress_mat, use_mkl=use_mkl, dense=True
@@ -361,12 +362,13 @@ def _get_training_approx(disps, forces, compress_mat, batch_size=200, use_mkl=Fa
     t2 = time.time()
     print(" reshape(compr):   ", t2 - t1)
 
+    sparse_disps = True if use_mkl else False
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
     XTX = np.zeros((n_compr, n_compr), dtype=float)
     XTy = np.zeros(n_compr, dtype=float)
     for begin, end in zip(begin_batch, end_batch):
         t01 = time.time()
-        disps_batch = set_2nd_disps(disps[begin:end], sparse=True)
+        disps_batch = set_2nd_disps(disps[begin:end], sparse=sparse_disps)
         X = dot_product_sparse(
             disps_batch, compress_mat, use_mkl=use_mkl, dense=True
         ).reshape((-1, n_compr))
