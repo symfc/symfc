@@ -16,10 +16,12 @@ class FCSolverO3(FCSolverBase):
         self,
         basis_set: Union[np.ndarray, csr_array],
         translation_permutations: np.ndarray,
+        use_mkl: bool = False,
         log_level: int = 0,
     ):
         """Init method."""
         super().__init__(basis_set, translation_permutations, log_level=log_level)
+        self._use_mkl = use_mkl
 
     def solve(
         self,
@@ -55,14 +57,20 @@ class FCSolverO3(FCSolverBase):
         assert displacements.shape == forces.shape
 
         mat = self._get_basis_mat(displacements, compress_mat)
-        mat = np.linalg.pinv(mat.toarray())
+        mat = np.linalg.pinv(mat)
         coeff = -2 * (mat @ forces.ravel())
-        fc = dot_product_sparse(compress_mat, self._basis_set @ coeff)
-        return fc.reshape(N, N, N, 3, 3, 3)
+        basis_set = (self._basis_set @ coeff).reshape(-1, 1)
+        print("compress_mat, basis_set", compress_mat.shape, basis_set.shape)
+        fc = dot_product_sparse(
+            compress_mat, csr_array(basis_set), use_mkl=self._use_mkl
+        )
+        return fc.toarray().reshape(N, N, N, 3, 3, 3)
 
     def _get_basis_mat(self, displacements, compress_mat):
         d_compr_mat = self._get_d_compr_mat(displacements, compress_mat)
-        mat = self._get_mat(d_compr_mat)
+        print("basis_set", self._basis_set.shape)
+        mat = d_compr_mat @ self._basis_set
+        print("mat", mat.shape, type(mat))
         return mat
 
     def _get_d_compr_mat(self, displacements, compress_mat):
@@ -85,16 +93,12 @@ class FCSolverO3(FCSolverBase):
         )
         compress_mat = self._get_compress_mat_NN33N3(compress_mat)
         print("disp, compress", disp_disps.shape, compress_mat.shape)
-        d_compr_mat = dot_product_sparse(disp_disps, compress_mat)
+        d_compr_mat = dot_product_sparse(
+            disp_disps.tocsr(), compress_mat.tocsr(), use_mkl=self._use_mkl
+        ).toarray()
         d_compr_mat = d_compr_mat.reshape(-1, self._basis_set.shape[0])
         print("d_compr_mat", d_compr_mat.shape, type(d_compr_mat))
         return d_compr_mat
-
-    def _get_mat(self, d_compr_mat):
-        print("basis_set", self._basis_set.shape)
-        mat = dot_product_sparse(d_compr_mat, csr_array(self._basis_set))
-        print("mat", mat.shape, type(mat))
-        return mat
 
     def _get_compress_mat_NN33N3(self, compress_mat):
         N = self._natom

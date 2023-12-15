@@ -52,6 +52,7 @@ class FCBasisSetO3(FCBasisSetBase):
     def __init__(
         self,
         supercell: PhonopyAtoms,
+        use_mkl: bool = False,
         log_level: int = 0,
     ):
         """Init method.
@@ -66,6 +67,7 @@ class FCBasisSetO3(FCBasisSetBase):
         """
         super().__init__(supercell, log_level=log_level)
         self._spg_reps = SpgRepsO3(supercell)
+        self._use_mkl = use_mkl
 
     @property
     def basis_set(self) -> Optional[csr_array]:
@@ -90,7 +92,9 @@ class FCBasisSetO3(FCBasisSetBase):
 
         """
         compress_mat = self.get_compr_mat_naNN333_or_NNN333(full_matrix=False)
-        return dot_product_sparse(csc_array(compress_mat), csc_array(self._basis_set))
+        return dot_product_sparse(
+            compress_mat.tocsr(), csc_array(self._basis_set), use_mkl=self._use_mkl
+        )
 
     @property
     def full_basis_set(self) -> Optional[np.ndarray]:
@@ -105,6 +109,11 @@ class FCBasisSetO3(FCBasisSetBase):
             return None
         compress_mat = self.get_compr_mat_naNN333_or_NNN333(full_matrix=True)
         return dot_product_sparse(csc_array(compress_mat), csc_array(self._basis_set))
+
+    @property
+    def compression_matrix(self) -> Optional[csr_array]:
+        """Return compression matrix."""
+        return self._compression_matrix
 
     def run(self, use_mkl: bool = False) -> FCBasisSetO3:
         """Compute compressed force constants basis set.
@@ -151,6 +160,7 @@ class FCBasisSetO3(FCBasisSetBase):
         # print('  t (reconstruction)      = ', tt8-tt7)
 
         self._basis_set = eigvecs
+        self._compression_matrix = compress_mat
 
         return self
 
@@ -160,12 +170,14 @@ class FCBasisSetO3(FCBasisSetBase):
         c_trans = get_lat_trans_compr_matrix_O3(trans_perms)
         c_pt = self._get_perm_trans_compr_matrix(c_trans, self._natom)
         coset_reps_sum = get_compr_coset_reps_sum_O3(self._spg_reps)
-        proj_rpt = dot_product_sparse(coset_reps_sum, c_pt)
-        proj_rpt = dot_product_sparse(c_pt.T, proj_rpt)
+        proj_rpt = dot_product_sparse(coset_reps_sum, c_pt, use_mkl=self._use_mkl)
+        proj_rpt = dot_product_sparse(c_pt.T, proj_rpt, use_mkl=self._use_mkl)
         c_rpt = eigsh_projector(proj_rpt)
-        compress_mat = dot_product_sparse(c_pt, c_rpt)
+        compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
         if full_matrix:
-            compress_mat = dot_product_sparse(c_trans, compress_mat)
+            compress_mat = dot_product_sparse(
+                c_trans, compress_mat, use_mkl=self._use_mkl
+            )
         return compress_mat
 
     def _get_perm_trans_compr_matrix(self, c_trans: csr_array, N: int):
@@ -180,9 +192,9 @@ class FCBasisSetO3(FCBasisSetBase):
         """
         c_perm = get_perm_compr_matrix_O3(N)
         print_sp_matrix_size(c_perm, " C_perm:")
-        c_pt = dot_product_sparse(c_perm.T, c_trans)
+        c_pt = dot_product_sparse(c_perm.T, c_trans, use_mkl=self._use_mkl)
         print_sp_matrix_size(c_pt, " C_(perm,trans):")
-        proj_pt = dot_product_sparse(c_pt.T, c_pt)
+        proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=self._use_mkl)
         print_sp_matrix_size(proj_pt, " P_(perm,trans):")
         c_pt = eigsh_projector(proj_pt)
         print_sp_matrix_size(c_pt, " C_(perm,trans,compressed):")
@@ -208,13 +220,13 @@ class FCBasisSetO3(FCBasisSetBase):
          = C_rpt @ proj
 
         """
-        proj_rpt = dot_product_sparse(coset_reps_sum, c_pt)
-        proj_rpt = dot_product_sparse(c_pt.T, proj_rpt)
+        proj_rpt = dot_product_sparse(coset_reps_sum, c_pt, use_mkl=self._use_mkl)
+        proj_rpt = dot_product_sparse(c_pt.T, proj_rpt, use_mkl=self._use_mkl)
         print_sp_matrix_size(proj_rpt, " P_(perm,trans,coset):")
         c_rpt = eigsh_projector(proj_rpt)
         print_sp_matrix_size(c_rpt, " C_(perm,trans,coset):")
-        compress_mat = dot_product_sparse(c_pt, c_rpt)
-        compress_mat = dot_product_sparse(c_trans, compress_mat)
+        compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
+        compress_mat = dot_product_sparse(c_trans, compress_mat, use_mkl=self._use_mkl)
         print_sp_matrix_size(compress_mat, " compression matrix:")
         return compress_mat
 
