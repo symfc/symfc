@@ -203,7 +203,20 @@ def run_solver_sparse_approx_O3(
     return coefs
 
 
-def _set_2nd_disps(disps, sparse=True):
+def csr_NNN333_to_NN33N3(mat, N):
+    """Reorder row indices in a sparse matrix (NNN333->NN33N3).
+
+    Return reordered csr_matrix.
+
+    """
+    NNN333, nx = mat.shape
+    mat = mat.tocoo()
+    row = _NNN333_to_NN33N3(mat.row, N)
+    mat = csr_array((mat.data, (row, mat.col)), shape=(NNN333, nx))
+    return mat
+
+
+def set_2nd_disps(disps, sparse=True):
     """Calculate Kronecker products of displacements.
 
     disps: (n_samples, N3)
@@ -219,19 +232,6 @@ def _set_2nd_disps(disps, sparse=True):
     if sparse:
         return csr_array(disps_2nd)
     return disps_2nd
-
-
-def _csr_NNN333_to_NN33N3(mat, N):
-    """Reorder row indices in a sparse matrix (NNN333->NN33N3).
-
-    Return reordered csr_matrix.
-
-    """
-    NNN333, nx = mat.shape
-    mat = mat.tocoo()
-    row = _NNN333_to_NN33N3(mat.row, N)
-    mat = csr_array((mat.data, (row, mat.col)), shape=(NNN333, nx))
-    return mat
 
 
 def _NNN333_to_NN33N3(row, N):
@@ -276,7 +276,7 @@ def _get_training_from_full_basis_set(disps, forces, full_basis):
     NN33 = N3 * N3
     n_basis = full_basis.shape[0]
 
-    disps_reshape = _set_2nd_disps(disps, sparse=False)
+    disps_reshape = set_2nd_disps(disps, sparse=False)
 
     full_basis = full_basis.transpose((1, 2, 4, 5, 3, 6, 0)).reshape((NN33, -1))
     X = -0.5 * np.dot(disps_reshape, full_basis)
@@ -310,7 +310,7 @@ def _get_training_exact(
     n_compr = compress_mat.shape[1]
 
     t1 = time.time()
-    compress_mat = _csr_NNN333_to_NN33N3(compress_mat, N).reshape((NN33, -1)).tocsr()
+    compress_mat = csr_NNN333_to_NN33N3(compress_mat, N).reshape((NN33, -1)).tocsr()
     t2 = time.time()
     print(" reshape(compr):   ", t2 - t1)
 
@@ -319,7 +319,7 @@ def _get_training_exact(
     XTy = np.zeros(n_basis, dtype=float)
     for begin, end in zip(begin_batch, end_batch):
         t01 = time.time()
-        disps_batch = _set_2nd_disps(disps[begin:end], sparse=True)
+        disps_batch = set_2nd_disps(disps[begin:end], sparse=True)
         X = (
             dot_product_sparse(
                 disps_batch, compress_mat, use_mkl=use_mkl, dense=True
@@ -357,7 +357,7 @@ def _get_training_approx(disps, forces, compress_mat, batch_size=200, use_mkl=Fa
     n_compr = compress_mat.shape[1]
 
     t1 = time.time()
-    compress_mat = _csr_NNN333_to_NN33N3(compress_mat, N).reshape((NN33, -1)).tocsr()
+    compress_mat = csr_NNN333_to_NN33N3(compress_mat, N).reshape((NN33, -1)).tocsr()
     t2 = time.time()
     print(" reshape(compr):   ", t2 - t1)
 
@@ -366,7 +366,7 @@ def _get_training_approx(disps, forces, compress_mat, batch_size=200, use_mkl=Fa
     XTy = np.zeros(n_compr, dtype=float)
     for begin, end in zip(begin_batch, end_batch):
         t01 = time.time()
-        disps_batch = _set_2nd_disps(disps[begin:end], sparse=True)
+        disps_batch = set_2nd_disps(disps[begin:end], sparse=True)
         X = dot_product_sparse(
             disps_batch, compress_mat, use_mkl=use_mkl, dense=True
         ).reshape((-1, n_compr))
