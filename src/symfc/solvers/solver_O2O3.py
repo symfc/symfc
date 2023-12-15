@@ -18,6 +18,7 @@ def get_training_exact(
     compress_eigvecs_fc2,
     compress_eigvecs_fc3,
     batch_size=200,
+    use_mkl=False,
 ):
     r"""Calculate X.T @ X and X.T @ y.
 
@@ -69,7 +70,7 @@ def get_training_exact(
         disps_batch = set_2nd_disps(disps[begin:end], sparse=True)
         X3 = (
             dot_product_sparse(
-                disps_batch, compress_mat_fc3, use_mkl=True, dense=True
+                disps_batch, compress_mat_fc3, use_mkl=use_mkl, dense=True
             ).reshape((-1, n_compr_fc3))
             @ compress_eigvecs_fc3
         )
@@ -92,6 +93,7 @@ def run_solver_sparse_O2O3(
     compress_eigvecs_fc2,
     compress_eigvecs_fc3,
     batch_size=200,
+    use_mkl=False,
 ):
     """Estimate coeffs. in X @ coeffs = y.
 
@@ -112,6 +114,7 @@ def run_solver_sparse_O2O3(
         compress_eigvecs_fc2,
         compress_eigvecs_fc3,
         batch_size=batch_size,
+        use_mkl=use_mkl,
     )
     coefs = solve_linear_equation(XTX, XTy)
     n_basis_fc2 = compress_eigvecs_fc2.shape[1]
