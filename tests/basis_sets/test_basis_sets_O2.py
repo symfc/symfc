@@ -7,7 +7,7 @@ import pytest
 from phonopy import Phonopy
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.basis_sets import FCBasisSetO2
+from symfc.basis_sets import FCBasisSetO2Slow
 from symfc.solvers import FCSolverO2
 
 cwd = Path(__file__).parent
@@ -28,7 +28,7 @@ def test_fc_basis_set_o2():
     positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
     numbers = [1, 1]
     supercell = PhonopyAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
-    sbs = FCBasisSetO2(supercell, log_level=1).run()
+    sbs = FCBasisSetO2Slow(supercell, log_level=1).run()
     basis = _convert_basis_set_o2_matrix_form(sbs)
     np.testing.assert_allclose(basis[0], basis_ref, atol=1e-6)
     assert np.linalg.norm(basis[0]) == pytest.approx(1.0)
@@ -43,7 +43,7 @@ def test_fc2_NaCl_222(ph_nacl_222: Phonopy):
 
 
     """
-    basis_set = FCBasisSetO2(ph_nacl_222.supercell, log_level=1).run()
+    basis_set = FCBasisSetO2Slow(ph_nacl_222.supercell, log_level=1).run()
     ph = phonopy.load(cwd / ".." / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
     f = ph.dataset["forces"]
     d = ph.dataset["displacements"]
@@ -88,7 +88,7 @@ def test_fc2_NaCl_222(ph_nacl_222: Phonopy):
 def test_fc2_NaCl_222_wrt_ALM(ph_nacl_222: Phonopy, is_compact_fc: bool):
     _ = _compare_fc2_with_alm(
         cwd / ".." / "phonopy_NaCl_222_rd.yaml.xz",
-        FCBasisSetO2(ph_nacl_222.supercell, log_level=1),
+        FCBasisSetO2Slow(ph_nacl_222.supercell, log_level=1),
         is_compact_fc=is_compact_fc,
     )
 
@@ -102,7 +102,7 @@ def test_fc2_SnO2_223_wrt_ALM(ph_sno2_223: Phonopy, is_compact_fc: bool):
     """
     _ = _compare_fc2_with_alm(
         cwd / ".." / "phonopy_SnO2_223_rd.yaml.xz",
-        FCBasisSetO2(ph_sno2_223.supercell, log_level=1),
+        FCBasisSetO2Slow(ph_sno2_223.supercell, log_level=1),
         is_compact_fc=is_compact_fc,
     )
 
@@ -115,7 +115,7 @@ def test_fc2_SnO2_222_wrt_ALM(ph_sno2_222: Phonopy):
     """
     _ = _compare_fc2_with_alm(
         cwd / ".." / "phonopy_SnO2_222_rd.yaml.xz",
-        FCBasisSetO2(ph_sno2_222.supercell, log_level=1),
+        FCBasisSetO2Slow(ph_sno2_222.supercell, log_level=1),
     )
 
 
@@ -128,7 +128,7 @@ def test_fc2_SiO2_222_wrt_ALM(ph_sio2_222: Phonopy):
     """
     _ = _compare_fc2_with_alm(
         cwd / ".." / "phonopy_SiO2_222_rd.yaml.xz",
-        FCBasisSetO2(ph_sio2_222.supercell, log_level=1),
+        FCBasisSetO2Slow(ph_sio2_222.supercell, log_level=1),
     )
     # _write_phonopy_fc_yaml(
     #     "phonopy_SiO2_222_fc.yaml", "phonopy_SiO2_222_rd.yaml.xz", fc_compact
@@ -143,7 +143,7 @@ def test_fc2_SiO2_221_wrt_ALM(ph_sio2_221: Phonopy):
     """
     _ = _compare_fc2_with_alm(
         cwd / ".." / "phonopy_SiO2_221_rd.yaml.xz",
-        FCBasisSetO2(ph_sio2_221.supercell, log_level=1),
+        FCBasisSetO2Slow(ph_sio2_221.supercell, log_level=1),
     )
     # _write_phonopy_fc_yaml(
     #     "phonopy_SiO2_221_fc.yaml", "phonopy_SiO2_221_rd.yaml.xz", fc_compact
@@ -158,7 +158,7 @@ def test_fc2_GaN_442_wrt_ALM(ph_gan_442: Phonopy):
     """
     _ = _compare_fc2_with_alm(
         cwd / ".." / "phonopy_GaN_442_rd.yaml.xz",
-        FCBasisSetO2(ph_gan_442.supercell, log_level=1),
+        FCBasisSetO2Slow(ph_gan_442.supercell, log_level=1),
     )
     # _write_phonopy_fc_yaml(
     #     "phonopy_GaN_442_fc.yaml", "phonopy_GaN_442_rd.yaml.xz", fc_compact
@@ -174,7 +174,7 @@ def test_fc2_GaN_222_wrt_ALM(ph_gan_222: Phonopy, is_compact_fc: bool):
     """
     _ = _compare_fc2_with_alm(
         cwd / ".." / "phonopy_GaN_222_rd.yaml.xz",
-        FCBasisSetO2(ph_gan_222.supercell, log_level=1),
+        FCBasisSetO2Slow(ph_gan_222.supercell, log_level=1),
         is_compact_fc=is_compact_fc,
     )
     # _write_phonopy_fc_yaml(
@@ -185,20 +185,20 @@ def test_fc2_GaN_222_wrt_ALM(ph_gan_222: Phonopy, is_compact_fc: bool):
 def test_full_basis_set_o2_NaCl222_wrt_ALM(ph_nacl_222: Phonopy):
     _ = _full_basis_set_o2_compare_with_alm(
         cwd / ".." / "phonopy_NaCl_222_rd.yaml.xz",
-        FCBasisSetO2(ph_nacl_222.supercell, log_level=1),
+        FCBasisSetO2Slow(ph_nacl_222.supercell, log_level=1),
     )
 
 
 def test_full_basis_set_o2_SnO2_223_wrt_ALM(ph_sno2_223: Phonopy):
     _ = _full_basis_set_o2_compare_with_alm(
         cwd / ".." / "phonopy_SnO2_223_rd.yaml.xz",
-        FCBasisSetO2(ph_sno2_223.supercell, log_level=1),
+        FCBasisSetO2Slow(ph_sno2_223.supercell, log_level=1),
     )
 
 
 def _compare_fc2_with_alm(
     filename: Path,
-    fc_basis_set: FCBasisSetO2,
+    fc_basis_set: FCBasisSetO2Slow,
     is_compact_fc: bool = True,
 ) -> np.ndarray:
     pytest.importorskip("alm")
@@ -216,7 +216,7 @@ def _compare_fc2_with_alm(
 
 def _full_basis_set_o2_compare_with_alm(
     filename: Path,
-    fc_basis_set: FCBasisSetO2,
+    fc_basis_set: FCBasisSetO2Slow,
 ):
     """This is the test for FCBasisSetO2.full_basis_set."""
     pytest.importorskip("alm")
@@ -249,7 +249,9 @@ def _write_phonopy_fc_yaml(output_filename, input_filename, fc_compact):
     ph.save(output_filename, settings=save_settings)
 
 
-def _convert_basis_set_o2_matrix_form(basis_set_o2: FCBasisSetO2) -> list[np.ndarray]:
+def _convert_basis_set_o2_matrix_form(
+    basis_set_o2: FCBasisSetO2Slow,
+) -> list[np.ndarray]:
     """Convert basis set to matrix form (n_bases, 3N, 3N)."""
     trans_perms = basis_set_o2.translation_permutations
     N = trans_perms.shape[1]

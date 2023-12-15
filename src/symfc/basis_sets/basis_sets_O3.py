@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import time
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 from phonopy.structure.atoms import PhonopyAtoms
-from scipy.sparse import csc_array, csr_array
+from scipy.sparse import coo_array, csc_array, csr_array
 
 from symfc.spg_reps import SpgRepsO3
 from symfc.utils.eig_tools import (
@@ -24,6 +24,11 @@ from symfc.utils.utils_O3 import (
 )
 
 from .basis_sets_base import FCBasisSetBase
+
+
+def print_sp_matrix_size(c: Union[csr_array, coo_array], header: str):
+    """Show sparse matrix size."""
+    print(header, c.shape, len(c.data))
 
 
 class FCBasisSetO3(FCBasisSetBase):
@@ -65,9 +70,8 @@ class FCBasisSetO3(FCBasisSetBase):
             Log level. Default is 0.
 
         """
-        super().__init__(supercell, log_level=log_level)
+        super().__init__(supercell, use_mkl=use_mkl, log_level=log_level)
         self._spg_reps = SpgRepsO3(supercell)
-        self._use_mkl = use_mkl
 
     @property
     def basis_set(self) -> Optional[csr_array]:
@@ -115,15 +119,8 @@ class FCBasisSetO3(FCBasisSetBase):
         """Return compression matrix."""
         return self._compression_matrix
 
-    def run(self, use_mkl: bool = False) -> FCBasisSetO3:
-        """Compute compressed force constants basis set.
-
-        Parameters
-        ----------
-        use_mkl : bool
-
-
-        """
+    def run(self) -> FCBasisSetO3:
+        """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
         N = self._natom
 
@@ -142,7 +139,7 @@ class FCBasisSetO3(FCBasisSetBase):
         compress_mat = self._get_total_compr_matrix(c_trans, c_pt, coset_reps_sum)
         tt5 = time.time()
 
-        proj = compressed_projector_sum_rules(compress_mat, N, use_mkl=use_mkl)
+        proj = compressed_projector_sum_rules(compress_mat, N, use_mkl=self._use_mkl)
         print_sp_matrix_size(proj, " P_(perm,trans,coset,sum):")
         tt6 = time.time()
 
@@ -229,8 +226,3 @@ class FCBasisSetO3(FCBasisSetBase):
         compress_mat = dot_product_sparse(c_trans, compress_mat, use_mkl=self._use_mkl)
         print_sp_matrix_size(compress_mat, " compression matrix:")
         return compress_mat
-
-
-def print_sp_matrix_size(c, header):
-    """Show sparse matrix size."""
-    print(header, c.shape, len(c.data))
