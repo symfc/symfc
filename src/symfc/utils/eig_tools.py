@@ -16,10 +16,11 @@ def dot_product_sparse(
     A: csr_array,
     B: csr_array,
     use_mkl: bool = False,
+    dense: bool = False,
 ) -> csr_array:
     """Compute dot-product of sparse matrices."""
     if use_mkl:
-        return dot_product_mkl(A, B)
+        return dot_product_mkl(A, B, dense=dense)
     return A @ B
 
 
