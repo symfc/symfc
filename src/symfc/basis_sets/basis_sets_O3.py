@@ -110,6 +110,11 @@ class FCBasisSetO3(FCBasisSetBase):
         compress_mat = self.get_compr_mat_naNN333_or_NNN333(full_matrix=True)
         return dot_product_sparse(csc_array(compress_mat), csc_array(self._basis_set))
 
+    @property
+    def compression_matrix(self) -> Optional[csr_array]:
+        """Return compression matrix."""
+        return self._compression_matrix
+
     def run(self, use_mkl: bool = False) -> FCBasisSetO3:
         """Compute compressed force constants basis set.
 
@@ -155,6 +160,7 @@ class FCBasisSetO3(FCBasisSetBase):
         # print('  t (reconstruction)      = ', tt8-tt7)
 
         self._basis_set = eigvecs
+        self._compression_matrix = compress_mat
 
         return self
 
@@ -164,10 +170,10 @@ class FCBasisSetO3(FCBasisSetBase):
         c_trans = get_lat_trans_compr_matrix_O3(trans_perms)
         c_pt = self._get_perm_trans_compr_matrix(c_trans, self._natom)
         coset_reps_sum = get_compr_coset_reps_sum_O3(self._spg_reps)
-        proj_rpt = dot_product_sparse(coset_reps_sum, c_pt)
-        proj_rpt = dot_product_sparse(c_pt.T, proj_rpt)
+        proj_rpt = dot_product_sparse(coset_reps_sum, c_pt, use_mkl=self._use_mkl)
+        proj_rpt = dot_product_sparse(c_pt.T, proj_rpt, use_mkl=self._use_mkl)
         c_rpt = eigsh_projector(proj_rpt)
-        compress_mat = dot_product_sparse(c_pt, c_rpt, self._use_mkl)
+        compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
         if full_matrix:
             compress_mat = dot_product_sparse(
                 c_trans, compress_mat, use_mkl=self._use_mkl
