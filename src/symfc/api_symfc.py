@@ -7,7 +7,7 @@ from typing import Optional, Union
 import numpy as np
 from phonopy.structure.atoms import PhonopyAtoms
 
-from symfc.basis_sets import FCBasisSetBase, FCBasisSetO2
+from symfc.basis_sets import FCBasisSetBase, FCBasisSetO2Slow
 from symfc.solvers import FCSolverO2
 
 
@@ -100,7 +100,7 @@ class Symfc:
     def compute_basis_set(self, order: int):
         """Set order of force constants."""
         if order == 2:
-            basis_set_o2 = FCBasisSetO2(
+            basis_set_o2 = FCBasisSetO2Slow(
                 self._supercell, log_level=self._log_level
             ).run()
             self._basis_set[2] = basis_set_o2
@@ -117,7 +117,7 @@ class Symfc:
         self._check_dataset()
         for order in orders:
             if order == 2:
-                basis_set: FCBasisSetO2 = self._basis_set[2]
+                basis_set: FCBasisSetO2Slow = self._basis_set[2]
                 solver = FCSolverO2(
                     basis_set.basis_set,
                     basis_set.translation_permutations,

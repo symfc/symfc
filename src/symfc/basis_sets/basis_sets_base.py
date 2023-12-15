@@ -16,6 +16,7 @@ class FCBasisSetBase(ABC):
     def __init__(
         self,
         supercell: PhonopyAtoms,
+        use_mkl: bool = False,
         log_level: int = 0,
     ):
         """Init method.
@@ -29,6 +30,7 @@ class FCBasisSetBase(ABC):
 
         """
         self._natom = len(supercell)
+        self._use_mkl = use_mkl
         self._log_level = log_level
         self._basis_set: Optional[np.ndarray] = None
         self._spg_reps: Optional[SpgRepsBase] = None

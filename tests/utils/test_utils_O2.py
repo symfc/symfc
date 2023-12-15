@@ -6,17 +6,17 @@ from phonopy.structure.atoms import PhonopyAtoms
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.utils_O2 import (
     _get_atomic_lat_trans_decompr_indices,
-    _get_lat_trans_compr_matrix,
-    _get_perm_compr_matrix,
     _get_perm_compr_matrix_reference,
     get_lat_trans_compr_indices,
+    get_lat_trans_compr_matrix,
     get_lat_trans_decompr_indices,
+    get_perm_compr_matrix,
 )
 
 
 def test_get_perm_compr_matrix():
     """Test of get_perm_compr_matrix."""
-    C1 = _get_perm_compr_matrix(8)
+    C1 = get_perm_compr_matrix(8)
     C2 = _get_perm_compr_matrix_reference(8)
     np.testing.assert_array_almost_equal((C1 @ C1.T).toarray(), (C2 @ C2.T).toarray())
     np.testing.assert_array_almost_equal((C1.T @ C1).toarray(), (C2.T @ C2).toarray())
@@ -648,7 +648,7 @@ def test_get_lat_trans_compr_indices(cell_nacl_111: PhonopyAtoms):
     assert trans_perms.shape == (4, 8)
     check_trans_perms(trans_perms, trans_perms_ref)
     decompr_mat = get_lat_trans_decompr_indices(trans_perms_ref)
-    compr_mat = _get_lat_trans_compr_matrix(decompr_mat, N, n_lp).toarray()
+    compr_mat = get_lat_trans_compr_matrix(decompr_mat, N, n_lp).toarray()
     compr_idx = get_lat_trans_compr_indices(trans_perms_ref)
     for c, elem_idx in enumerate(compr_idx):
         for r in elem_idx:
