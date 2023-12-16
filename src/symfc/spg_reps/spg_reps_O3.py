@@ -2,21 +2,21 @@
 from __future__ import annotations
 
 import numpy as np
-from phonopy.structure.atoms import PhonopyAtoms
 from scipy.sparse import csr_array
 
 from symfc.spg_reps import SpgRepsBase
+from symfc.utils.utils import SymfcAtoms
 
 
 class SpgRepsO3(SpgRepsBase):
     """Class of reps of space group operations for fc3."""
 
-    def __init__(self, supercell: PhonopyAtoms):
+    def __init__(self, supercell: SymfcAtoms):
         """Init method.
 
         Parameters
         ----------
-        supercell : PhonopyAtoms
+        supercell : SymfcAtoms
             Supercell.
 
         """

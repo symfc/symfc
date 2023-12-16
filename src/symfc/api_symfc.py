@@ -5,10 +5,10 @@ from collections.abc import Sequence
 from typing import Optional, Union
 
 import numpy as np
-from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.basis_sets import FCBasisSetBase, FCBasisSetO2Slow
 from symfc.solvers import FCSolverO2
+from symfc.utils.utils import SymfcAtoms
 
 
 class Symfc:
@@ -16,14 +16,14 @@ class Symfc:
 
     def __init__(
         self,
-        supercell: PhonopyAtoms,
+        supercell: SymfcAtoms,
         displacements: Optional[np.ndarray] = None,
         forces: Optional[np.ndarray] = None,
         orders: Optional[Sequence[int]] = None,
         log_level: int = 0,
     ):
         """Init method."""
-        self._supercell: PhonopyAtoms = supercell
+        self._supercell: SymfcAtoms = supercell
         self._displacements: Optional[np.ndarray] = displacements
         self._forces: Optional[np.ndarray] = forces
         self._log_level = log_level

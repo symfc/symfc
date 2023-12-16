@@ -5,9 +5,9 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 import numpy as np
-from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.spg_reps import SpgRepsBase
+from symfc.utils.utils import SymfcAtoms
 
 
 class FCBasisSetBase(ABC):
@@ -15,7 +15,7 @@ class FCBasisSetBase(ABC):
 
     def __init__(
         self,
-        supercell: PhonopyAtoms,
+        supercell: SymfcAtoms,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -23,7 +23,7 @@ class FCBasisSetBase(ABC):
 
         Parameters
         ----------
-        supercell : PhonopyAtoms
+        supercell : SymfcAtoms
             Supercell.
         log_level : int, optional
             Log level. Default is 0.
