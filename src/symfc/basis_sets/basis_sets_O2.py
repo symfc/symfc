@@ -6,7 +6,6 @@ from typing import Optional, Union
 
 import numpy as np
 import scipy
-from phonopy.structure.atoms import PhonopyAtoms
 from scipy.sparse import coo_array, csr_array
 
 from symfc.spg_reps import SpgRepsO2
@@ -16,6 +15,7 @@ from symfc.utils.eig_tools import (
     eigsh_projector_sumrule,
 )
 from symfc.utils.matrix_tools_O2 import compressed_projector_sum_rules
+from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O2 import (
     get_compr_coset_reps_sum,
     get_lat_trans_compr_indices,
@@ -58,14 +58,14 @@ class FCBasisSetO2Slow(FCBasisSetBase):
 
     def __init__(
         self,
-        supercell: PhonopyAtoms,
+        supercell: SymfcAtoms,
         log_level: int = 0,
     ):
         """Init method.
 
         Parameters
         ----------
-        supercell : PhonopyAtoms
+        supercell : SymfcAtoms
             Supercell.
         log_level : int, optional
             Log level. Default is 0.
@@ -218,7 +218,7 @@ class FCBasisSetO2(FCBasisSetBase):
 
     def __init__(
         self,
-        supercell: PhonopyAtoms,
+        supercell: SymfcAtoms,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -226,7 +226,7 @@ class FCBasisSetO2(FCBasisSetBase):
 
         Parameters
         ----------
-        supercell : PhonopyAtoms
+        supercell : SymfcAtoms
             Supercell.
         log_level : int, optional
             Log level. Default is 0.

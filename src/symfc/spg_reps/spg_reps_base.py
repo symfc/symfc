@@ -5,19 +5,19 @@ from typing import Optional
 
 import numpy as np
 import spglib
-from phonopy.structure.atoms import PhonopyAtoms
-from phonopy.structure.cells import compute_all_sg_permutations
+
+from symfc.utils.utils import SymfcAtoms, compute_sg_permutations
 
 
 class SpgRepsBase:
     """Base class of reps of space group operations."""
 
-    def __init__(self, supercell: PhonopyAtoms):
+    def __init__(self, supercell: SymfcAtoms):
         """Init method.
 
         Parameters
         ----------
-        supercell : PhonopyAtoms
+        supercell : SymfcAtoms
             Supercell.
 
         """
@@ -50,21 +50,19 @@ class SpgRepsBase:
 
     def _prepare(self) -> np.ndarray:
         rotations, translations = self._get_symops()
-        self._permutations = compute_all_sg_permutations(
-            self._positions, rotations, translations, self._lattice.T, 1e-5
-        )
-        self._translation_permutations = self._get_translation_permutations(
-            self._permutations, rotations
-        )
         (
             self._unique_rotation_indices,
             self._unique_rotations,
         ) = self._get_unique_rotation_indices(rotations)
+        self._permutations = compute_sg_permutations(
+            self._positions, rotations, translations, self._lattice.T, 1e-5
+        )
+        self._translation_permutations = self._get_translation_permutations(rotations)
 
-    def _get_translation_permutations(self, permutations, rotations) -> np.ndarray:
+    def _get_translation_permutations(self, rotations) -> np.ndarray:
         eye3 = np.eye(3, dtype=int)
         trans_perms = []
-        for r, perm in zip(rotations, permutations):
+        for r, perm in zip(rotations, self._permutations):
             if np.array_equal(r, eye3):
                 trans_perms.append(perm)
         return np.array(trans_perms, dtype="intc", order="C")

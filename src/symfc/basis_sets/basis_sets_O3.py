@@ -5,7 +5,6 @@ import time
 from typing import Optional, Union
 
 import numpy as np
-from phonopy.structure.atoms import PhonopyAtoms
 from scipy.sparse import coo_array, csc_array, csr_array
 
 from symfc.spg_reps import SpgRepsO3
@@ -18,6 +17,7 @@ from symfc.utils.matrix_tools_O3 import (
     compressed_projector_sum_rules,
     get_perm_compr_matrix_O3,
 )
+from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O3 import (
     get_compr_coset_reps_sum_O3,
     get_lat_trans_compr_matrix_O3,
@@ -56,7 +56,7 @@ class FCBasisSetO3(FCBasisSetBase):
 
     def __init__(
         self,
-        supercell: PhonopyAtoms,
+        supercell: SymfcAtoms,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -64,7 +64,7 @@ class FCBasisSetO3(FCBasisSetBase):
 
         Parameters
         ----------
-        supercell : PhonopyAtoms
+        supercell : SymfcAtoms
             Supercell.
         log_level : int, optional
             Log level. Default is 0.
