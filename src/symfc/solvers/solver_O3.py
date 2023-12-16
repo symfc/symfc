@@ -176,33 +176,6 @@ def run_solver_sparse_O3(
     return coefs
 
 
-def run_solver_sparse_approx_O3(
-    disps, forces, compress_mat, compress_eigvecs, batch_size=200, use_mkl=False
-):
-    """Approximately estimating coeffs. in X @ coeffs = y.
-
-    X = displacements @ compress_mat @ compress_eigvecs
-    Matrix reshapings are appropriately applied.
-    X: features (n_samples * N3, N_basis)
-    y: observations (forces), (n_samples * N3)
-
-    1. Solving (X_approx.T @ X_approx) @ coeffs_approx = X_approx.T @ y
-        X_approx = displacements @ compress_mat
-        Matrix reshapings are appropriately applied.
-        X_approx: features (n_samples * N3, N_compr)
-
-    2. Estimating coeffs. in compress_eigvecs @ coefs = coefs_approx
-        compress_eigvecs: (N_compr, N_basis)
-
-    """
-    XTX, XTy = _get_training_approx(
-        disps, forces, compress_mat, batch_size=batch_size, use_mkl=use_mkl
-    )
-    coefs = solve_linear_equation(XTX, XTy)
-    coefs = fit(compress_eigvecs, coefs)
-    return coefs
-
-
 def csr_NNN333_to_NN33N3(mat, N):
     """Reorder row indices in a sparse matrix (NNN333->NN33N3).
 
@@ -306,77 +279,33 @@ def _get_training_exact(
     N3 = disps.shape[1]
     N = N3 // 3
     NN33 = N3 * N3
-    n_basis = compress_eigvecs.shape[1]
     n_compr = compress_mat.shape[1]
 
     t1 = time.time()
-    compress_mat = csr_NNN333_to_NN33N3(compress_mat, N).reshape((NN33, -1)).tocsr()
+    compress_mat = (
+        -0.5 * csr_NNN333_to_NN33N3(compress_mat, N).reshape((NN33, -1)).tocsr()
+    )
     t2 = time.time()
     print(" reshape(compr):   ", t2 - t1)
 
     sparse_disps = True if use_mkl else False
-    begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
-    XTX = np.zeros((n_basis, n_basis), dtype=float)
-    XTy = np.zeros(n_basis, dtype=float)
-    for begin, end in zip(begin_batch, end_batch):
-        t01 = time.time()
-        disps_batch = set_2nd_disps(disps[begin:end], sparse=sparse_disps)
-        X = (
-            dot_product_sparse(
-                disps_batch, compress_mat, use_mkl=use_mkl, dense=True
-            ).reshape((-1, n_compr))
-            @ compress_eigvecs
-        )
-        y = -2 * forces[begin:end].reshape(-1)
-        XTX += X.T @ X
-        XTy += X.T @ y
-        t02 = time.time()
-        print(" solver_block:", end, ":, t =", t02 - t01)
-    t3 = time.time()
-    print(" (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):", t3 - t2)
-    return XTX, XTy
-
-
-def _get_training_approx(disps, forces, compress_mat, batch_size=200, use_mkl=False):
-    r"""Calculate X.T @ X and X.T @ y.
-
-    X = displacements @ compress_mat
-
-    displacements: (n_samples, NN33)
-    compress_mat: (NNN333, n_compr)
-    Matrix reshapings are appropriately applied to compress_mat
-    and its products.
-
-    X.T @ X and X.T @ y are sequentially calculated using divided dataset.
-        X.T @ X = \sum_i X_i.T @ X_i
-        X.T @ y = \sum_i X_i.T @ y_i (i: batch index)
-
-    """
-    N3 = disps.shape[1]
-    N = N3 // 3
-    NN33 = N3 * N3
-    n_compr = compress_mat.shape[1]
-
-    t1 = time.time()
-    compress_mat = csr_NNN333_to_NN33N3(compress_mat, N).reshape((NN33, -1)).tocsr()
-    t2 = time.time()
-    print(" reshape(compr):   ", t2 - t1)
-
-    sparse_disps = True if use_mkl else False
-    begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
     XTX = np.zeros((n_compr, n_compr), dtype=float)
     XTy = np.zeros(n_compr, dtype=float)
+    begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
     for begin, end in zip(begin_batch, end_batch):
         t01 = time.time()
         disps_batch = set_2nd_disps(disps[begin:end], sparse=sparse_disps)
         X = dot_product_sparse(
             disps_batch, compress_mat, use_mkl=use_mkl, dense=True
         ).reshape((-1, n_compr))
-        y = -2 * forces[begin:end].reshape(-1)
+        y_batch = forces[begin:end].reshape(-1)
         XTX += X.T @ X
-        XTy += X.T @ y
+        XTy += X.T @ y_batch
         t02 = time.time()
         print(" solver_block:", end, ":, t =", t02 - t01)
+
+    XTX = compress_eigvecs.T @ XTX @ compress_eigvecs
+    XTy = compress_eigvecs.T @ XTy
     t3 = time.time()
-    print(" (disp @ compr).T @ (disp @ compr):  ", t3 - t2)
+    print(" (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):", t3 - t2)
     return XTX, XTy
