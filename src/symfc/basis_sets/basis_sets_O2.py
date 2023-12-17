@@ -1,12 +1,11 @@
 """Symmetry adapted basis sets of 2nd order force constants."""
 from __future__ import annotations
 
-import time
-from typing import Optional, Union
+from typing import Optional
 
 import numpy as np
 import scipy
-from scipy.sparse import coo_array, csr_array
+from scipy.sparse import csr_array
 
 from symfc.spg_reps import SpgRepsO2
 from symfc.utils.eig_tools import (
@@ -28,12 +27,39 @@ from symfc.utils.utils_O2 import (
 from .basis_sets_base import FCBasisSetBase
 
 
-def print_sp_matrix_size(c: Union[csr_array, coo_array], header: str):
-    """Show sparse matrix size."""
-    print(header, c.shape, len(c.data))
+class FCBasisSetO2Base(FCBasisSetBase):
+    """Base class of FCBasisSetO2."""
+
+    def __init__(
+        self,
+        supercell: SymfcAtoms,
+        use_mkl: bool = False,
+        log_level: int = 0,
+    ):
+        """Init method.
+
+        Parameters
+        ----------
+        supercell : SymfcAtoms
+            Supercell.
+        use_mkl : bool
+            Use MKL or not. Default is False.
+        log_level : int, optional
+            Log level. Default is 0.
+
+        """
+        super().__init__(supercell, use_mkl=use_mkl, log_level=log_level)
+        self._spg_reps = SpgRepsO2(supercell)
+
+    def _get_c_trans(self) -> csr_array:
+        trans_perms = self._spg_reps.translation_permutations
+        n_lp, N = trans_perms.shape
+        decompr_idx = get_lat_trans_decompr_indices(trans_perms)
+        c_trans = get_lat_trans_compr_matrix(decompr_idx, N, n_lp)
+        return c_trans
 
 
-class FCBasisSetO2Slow(FCBasisSetBase):
+class FCBasisSetO2Slow(FCBasisSetO2Base):
     """Symmetry adapted basis set for 2nd order force constants.
 
     Attributes
@@ -97,6 +123,25 @@ class FCBasisSetO2Slow(FCBasisSetBase):
         if self._basis_set is None:
             return None
         return self._basis_set[self.decompression_indices, :]
+
+    @property
+    def compact_compression_matrix(self) -> Optional[csr_array]:
+        """Return compression matrix.
+
+        This expands fc basis_sets to (n_a*N*3*3, n_bases).
+
+        """
+        return 1
+
+    @property
+    def compression_matrix(self) -> Optional[csr_array]:
+        """Return compression matrix.
+
+        This expands fc basis_sets to (N*N*3*3, n_bases).
+
+        """
+        n_lp = self.translation_permutations.shape[0]
+        return self._get_c_trans() * np.sqrt(n_lp)
 
     @property
     def decompression_indices(self) -> np.ndarray:
@@ -198,7 +243,7 @@ class FCBasisSetO2Slow(FCBasisSetBase):
         self._basis_set = U
 
 
-class FCBasisSetO2(FCBasisSetBase):
+class FCBasisSetO2(FCBasisSetO2Base):
     """Dense symmetry adapted basis set for 2nd order force constants.
 
     Attributes
@@ -234,6 +279,7 @@ class FCBasisSetO2(FCBasisSetBase):
         """
         super().__init__(supercell, use_mkl=use_mkl, log_level=log_level)
         self._spg_reps = SpgRepsO2(supercell)
+        self._n_a_compression_matrix: Optional[csr_array] = None
 
     @property
     def basis_set(self) -> Optional[np.ndarray]:
@@ -250,6 +296,21 @@ class FCBasisSetO2(FCBasisSetBase):
         return self._basis_set
 
     @property
+    def compact_basis_set(self) -> Optional[np.ndarray]:
+        """Return compact basis set.
+
+        shape=(n_a*N*3*3, n_bases), dtype='double'.
+
+        Data in first dimension is ordered by (n_a,N,3,3).
+
+        """
+        if self._basis_set is None:
+            return None
+        return dot_product_sparse(
+            self._n_a_compression_matrix, self._basis_set, use_mkl=self._use_mkl
+        )
+
+    @property
     def full_basis_set(self) -> Optional[np.ndarray]:
         """Return full (decompressed) basis set.
 
@@ -260,89 +321,85 @@ class FCBasisSetO2(FCBasisSetBase):
         """
         if self._basis_set is None:
             return None
-        return self._basis_set[self.decompression_indices, :]
+        return dot_product_sparse(
+            self.compression_matrix, self._basis_set, use_mkl=self._use_mkl
+        )
 
     @property
     def compression_matrix(self) -> Optional[csr_array]:
-        """Return compression matrix."""
-        return self._compression_matrix
+        """Return compression matrix.
 
-    def run(self):
-        """Compute compressed force constants basis set."""
-        tt_begin = time.time()
-        trans_perms = self._spg_reps.translation_permutations
-        n_lp, N = trans_perms.shape
-
-        tt00 = time.time()
-        """C(permutation)"""
-        c_perm = get_perm_compr_matrix(N)
-        print_sp_matrix_size(c_perm, " C_perm:")
-        tt0 = time.time()
-
-        """C(trans)"""
-        decompr_idx = get_lat_trans_decompr_indices(trans_perms)
-        c_trans = get_lat_trans_compr_matrix(decompr_idx, N, n_lp)
-        print_sp_matrix_size(c_trans, " C_trans:")
-        tt1 = time.time()
-
-        """C(pt) = C(perm).T @ C(trans)"""
-        c_pt = dot_product_sparse(c_perm.T, c_trans, use_mkl=self._use_mkl)
-        print_sp_matrix_size(c_pt, " C_(perm,trans):")
-        proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=self._use_mkl)
-        print_sp_matrix_size(proj_pt, " P_(perm,trans):")
-        tt2 = time.time()
-
-        coset_reps_sum = get_compr_coset_reps_sum(self._spg_reps)
-        print_sp_matrix_size(coset_reps_sum, " R_(coset):")
-        tt3 = time.time()
+        This expands fc basis_sets to (N*N*3*3, n_bases).
 
         """
+        c_trans = self._get_c_trans()
+        return dot_product_sparse(
+            c_trans, self._n_a_compression_matrix, use_mkl=self._use_mkl
+        )
+
+    @property
+    def compact_compression_matrix(self) -> Optional[csr_array]:
+        """Return compact compression matrix.
+
+        This expands basis_sets to (n_a*N*3*3, n_bases).
+
+        """
+        n_lp = self.translation_permutations.shape[0]
+        return self._n_a_compression_matrix / np.sqrt(n_lp)
+
+    def run(self) -> FCBasisSetO2:
+        """Compute compressed force constants basis set.
+
         compression using C(pt)
             = eigvecs of C(trans).T @ C(perm) @ C(perm).T @ C(trans)
         proj_rpt = c_pt.transpose() @ coset_reps_sum @ c_pt
-        """
-        c_pt = eigsh_projector(proj_pt)
-        print_sp_matrix_size(c_pt, " C_(perm,trans,compressed):")
 
-        proj_rpt = dot_product_sparse(coset_reps_sum, c_pt, use_mkl=self._use_mkl)
-        proj_rpt = dot_product_sparse(c_pt.T, proj_rpt)
-        print_sp_matrix_size(proj_rpt, " P_(perm,trans,coset):")
-        tt4 = time.time()
-
-        c_rpt = eigsh_projector(proj_rpt)
-        print_sp_matrix_size(c_rpt, " C_(perm,trans,coset):")
-        tt5 = time.time()
-
-        """
         [C_pt @ C_trans.T] @ P_sum @ [C_trans @ C_pt] @ C_rpt
          = C_rpt @ [C_rpt.T @ C_pt @ C_trans.T] @ P_sum @ [C_trans @ C_pt @ C_rpt]
          = C_rpt @ compression_mat.T @ (I - P_sum^(c)) @ compression_mat
          = C_rpt @ compression_mat.T @ (I - Csum(c) @ Csum(c).T) @ compression_mat
          = C_rpt @ proj
-            compress_mat = c_trans @ c_pt @ c_rpt
+
+        compress_mat = c_trans @ c_pt @ c_rpt
+
         """
-        compress_mat = dot_product_sparse(c_trans, c_pt, use_mkl=self._use_mkl)
-        compress_mat = dot_product_sparse(compress_mat, c_rpt, use_mkl=self._use_mkl)
-        print_sp_matrix_size(compress_mat, " compression matrix:")
-
+        N = self._natom
+        c_trans = self._get_c_trans()
+        n_a_compress_mat = self._get_n_a_compress_mat(c_trans)
+        compress_mat = dot_product_sparse(
+            c_trans, n_a_compress_mat, use_mkl=self._use_mkl
+        )
         proj = compressed_projector_sum_rules(compress_mat, N, use_mkl=self._use_mkl)
-        print_sp_matrix_size(proj, " P_(perm,trans,coset,sum):")
-        tt6 = time.time()
-
         eigvecs = eigsh_projector_sumrule(proj)
-        tt7 = time.time()
-        print(" basis (size) =", eigvecs.shape)
 
-        print("  t (spg_reps)            = ", tt00 - tt_begin)
-        print("  t (init., perm)         = ", tt0 - tt00)
-        print("  t (init., trans)        = ", tt1 - tt0)
-        print("  t (dot, trans, perm)    = ", tt2 - tt1)
-        print("  t (coset_reps_sum)      = ", tt3 - tt2)
-        print("  t (dot, coset_reps_sum) = ", tt4 - tt3)
-        print("  t (rot, trans, perm)    = ", tt5 - tt4)
-        print("  t (proj_st)             = ", tt6 - tt5)
-        print("  t (eigh(svd))           = ", tt7 - tt6)
+        if self._log_level:
+            print(f"Final size of basis set: {eigvecs.shape}")
 
         self._basis_set = eigvecs
-        self._compression_matrix = compress_mat
+        self._n_a_compression_matrix = n_a_compress_mat
         return self
+
+    def _get_n_a_compress_mat(self, c_trans: csr_array) -> csr_array:
+        """Return compression matrix without c_trans mutiplied.
+
+        This compression matrix is preserved as a class instance variable.
+        The full compression matrix is obtained by
+
+        c_trans @ n_a_compression_matrix.
+
+        The compact compression matrix is obtained by
+
+        n_a_compression_matrix / sqrt(n_lp).
+
+        """
+        N = self._natom
+        c_perm = get_perm_compr_matrix(N)
+        c_pt = dot_product_sparse(c_perm.T, c_trans, use_mkl=self._use_mkl)
+        proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=self._use_mkl)
+        coset_reps_sum = get_compr_coset_reps_sum(self._spg_reps)
+        c_pt = eigsh_projector(proj_pt)
+        proj_rpt = dot_product_sparse(coset_reps_sum, c_pt, use_mkl=self._use_mkl)
+        proj_rpt = dot_product_sparse(c_pt.T, proj_rpt)
+        c_rpt = eigsh_projector(proj_rpt)
+        n_a_compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
+        return n_a_compress_mat

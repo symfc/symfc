@@ -1,10 +1,11 @@
 """2nd order force constants solver."""
 import time
-from typing import Optional, Union
+from typing import Optional
 
 import numpy as np
 from scipy.sparse import csc_array, csr_array
 
+from symfc.basis_sets import FCBasisSetO2Base
 from symfc.utils.eig_tools import dot_product_sparse
 from symfc.utils.utils_O2 import get_lat_trans_decompr_indices
 
@@ -17,17 +18,13 @@ class FCSolverO2(FCSolverBase):
 
     def __init__(
         self,
-        basis_set: np.ndarray,
-        translation_permutations: np.ndarray,
-        compression_matrix: Optional[Union[csr_array, csc_array]] = None,
+        fc_basis_set: FCBasisSetO2Base,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
         """Init method."""
         super().__init__(
-            basis_set,
-            translation_permutations,
-            compression_matrix=compression_matrix,
+            fc_basis_set,
             use_mkl=use_mkl,
             log_level=log_level,
         )
@@ -58,21 +55,33 @@ class FCSolverO2(FCSolverBase):
 
         """
         N = self._natom
-        if self._basis_set is None:
+        if self._fc_basis_set.basis_set is None:
             return None
         assert displacements.shape == forces.shape
-        fc = self._basis_set @ self._get_basis_coeff(displacements, forces)
+        compr_fc = self._fc_basis_set.basis_set @ self._get_basis_coeff(
+            displacements, forces
+        )
         if is_compact_fc:
-            return fc.reshape(-1, N, 3, 3)
-        else:
-            if self._compression_matrix is None:
-                trans_perms = self._translation_permutations
-                decompr_idx = get_lat_trans_decompr_indices(trans_perms)
-                return fc[decompr_idx].reshape(N, N, 3, 3)
+            n_lp = self._fc_basis_set.translation_permutations.shape[0]
+            n_a = N // n_lp
+            if isinstance(self._fc_basis_set.compact_compression_matrix, int):
+                return compr_fc.reshape(n_a, N, 3, 3)
             else:
                 fc = dot_product_sparse(
-                    self._compression_matrix,
-                    csr_array(fc.reshape(-1, 1)),
+                    self._fc_basis_set.compact_compression_matrix,
+                    csr_array(compr_fc.reshape(-1, 1)),
+                    use_mkl=self._use_mkl,
+                )
+                return fc.toarray().reshape(n_a, N, 3, 3)
+        else:
+            if isinstance(self._fc_basis_set.compact_compression_matrix, int):
+                return compr_fc[self._fc_basis_set.decompression_indices].reshape(
+                    N, N, 3, 3
+                )
+            else:
+                fc = dot_product_sparse(
+                    self._fc_basis_set.compression_matrix,
+                    csr_array(compr_fc.reshape(-1, 1)),
                     use_mkl=self._use_mkl,
                 )
                 return fc.toarray().reshape(N, N, 3, 3)
@@ -81,15 +90,17 @@ class FCSolverO2(FCSolverBase):
         self, displacements: np.ndarray, forces: np.ndarray
     ) -> Optional[np.ndarray]:
         N = self._natom
-        if self._basis_set is None:
+        if self._fc_basis_set.basis_set is None:
             return None
         n_snapshot = displacements.shape[0]
         disps = displacements.reshape(n_snapshot, N * 3)
         d_basis = np.zeros(
-            (n_snapshot * N * 3, self._basis_set.shape[1]), dtype="double", order="C"
+            (n_snapshot * N * 3, self._fc_basis_set.basis_set.shape[1]),
+            dtype="double",
+            order="C",
         )
 
-        if self._compression_matrix is None:
+        if isinstance(self._fc_basis_set.compact_compression_matrix, int):
             self._compute_with_trans_perms(d_basis, disps)
         else:
             self._compute_with_compression_matrix(d_basis, disps)
@@ -103,8 +114,8 @@ class FCSolverO2(FCSolverBase):
     def _compute_with_compression_matrix(self, d_basis: np.ndarray, disps: np.ndarray):
         N = self._natom
         full_basis_set = dot_product_sparse(
-            self._compression_matrix,
-            csc_array(self._basis_set),
+            self._fc_basis_set.compression_matrix,
+            csc_array(self._fc_basis_set.basis_set),
             use_mkl=self._use_mkl,
         )
         for i_basis_set in range(full_basis_set.shape[1]):
@@ -116,12 +127,12 @@ class FCSolverO2(FCSolverBase):
 
     def _compute_with_trans_perms(self, d_basis: np.ndarray, disps: np.ndarray):
         N = self._natom
-        trans_perms = self._translation_permutations
+        trans_perms = self._fc_basis_set.translation_permutations
         decompr_idx = get_lat_trans_decompr_indices(trans_perms)
         decompr_array = np.transpose(
             decompr_idx.reshape(N, N, 3, 3), (0, 2, 1, 3)
         ).reshape(N * 3, N * 3)
-        for i, vec in enumerate(self._basis_set.T):
+        for i, vec in enumerate(self._fc_basis_set.basis_set.T):
             d_basis[:, i] = (disps @ vec[decompr_array]).ravel()
 
 

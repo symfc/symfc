@@ -119,8 +119,7 @@ class Symfc:
             if order == 2:
                 basis_set: FCBasisSetO2Slow = self._basis_set[2]
                 solver = FCSolverO2(
-                    basis_set.basis_set,
-                    basis_set.translation_permutations,
+                    basis_set,
                     log_level=self._log_level,
                 )
                 fc2 = solver.solve(
