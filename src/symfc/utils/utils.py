@@ -95,6 +95,10 @@ class SymfcAtoms:
         self._scaled_positions = np.array(scaled_positions, dtype="double")
         self._numbers = np.array(numbers, dtype="intc")
 
+    def __len__(self):
+        """Return number of atoms."""
+        return len(self.numbers)
+
     @property
     def cell(self):
         """Setter and getter of basis vectors. For getter, copy is returned."""
