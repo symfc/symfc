@@ -6,6 +6,7 @@ import numpy as np
 from scipy.sparse import csc_array, csr_array
 
 from symfc.utils.eig_tools import dot_product_sparse
+from symfc.utils.utils_O2 import get_perm_compr_matrix
 
 from .solver_base import FCSolverBase
 from .solver_funcs import fit, get_batch_slice, solve_linear_equation
@@ -282,11 +283,11 @@ def _get_training_exact(
     n_compr = compress_mat.shape[1]
 
     t1 = time.time()
-    compress_mat = (
-        -0.5 * csr_NNN333_to_NN33N3(compress_mat, N).reshape((NN33, -1)).tocsr()
-    )
+    c_perm_fc2 = get_perm_compr_matrix(N)
+    compress_mat = csr_NNN333_to_NN33N3(compress_mat, N).reshape((NN33, -1)).tocsr()
+    compress_mat = -0.5 * (c_perm_fc2.T @ compress_mat)
     t2 = time.time()
-    print(" reshape(compr):   ", t2 - t1)
+    print(" precond. compress_mat (for fc3):", t2 - t1)
 
     sparse_disps = True if use_mkl else False
     XTX = np.zeros((n_compr, n_compr), dtype=float)
@@ -295,6 +296,7 @@ def _get_training_exact(
     for begin, end in zip(begin_batch, end_batch):
         t01 = time.time()
         disps_batch = set_2nd_disps(disps[begin:end], sparse=sparse_disps)
+        disps_batch = disps_batch @ c_perm_fc2
         X = dot_product_sparse(
             disps_batch, compress_mat, use_mkl=use_mkl, dense=True
         ).reshape((-1, n_compr))

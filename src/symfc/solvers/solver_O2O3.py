@@ -4,6 +4,7 @@ import time
 import numpy as np
 
 from symfc.utils.eig_tools import dot_product_sparse
+from symfc.utils.utils_O2 import get_perm_compr_matrix
 
 from .solver_funcs import get_batch_slice, solve_linear_equation
 from .solver_O2 import get_training_from_full_basis
@@ -56,11 +57,13 @@ def get_training_exact(
     print(" training data (fc2):    ", t2 - t1)
 
     t1 = time.time()
+    c_perm_fc2 = get_perm_compr_matrix(N)
     compress_mat_fc3 = (
-        -0.5 * csr_NNN333_to_NN33N3(compress_mat_fc3, N).reshape((NN33, -1)).tocsr()
+        csr_NNN333_to_NN33N3(compress_mat_fc3, N).reshape((NN33, -1)).tocsr()
     )
+    compress_mat_fc3 = -0.5 * (c_perm_fc2.T @ compress_mat_fc3)
     t2 = time.time()
-    print(" reshape (compr_mat_fc3):", t2 - t1)
+    print(" precond. compress_mat (for fc3):", t2 - t1)
 
     sparse_disps = True if use_mkl else False
     mat33 = np.zeros((n_compr_fc3, n_compr_fc3), dtype=float)
@@ -70,6 +73,7 @@ def get_training_exact(
     for begin, end in zip(begin_batch, end_batch):
         t01 = time.time()
         disps_batch = set_2nd_disps(disps[begin:end], sparse=sparse_disps)
+        disps_batch = disps_batch @ c_perm_fc2
         X3 = dot_product_sparse(
             disps_batch, compress_mat_fc3, use_mkl=use_mkl, dense=True
         ).reshape((-1, n_compr_fc3))
