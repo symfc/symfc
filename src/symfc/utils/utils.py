@@ -38,8 +38,8 @@ def compute_sg_permutations(
     rotations: np.ndarray,
     translations: np.ndarray,
     lattice: np.ndarray,
-    symprec: float,
-):
+    symprec: float = 1e-5,
+) -> np.ndarray:
     """Compute permutations of atoms by space group operations in supercell.
 
     This function was originally obtained from the implemention in phonopy. Not
