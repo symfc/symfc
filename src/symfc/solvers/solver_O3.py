@@ -31,7 +31,6 @@ class FCSolverO3(FCSolverBase):
         displacements: np.ndarray,
         forces: np.ndarray,
         compress_mat: Union[csr_array, csc_array],
-        is_compact_fc=True,
     ) -> Optional[np.ndarray]:
         """Solve force constants.
 
@@ -67,7 +66,7 @@ class FCSolverO3(FCSolverBase):
         fc = dot_product_sparse(
             compress_mat, csr_array(basis_set), use_mkl=self._use_mkl
         )
-        return fc.toarray().reshape(N, N, N, 3, 3, 3)
+        return fc.toarray().reshape(-1, N, N, 3, 3, 3)
 
     def _get_basis_mat(self, displacements, compress_mat):
         d_compr_mat = self._get_d_compr_mat(displacements, compress_mat)
@@ -94,7 +93,7 @@ class FCSolverO3(FCSolverBase):
                 dtype="double",
             ).reshape(n_snapshot, -1)
         )
-        compress_mat = self._get_compress_mat_NN33N3(compress_mat)
+        compress_mat = csr_NNN333_to_NN33na3(compress_mat, N)
         print("disp, compress", disp_disps.shape, compress_mat.shape)
         d_compr_mat = dot_product_sparse(
             disp_disps.tocsr(), compress_mat.tocsr(), use_mkl=self._use_mkl
@@ -102,29 +101,6 @@ class FCSolverO3(FCSolverBase):
         d_compr_mat = d_compr_mat.reshape(-1, self._basis_set.shape[0])
         print("d_compr_mat", d_compr_mat.shape, type(d_compr_mat))
         return d_compr_mat
-
-    def _get_compress_mat_NN33N3(self, compress_mat):
-        N = self._natom
-        compress_mat_coo = compress_mat.tocoo()
-        data = compress_mat_coo.data
-        row = compress_mat_coo.row
-        col = compress_mat_coo.col
-
-        NN333 = N * N * 27
-        N333 = N * 27
-        N33 = N * 9
-        N3 = N * 3
-        conversion_array = np.array(
-            [
-                i * NN333 + j * N333 + l * N33 + m * N3 + k * 3 + n
-                for i, j, k, l, m, n in np.ndindex((N, N, N, 3, 3, 3))
-            ],
-            dtype=int,
-        )
-        new_row = conversion_array[row]
-        return csr_array((data, (new_row, col)), shape=compress_mat.shape).reshape(
-            N * N * 3 * 3, -1
-        )
 
 
 def run_solver_dense_O3(disps, forces, compress_mat, compress_eigvecs):
@@ -188,6 +164,45 @@ def csr_NNN333_to_NN33N3(mat, N):
     row = _NNN333_to_NN33N3(mat.row, N)
     mat = csr_array((mat.data, (row, mat.col)), shape=(NNN333, nx))
     return mat
+
+
+def csr_NNN333_to_NN33na3(compress_mat: csr_array, N: int, n_a: Optional[int] = None):
+    """Reorder row indices in a sparse matrix.
+
+    (n,N,N,3,3,3) -> (N,3,N,3,n,3)
+    (i,j,k,a,b,c) -> (j,b,k,c,i,a)
+
+    Return reordered csr_matrix.
+
+    n can be any integer, but it is supporsed to be either N or n_a, where n_a
+    is the number of atoms in primitive cell.
+
+    """
+    compress_mat_coo = compress_mat.tocoo()
+    data = compress_mat_coo.data
+    row = compress_mat_coo.row
+    col = compress_mat_coo.col
+
+    if n_a is None:
+        _N = N
+    else:
+        _N = n_a
+
+    NN333 = N * _N * 27
+    N333 = _N * 27
+    N33 = _N * 9
+    N3 = _N * 3
+    conversion_array = np.array(
+        [
+            j * NN333 + k * N333 + m * N33 + n * N3 + i * 3 + l
+            for i, j, k, l, m, n in np.ndindex((_N, N, N, 3, 3, 3))
+        ],
+        dtype=int,
+    )
+    new_row = conversion_array[row]
+    return csr_array((data, (new_row, col)), shape=compress_mat.shape).reshape(
+        N * N * 3 * 3, -1
+    )
 
 
 def set_2nd_disps(disps, sparse=True):
