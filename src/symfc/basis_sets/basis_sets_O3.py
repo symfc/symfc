@@ -95,9 +95,10 @@ class FCBasisSetO3(FCBasisSetBase):
         Data in first dimension is ordered by (n_a,N,N,3,3,3).
 
         """
-        compress_mat = self.get_compr_mat_naNN333_or_NNN333(full_matrix=False)
+        if self._basis_set is None:
+            return None
         return dot_product_sparse(
-            compress_mat.tocsr(), csc_array(self._basis_set), use_mkl=self._use_mkl
+            self.compact_compression_matrix, self._basis_set, use_mkl=self._use_mkl
         )
 
     @property
@@ -111,13 +112,30 @@ class FCBasisSetO3(FCBasisSetBase):
         """
         if self._basis_set is None:
             return None
-        compress_mat = self.get_compr_mat_naNN333_or_NNN333(full_matrix=True)
-        return dot_product_sparse(csc_array(compress_mat), csc_array(self._basis_set))
+        return dot_product_sparse(self.compression_matrix, self._basis_set)
 
     @property
     def compression_matrix(self) -> Optional[csr_array]:
-        """Return compression matrix."""
-        return self._compression_matrix
+        """Return compression matrix.
+
+        This expands fc basis_sets to (N*N*N*3*3*3, n_bases).
+
+        """
+        trans_perms = self._spg_reps.translation_permutations
+        c_trans = get_lat_trans_compr_matrix_O3(trans_perms)
+        return dot_product_sparse(
+            c_trans, self._n_a_compression_matrix, use_mkl=self._use_mkl
+        )
+
+    @property
+    def compact_compression_matrix(self) -> Optional[csr_array]:
+        """Return compact compression matrix.
+
+        This expands basis_sets to (n_a*N*N*3*3*3, n_bases).
+
+        """
+        n_lp = self.translation_permutations.shape[0]
+        return self._n_a_compression_matrix / np.sqrt(n_lp)
 
     def run(self) -> FCBasisSetO3:
         """Compute compressed force constants basis set."""
@@ -136,7 +154,11 @@ class FCBasisSetO3(FCBasisSetBase):
 
         tt4 = time.time()
 
-        compress_mat = self._get_total_compr_matrix(c_trans, c_pt, coset_reps_sum)
+        n_a_compress_mat = self._get_n_a_compress_mat(c_pt, coset_reps_sum)
+        compress_mat = dot_product_sparse(
+            c_trans, n_a_compress_mat, use_mkl=self._use_mkl
+        )
+        print_sp_matrix_size(compress_mat, " compression matrix:")
         tt5 = time.time()
 
         proj = compressed_projector_sum_rules(compress_mat, N, use_mkl=self._use_mkl)
@@ -157,25 +179,10 @@ class FCBasisSetO3(FCBasisSetBase):
         # print('  t (reconstruction)      = ', tt8-tt7)
 
         self._basis_set = eigvecs
-        self._compression_matrix = compress_mat
+        self._n_a_compression_matrix = n_a_compress_mat
+        # self._compression_matrix = compress_mat
 
         return self
-
-    def get_compr_mat_naNN333_or_NNN333(self, full_matrix=False):
-        """Regenerate compression matrix."""
-        trans_perms = self._spg_reps.translation_permutations
-        c_trans = get_lat_trans_compr_matrix_O3(trans_perms)
-        c_pt = self._get_perm_trans_compr_matrix(c_trans, self._natom)
-        coset_reps_sum = get_compr_coset_reps_sum_O3(self._spg_reps)
-        proj_rpt = dot_product_sparse(coset_reps_sum, c_pt, use_mkl=self._use_mkl)
-        proj_rpt = dot_product_sparse(c_pt.T, proj_rpt, use_mkl=self._use_mkl)
-        c_rpt = eigsh_projector(proj_rpt)
-        compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
-        if full_matrix:
-            compress_mat = dot_product_sparse(
-                c_trans, compress_mat, use_mkl=self._use_mkl
-            )
-        return compress_mat
 
     def _get_perm_trans_compr_matrix(self, c_trans: csr_array, N: int):
         """Return perm trans compression matrix.
@@ -197,11 +204,22 @@ class FCBasisSetO3(FCBasisSetBase):
         print_sp_matrix_size(c_pt, " C_(perm,trans,compressed):")
         return c_pt
 
-    def _get_total_compr_matrix(
-        self, c_trans: csr_array, c_pt: csr_array, coset_reps_sum: csr_array
+    def _get_n_a_compress_mat(
+        self, c_pt: csr_array, coset_reps_sum: csr_array
     ) -> csr_array:
-        """Return compression matrix.
+        """Return compression matrix without c_trans mutiplied.
 
+        This compression matrix is preserved as a class instance variable.
+        The full compression matrix is obtained by
+
+        c_trans @ n_a_compression_matrix.
+
+        The compact compression matrix is obtained by
+
+        n_a_compression_matrix / sqrt(n_lp).
+
+        About compression matrix
+        ------------------------
         compress_mat = c_trans @ c_pt @ c_rpt
 
         c_trans : compression matrix by lattice translations
@@ -222,7 +240,6 @@ class FCBasisSetO3(FCBasisSetBase):
         print_sp_matrix_size(proj_rpt, " P_(perm,trans,coset):")
         c_rpt = eigsh_projector(proj_rpt)
         print_sp_matrix_size(c_rpt, " C_(perm,trans,coset):")
-        compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
-        compress_mat = dot_product_sparse(c_trans, compress_mat, use_mkl=self._use_mkl)
-        print_sp_matrix_size(compress_mat, " compression matrix:")
-        return compress_mat
+        n_a_compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
+        print_sp_matrix_size(n_a_compress_mat, " n_a_compression matrix:")
+        return n_a_compress_mat

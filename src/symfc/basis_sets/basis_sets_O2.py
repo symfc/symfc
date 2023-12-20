@@ -285,12 +285,11 @@ class FCBasisSetO2(FCBasisSetO2Base):
     def basis_set(self) -> Optional[np.ndarray]:
         """Return compressed basis set.
 
-        shape=(n_x*N*3*3, n_bases), dtype='double'.
+        n_c = len(compressed_indices).
 
-        Data in first dimension is ordered by (n_x,N,3,3).
+        shape=(n_c*N*3*3, n_bases), dtype='double'.
 
-        n_x (< n_a) is given as a result of compression, which is depends on the
-        system.
+        Data in first dimension is ordered by (n_c,N,3,3).
 
         """
         return self._basis_set
@@ -298,6 +297,8 @@ class FCBasisSetO2(FCBasisSetO2Base):
     @property
     def compact_basis_set(self) -> Optional[np.ndarray]:
         """Return compact basis set.
+
+        n_a : number of atoms in primitive cell.
 
         shape=(n_a*N*3*3, n_bases), dtype='double'.
 
