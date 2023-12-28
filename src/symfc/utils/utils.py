@@ -42,26 +42,25 @@ def compute_sg_permutations(
 ) -> np.ndarray:
     """Compute permutations of atoms by space group operations in supercell.
 
-    This function was originally obtained from the implemention in phonopy. Not
-    to use the C-implementation, finally it almost looks different
-    implementation by dropping the feature in the original implementation that
-    sorts atoms by distances from the origin for the performance optimization.
+    Permutations of atoms of pure translations and coset representatives are
+    first computed. Then permutations of atoms of all the given space group
+    operations are made as the combitation of these two permutations.
 
     Parameters
     ----------
     positions : ndarray
-        Scaled positions (like SymfcAtoms.scaled_positions) before applying the
-        space group operation
+        Fractional positions (like SymfcAtoms.scaled_positions) before applying
+        the space group operation.
     rotations : ndarray
-        Matrix (rotation) parts of space group operations
+        Matrix (rotation) parts of space group operations.
         shape=(len(operations), 3, 3), dtype='intc'
     translations : ndarray
-        Vector (translation) parts of space group operations
+        Vector (translation) parts of space group operations.
         shape=(len(operations), 3), dtype='double'
     lattice : ndarray
-        Basis vectors in column vectors (like SymfcAtoms.cell.T)
+        Basis vectors in column vectors (like SymfcAtoms.cell.T).
     symprec : float
-        Symmetry tolerance of the distance unit
+        Symmetry tolerance of the distance unit.
 
     Returns
     -------
@@ -69,16 +68,61 @@ def compute_sg_permutations(
         shape=(len(translations), len(positions)), dtype='intc', order='C'
 
     """
-    out = []
-    for sym, t in zip(rotations, translations):
-        rotated_positions = positions @ sym.T + t
+    trans_perms = []
+    pure_trans = []
+    for i, (r, t) in enumerate(zip(rotations, translations)):
+        if (r != np.eye(3, dtype=int)).any():
+            continue
+        trans_positions = positions + t
+        diffs = positions[None, :, :] - trans_positions[:, None, :]
+        diffs -= np.rint(diffs)
+        dists = np.linalg.norm(diffs @ lattice.T, axis=2)
+        rows, cols = np.where(dists < symprec)
+        assert len(positions) == len(np.unique(rows)) == len(np.unique(cols))
+        trans_perms.append(cols[np.argsort(rows)])
+        pure_trans.append(t)
+    trans_perms = np.array(trans_perms, dtype=int)
+    pure_trans = np.array(pure_trans)
+
+    unique_r = []
+    unique_t = []
+    r2ur = []
+    unique_rotated_positions = []
+    for i, (r, t) in enumerate(zip(rotations, translations)):
+        is_found = False
+        for j, ur in enumerate(unique_r):
+            if (r == ur).all():
+                is_found = True
+                r2ur.append(j)
+                break
+        if not is_found:
+            r2ur.append(len(unique_r))
+            unique_r.append(r)
+            unique_t.append(t)
+            unique_rotated_positions.append(positions @ r.T + t)
+
+    unique_rotation_perms = []
+    for i, rotated_positions in enumerate(unique_rotated_positions):
         diffs = positions[None, :, :] - rotated_positions[:, None, :]
         diffs -= np.rint(diffs)
         dists = np.linalg.norm(diffs @ lattice.T, axis=2)
         rows, cols = np.where(dists < symprec)
         assert len(positions) == len(np.unique(rows)) == len(np.unique(cols))
-        out.append(cols[np.argsort(rows)])
-    return np.array(out, dtype="intc", order="C")
+        unique_rotation_perms.append(cols[np.argsort(rows)])
+    unique_rotation_perms = np.array(unique_rotation_perms, dtype=int)
+
+    out = []
+    for i, t in enumerate(translations):
+        perms = unique_rotation_perms[r2ur[i]]
+        lattice_trans = t - unique_t[r2ur[i]]
+        diffs = pure_trans - lattice_trans
+        diffs -= np.rint(diffs)
+        dists = np.linalg.norm(diffs @ lattice.T, axis=1)
+        lat_trans_idx = np.where(dists < symprec)
+        assert len(lat_trans_idx) == 1
+        out.append(trans_perms[lat_trans_idx[0], perms])
+    out = np.array(out, dtype="intc", order="C")
+    return out
 
 
 class SymfcAtoms:
