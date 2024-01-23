@@ -132,6 +132,10 @@ def eigsh_projector_sumrule(p: csr_array, verbose: bool = True) -> np.ndarray:
         rank = int(round(np.trace(p_block)))
         if rank > 0:
             eigvals, eigvecs = np.linalg.eigh(p_block)
+            #eigvals, eigvecs, _ = scipy.linalg.lapack.dsyevd(p_block, 
+            #                                                 compute_v=True)
+            #eigvals, eigvecs, _, _, _ = scipy.linalg.lapack.dsyevr(p_block, 
+            #                                                 compute_v=True)
             nonzero = np.isclose(eigvals, 1.0)
             eigvecs = eigvecs[:, nonzero]
             col_ids = np.arange(col_id, col_id + eigvecs.shape[1])
