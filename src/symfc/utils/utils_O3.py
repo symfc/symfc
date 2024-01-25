@@ -122,20 +122,8 @@ def get_compr_coset_reps_sum_O3(spg_reps: SpgRepsO3) -> csr_array:
         mat = spg_reps.get_sigma3_rep(i)
         mat = mat @ C
         mat = C.T @ mat
-        #coset_reps_sum += kron(mat, spg_reps.r_reps[i] * factor)
+        coset_reps_sum += kron(mat, spg_reps.r_reps[i] * factor)
 
-        coset_reps_sum += kron(mat, spg_reps.r_reps[i])
-        print(coset_reps_sum.shape, len(coset_reps_sum.data))
-
-    tmp = coo_array(coset_reps_sum)
-    ids = np.where(np.abs(tmp.data) > 1e-13)[0]
-    data = tmp.data[ids]
-    row = tmp.row[ids]
-    col = tmp.col[ids]
-    coset_reps_sum = csr_array((data, (row, col)), 
-                                shape=(size, size), dtype="double")
-
-    coset_reps_sum *= factor
     return coset_reps_sum
 
 
