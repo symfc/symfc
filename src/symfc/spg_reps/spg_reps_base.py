@@ -1,4 +1,5 @@
 """Reps base of space group ops with respect to atomic coordinate basis."""
+
 from __future__ import annotations
 
 from typing import Optional

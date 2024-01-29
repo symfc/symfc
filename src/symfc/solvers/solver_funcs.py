@@ -1,4 +1,5 @@
 """Solver functions."""
+
 import numpy as np
 from scipy.linalg.lapack import get_lapack_funcs
 

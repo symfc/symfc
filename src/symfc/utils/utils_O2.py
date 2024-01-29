@@ -1,4 +1,5 @@
 """Utility functions for 2nd order force constants."""
+
 import itertools
 
 import numpy as np

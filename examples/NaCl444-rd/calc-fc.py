@@ -1,4 +1,5 @@
 """Calculate force constants using symfc."""
+
 import phonopy
 
 from symfc import Symfc

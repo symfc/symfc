@@ -1,4 +1,5 @@
 """Matrix utility functions for 2nd order force constants."""
+
 import numpy as np
 import scipy
 from scipy.sparse import csr_array

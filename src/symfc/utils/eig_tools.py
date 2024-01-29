@@ -1,4 +1,5 @@
 """Utility functions for eigenvalue solutions."""
+
 import itertools
 from collections import defaultdict
 

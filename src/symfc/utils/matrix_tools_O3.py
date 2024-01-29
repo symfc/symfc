@@ -1,4 +1,5 @@
 """Matrix utility functions for 3rd order force constants."""
+
 import itertools
 import math
 

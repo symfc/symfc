@@ -1,4 +1,5 @@
 """Symmetry adapted basis sets of 3rd order force constants."""
+
 from __future__ import annotations
 
 import time

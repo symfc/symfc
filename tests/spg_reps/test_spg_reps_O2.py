@@ -1,4 +1,5 @@
 """Tests of SpgRepsO2 class."""
+
 import numpy as np
 from phonopy.structure.atoms import PhonopyAtoms
 

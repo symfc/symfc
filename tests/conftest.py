@@ -1,4 +1,5 @@
 """Pytest conftest.py."""
+
 from pathlib import Path
 from typing import Final
 

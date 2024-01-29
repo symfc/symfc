@@ -1,4 +1,5 @@
 """Tests of FCBasisSetO2."""
+
 from pathlib import Path
 from typing import Union
 

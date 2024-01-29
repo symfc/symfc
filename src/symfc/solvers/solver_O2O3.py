@@ -1,4 +1,5 @@
 """Solver of 2nd and 3rd order force constants simultaneously."""
+
 import time
 
 import numpy as np
