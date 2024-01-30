@@ -1,4 +1,5 @@
 """3rd order force constants solver."""
+
 import time
 from typing import Optional, Union
 

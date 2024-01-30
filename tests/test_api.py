@@ -1,4 +1,5 @@
 """Tests of Symfc."""
+
 import numpy as np
 import pytest
 from phonopy import Phonopy

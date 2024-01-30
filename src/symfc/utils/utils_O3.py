@@ -1,4 +1,5 @@
 """Utility functions for 3rd order force constants."""
+
 import numpy as np
 from scipy.sparse import csr_array, kron
 

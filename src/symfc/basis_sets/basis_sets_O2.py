@@ -1,4 +1,5 @@
 """Symmetry adapted basis sets of 2nd order force constants."""
+
 from __future__ import annotations
 
 from typing import Optional

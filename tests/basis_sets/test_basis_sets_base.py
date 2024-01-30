@@ -1,4 +1,5 @@
 """Tests of FCBasisSetBase."""
+
 import pytest
 from phonopy import Phonopy
 

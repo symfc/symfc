@@ -1,4 +1,5 @@
 """Base class of force constants solvers."""
+
 from abc import ABC
 
 from symfc.basis_sets import FCBasisSetO2Base
