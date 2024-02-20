@@ -2,7 +2,7 @@
 import itertools
 
 import numpy as np
-from scipy.sparse import csr_array, kron, coo_array
+from scipy.sparse import csr_array, kron
 
 from symfc.spg_reps import SpgRepsO2
 

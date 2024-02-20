@@ -1,8 +1,6 @@
-"""Utility functions for 2nd order force constants."""
-import itertools
-
+"""Utility functions for 1st order force constants."""
 import numpy as np
-from scipy.sparse import csr_array, kron, coo_array
+from scipy.sparse import csr_array, kron
 
 from symfc.spg_reps import SpgRepsO1
 
@@ -37,7 +35,7 @@ def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
     n_a = len(indep_atoms)
     N = trans_perms.shape[1]
     n_lp = N // n_a
-    size_row = (N * 3)
+    size_row = N * 3
 
     n = 0
     indices = np.zeros(size_row, dtype="int_")
@@ -76,7 +74,7 @@ def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
     n_a = len(indep_atoms)
     N = trans_perms.shape[1]
     n_lp = N // n_a
-    size_row = (N * 3)
+    size_row = N * 3
 
     n = 0
     indices = np.zeros((n_a * 3, n_lp), dtype="int_")
@@ -109,6 +107,7 @@ def get_lat_trans_compr_matrix(decompr_idx: np.ndarray, N: int, n_lp: int) -> cs
         dtype="double",
     )
     return compression_mat
+
 
 def _get_atomic_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
     """Return indices to de-compress compressed matrix by atom-lat-trans-sym.
@@ -171,6 +170,3 @@ def get_compr_coset_reps_sum(spg_reps: SpgRepsO1):
         coset_reps_sum += kron(mat, spg_reps.r_reps[i] * factor)
 
     return coset_reps_sum
-
-
-

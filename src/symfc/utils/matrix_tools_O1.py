@@ -3,6 +3,7 @@ import numpy as np
 import scipy
 from scipy.sparse import csr_array
 
+
 def compressed_projector_sum_rules(
     compress_mat: csr_array, N: int, use_mkl: bool = False
 ):
@@ -27,7 +28,6 @@ def _compressed_complement_projector_sum_rules_algo1(
 
     """
     N3 = 3 * N
-    N33 = N
 
     row = np.arange(N3)
     col = np.tile(range(3), N)

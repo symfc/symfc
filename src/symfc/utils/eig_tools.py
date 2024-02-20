@@ -4,8 +4,8 @@ from collections import defaultdict
 
 import numpy as np
 import scipy
-from scipy.sparse import csr_array
 from scipy.linalg import get_lapack_funcs
+from scipy.sparse import csr_array
 
 try:
     from sparse_dot_mkl import dot_product_mkl
@@ -135,18 +135,18 @@ def eigsh_projector_sumrule(p: csr_array, verbose: bool = True) -> np.ndarray:
             if rank < 30000:
                 eigvals, eigvecs = np.linalg.eigh(p_block)
             else:
-                print('eigh: solver dsyevr is used.')
-                (syevr,) = get_lapack_funcs(('syevr',), ilp64=False)
+                print("eigh: solver dsyevr is used.")
+                (syevr,) = get_lapack_funcs(("syevr",), ilp64=False)
                 eigvals, eigvecs, _, _, _ = syevr(p_block, compute_v=True)
 
-                '''
+                """
                 print('eigh: solver dsyevd is used.')
                 (syevd,) = get_lapack_funcs(('syevd',), ilp64=False)
                 eigvals, eigvecs, _ = syevd(p_block, compute_v=True)
-                '''
-                #eigvals, eigvecs, _, _, _ = scipy.linalg.lapack.dsyevr(
+                """
+                # eigvals, eigvecs, _, _, _ = scipy.linalg.lapack.dsyevr(
                 #       p_block, compute_v=True)
-                #eigvals, eigvecs, _ = scipy.linalg.lapack.dsyevd(
+                # eigvals, eigvecs, _ = scipy.linalg.lapack.dsyevd(
                 #       p_block, compute_v=True)
 
             nonzero = np.isclose(eigvals, 1.0)

@@ -1,6 +1,6 @@
 """Utility functions for 3rd order force constants."""
 import numpy as np
-from scipy.sparse import csr_array, kron, coo_array
+from scipy.sparse import csr_array, kron
 
 from symfc.spg_reps import SpgRepsO3
 from symfc.utils.utils import get_indep_atoms_by_lat_trans

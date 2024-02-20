@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from typing import Optional
-        
+
 import numpy as np
 from scipy.sparse import csr_array
 
@@ -49,6 +49,7 @@ class FCBasisSetO1Base(FCBasisSetBase):
         decompr_idx = get_lat_trans_decompr_indices(trans_perms)
         c_trans = get_lat_trans_compr_matrix(decompr_idx, N, n_lp)
         return c_trans
+
 
 class FCBasisSetO1(FCBasisSetO1Base):
     """Dense symmetry adapted basis set for 1st order force constants.
@@ -117,7 +118,7 @@ class FCBasisSetO1(FCBasisSetO1Base):
         proj_rt = coset_reps_sum @ c_trans.T
 
         if len(proj_rt.data) == 0:
-            raise ValueError('No basis vectors exist.')
+            raise ValueError("No basis vectors exist.")
 
         c_rt = eigsh_projector(proj_rt)
         proj = compressed_projector_sum_rules(c_rt, self._natom)
@@ -125,5 +126,3 @@ class FCBasisSetO1(FCBasisSetO1Base):
         self._full_basis_set = c_rt @ self._basis_set
 
         return self
-
-
