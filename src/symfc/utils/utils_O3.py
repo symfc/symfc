@@ -124,6 +124,7 @@ def get_compr_coset_reps_sum_O3(spg_reps: SpgRepsO3) -> csr_array:
         mat = mat @ C
         mat = C.T @ mat
         coset_reps_sum += kron(mat, spg_reps.r_reps[i] * factor)
+
     return coset_reps_sum
 
 
