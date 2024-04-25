@@ -115,14 +115,15 @@ class FCBasisSetO1(FCBasisSetO1Base):
         """Compute compressed force constants basis set."""
         c_trans = self._get_c_trans()
         coset_reps_sum = get_compr_coset_reps_sum(self._spg_reps)
-        proj_rt = coset_reps_sum @ c_trans.T
+        proj_rt = coset_reps_sum
 
         if len(proj_rt.data) == 0:
             raise ValueError("No basis vectors exist.")
 
         c_rt = eigsh_projector(proj_rt)
-        proj = compressed_projector_sum_rules(c_rt, self._natom)
+        compress_mat = c_trans @ c_rt
+        proj = compressed_projector_sum_rules(compress_mat, self._natom)
         self._basis_set = eigsh_projector(proj)
-        self._full_basis_set = c_rt @ self._basis_set
+        self._full_basis_set = compress_mat @ self._basis_set
 
         return self
