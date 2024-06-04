@@ -36,14 +36,34 @@ class FCBasisSetBase(ABC):
         self._basis_set: Optional[np.ndarray] = None
         self._spg_reps: Optional[SpgRepsBase] = None
 
+    @property
     @abstractmethod
-    def basis_set(self):
+    def basis_set(self) -> Optional[np.ndarray]:
         """Return (compressed) basis set."""
         pass
 
+    @property
     @abstractmethod
-    def full_basis_set(self):
+    def compact_basis_set(self) -> Optional[np.ndarray]:
+        """Return compact basis set."""
+        pass
+
+    @property
+    @abstractmethod
+    def full_basis_set(self) -> Optional[np.ndarray]:
         """Return full (decompressed) basis set."""
+        pass
+
+    @property
+    @abstractmethod
+    def compact_compression_matrix(self) -> Optional[np.ndarray]:
+        """Return compression matrix for compact basis set."""
+        pass
+
+    @property
+    @abstractmethod
+    def compression_matrix(self) -> Optional[np.ndarray]:
+        """Return compression matrix."""
         pass
 
     @property

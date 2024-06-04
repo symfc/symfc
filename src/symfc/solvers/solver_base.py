@@ -1,8 +1,11 @@
 """Base class of force constants solvers."""
 
-from abc import ABC
+from abc import ABC, abstractmethod
+from typing import Optional
 
-from symfc.basis_sets import FCBasisSetO2
+import numpy as np
+
+from symfc.basis_sets import FCBasisSetBase
 
 
 class FCSolverBase(ABC):
@@ -10,12 +13,35 @@ class FCSolverBase(ABC):
 
     def __init__(
         self,
-        fc_basis_set: FCBasisSetO2,
+        basis_set: FCBasisSetBase,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
         """Init method."""
-        self._fc_basis_set = fc_basis_set
-        self._use_mkl = use_mkl
-        self._log_level = log_level
-        _, self._natom = fc_basis_set.translation_permutations.shape
+        self._basis_set: FCBasisSetBase = basis_set
+        self._use_mkl: bool = use_mkl
+        self._log_level: int = log_level
+        self._natom: int = self._basis_set.translation_permutations.shape[1]
+        self._coefs: Optional[np.ndarray] = None
+
+    @property
+    def coefs(self) -> Optional[np.ndarray]:
+        """Return coefficients of force constants with respect to basis set."""
+        return self._coefs
+
+    @abstractmethod
+    def solve(self):
+        """Solve coefficients of basis set from displacements and forces."""
+        pass
+
+    @property
+    @abstractmethod
+    def full_fc(self):
+        """Return full force constants."""
+        pass
+
+    @property
+    @abstractmethod
+    def compact_fc(self):
+        """Return compact force constants."""
+        pass

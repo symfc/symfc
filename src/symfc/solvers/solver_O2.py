@@ -1,13 +1,90 @@
 """2nd order force constants solver."""
 
+from __future__ import annotations
+
 import time
 
 import numpy as np
 from scipy.sparse import csr_array
 
+from symfc.basis_sets import FCBasisSetO2
 from symfc.utils.eig_tools import dot_product_sparse
 
+from .solver_base import FCSolverBase
 from .solver_funcs import fit, get_batch_slice, solve_linear_equation
+
+
+class FCSolverO2(FCSolverBase):
+    """Third order force constants solver."""
+
+    def __init__(
+        self,
+        basis_set: FCBasisSetO2,
+        use_mkl: bool = False,
+        log_level: int = 0,
+    ):
+        """Init method."""
+        super().__init__(basis_set, use_mkl=use_mkl, log_level=log_level)
+
+    def solve(
+        self,
+        displacements: np.ndarray,
+        forces: np.ndarray,
+    ) -> FCSolverO2:
+        """Solve coefficients of basis set from displacements and forces.
+
+        Parameters
+        ----------
+        displacements : ndarray
+            Displacements of atoms in Cartesian coordinates.
+            shape=(n_snapshot, N, 3), dtype='double'
+        forces : ndarray
+            Forces of atoms in Cartesian coordinates.
+            shape=(n_snapshot, N, 3), dtype='double'
+        is_compact_fc : bool
+            Shape of force constants array is (n_a, N, 3, 3) if True or
+            (M, N, 3, 3) if False.
+
+        Returns
+        -------
+        self : FCSolverO2
+
+        """
+        n_data = forces.shape[0]
+        f = forces.reshape(n_data, -1)
+        d = displacements.reshape(n_data, -1)
+        self._coefs = run_solver_sparse_O2(
+            d, f, self._basis_set.compression_matrix, self._basis_set.basis_set
+        )
+        return self
+
+    @property
+    def full_fc(self):
+        """Return full force constants.
+
+        Returns
+        -------
+        np.ndarray
+            shape=(N, N, 3, 3), dtype='double', order='C'
+
+        """
+        N = self._natom
+        fc = self._basis_set.basis_set @ self._coefs
+        return (self._basis_set.compression_matrix @ fc).reshape((-1, N, 3, 3))
+
+    @property
+    def compact_fc(self):
+        """Return full force constants.
+
+        Returns
+        -------
+        np.ndarray
+            shape=(n_a, N, 3, 3), dtype='double', order='C'
+
+        """
+        N = self._natom
+        fc = self._basis_set.basis_set @ self._coefs
+        return (self._basis_set.compact_compression_matrix @ fc).reshape((-1, N, 3, 3))
 
 
 def get_training_from_full_basis(disps, forces, full_basis):

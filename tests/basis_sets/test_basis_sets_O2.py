@@ -8,7 +8,7 @@ import pytest
 from phonopy import Phonopy
 
 from symfc.basis_sets import FCBasisSetO2
-from symfc.solvers.solver_O2 import run_solver_sparse_O2
+from symfc.solvers.solver_O2 import FCSolverO2
 from symfc.utils.utils import SymfcAtoms
 
 cwd = Path(__file__).parent
@@ -50,15 +50,10 @@ def test_fc2_NaCl_222(ph_nacl_222: Phonopy):
     """
     basis_set = FCBasisSetO2(ph_nacl_222.supercell, log_level=1).run()
     ph = phonopy.load(cwd / ".." / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
-    n_data, N = ph.dataset["forces"].shape[0:2]
-    f = ph.dataset["forces"].reshape(n_data, -1)
-    d = ph.dataset["displacements"].reshape(n_data, -1)
-    # solver = FCSolverO2(basis_set, log_level=1)
-    # fc_compact = solver.solve(d, f, is_compact_fc=True)
-    coefs = run_solver_sparse_O2(
-        d, f, basis_set.compression_matrix, basis_set.basis_set
+    fc_solver = FCSolverO2(basis_set, log_level=1).solve(
+        ph.dataset["displacements"], ph.dataset["forces"]
     )
-    fc_compact = _recover_fc2(coefs, basis_set, N)
+    fc_compact = fc_solver.compact_fc
     ph_ref = phonopy.load(
         cwd / ".." / "phonopy_NaCl_222_fc.yaml.xz",
         produce_fc=False,
@@ -185,22 +180,15 @@ def _compare_fc2_with_alm(
     pytest.importorskip("alm")
     basis_set = fc_basis_set.run()
     ph = phonopy.load(filename, fc_calculator="alm", is_compact_fc=is_compact_fc)
-    n_data, N = ph.dataset["forces"].shape[0:2]
-    f = ph.dataset["forces"].reshape(n_data, -1)
-    d = ph.dataset["displacements"].reshape(n_data, -1)
-    # solver = FCSolverO2(basis_set, log_level=1)
-    # fc_compact = solver.solve(d, f, is_compact_fc=is_compact_fc)
-    coefs = run_solver_sparse_O2(
-        d, f, basis_set.compression_matrix, basis_set.basis_set
+    fc_solver = FCSolverO2(basis_set, log_level=1).solve(
+        ph.dataset["displacements"], ph.dataset["forces"]
     )
-    fc_compact = _recover_fc2(
-        coefs,
-        basis_set,
-        N,
-        is_compact_fc=is_compact_fc,
-    )
-    np.testing.assert_allclose(ph.force_constants, fc_compact, atol=1e-6)
-    return fc_compact
+    if is_compact_fc:
+        fc = fc_solver.compact_fc
+    else:
+        fc = fc_solver.full_fc
+    np.testing.assert_allclose(ph.force_constants, fc, atol=1e-6)
+    return fc
 
 
 def _full_basis_set_o2_compare_with_alm(
@@ -225,14 +213,3 @@ def _full_basis_set_o2_compare_with_alm(
     )
     full_fc = (full_basis_set @ coeff).reshape(N, N, 3, 3)
     np.testing.assert_allclose(ph.force_constants, full_fc, atol=1e-6)
-
-
-def _recover_fc2(
-    coefs: np.ndarray, basis_set: FCBasisSetO2, N: int, is_compact_fc: bool = True
-):
-    fc2 = basis_set.basis_set @ coefs
-    if is_compact_fc:
-        fc2 = (basis_set.compact_compression_matrix @ fc2).reshape((-1, N, 3, 3))
-    else:
-        fc2 = (basis_set.compression_matrix @ fc2).reshape((-1, N, 3, 3))
-    return fc2
