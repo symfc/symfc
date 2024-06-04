@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from typing import Optional
 
 import numpy as np
 from scipy.sparse import csr_array
@@ -25,6 +26,34 @@ class FCSolverO2(FCSolverBase):
     ):
         """Init method."""
         super().__init__(basis_set, use_mkl=use_mkl, log_level=log_level)
+
+    @property
+    def full_fc(self) -> Optional[np.ndarray]:
+        """Return full force constants.
+
+        Returns
+        -------
+        np.ndarray
+            shape=(N, N, 3, 3), dtype='double', order='C'
+
+        """
+        N = self._natom
+        fc = self._basis_set.basis_set @ self._coefs
+        return (self._basis_set.compression_matrix @ fc).reshape((-1, N, 3, 3))
+
+    @property
+    def compact_fc(self) -> Optional[np.ndarray]:
+        """Return full force constants.
+
+        Returns
+        -------
+        np.ndarray
+            shape=(n_a, N, 3, 3), dtype='double', order='C'
+
+        """
+        N = self._natom
+        fc = self._basis_set.basis_set @ self._coefs
+        return (self._basis_set.compact_compression_matrix @ fc).reshape((-1, N, 3, 3))
 
     def solve(
         self,
@@ -57,34 +86,6 @@ class FCSolverO2(FCSolverBase):
             d, f, self._basis_set.compression_matrix, self._basis_set.basis_set
         )
         return self
-
-    @property
-    def full_fc(self):
-        """Return full force constants.
-
-        Returns
-        -------
-        np.ndarray
-            shape=(N, N, 3, 3), dtype='double', order='C'
-
-        """
-        N = self._natom
-        fc = self._basis_set.basis_set @ self._coefs
-        return (self._basis_set.compression_matrix @ fc).reshape((-1, N, 3, 3))
-
-    @property
-    def compact_fc(self):
-        """Return full force constants.
-
-        Returns
-        -------
-        np.ndarray
-            shape=(n_a, N, 3, 3), dtype='double', order='C'
-
-        """
-        N = self._natom
-        fc = self._basis_set.basis_set @ self._coefs
-        return (self._basis_set.compact_compression_matrix @ fc).reshape((-1, N, 3, 3))
 
 
 def get_training_from_full_basis(disps, forces, full_basis):

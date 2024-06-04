@@ -29,19 +29,19 @@ class FCSolverBase(ABC):
         """Return coefficients of force constants with respect to basis set."""
         return self._coefs
 
-    @abstractmethod
-    def solve(self):
-        """Solve coefficients of basis set from displacements and forces."""
-        pass
-
     @property
     @abstractmethod
-    def full_fc(self):
+    def full_fc(self) -> Optional[np.ndarray]:
         """Return full force constants."""
         pass
 
     @property
     @abstractmethod
-    def compact_fc(self):
+    def compact_fc(self) -> Optional[np.ndarray]:
         """Return compact force constants."""
+        pass
+
+    @abstractmethod
+    def solve(self):
+        """Solve coefficients of basis set from displacements and forces."""
         pass
