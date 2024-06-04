@@ -7,8 +7,7 @@ from typing import Optional, Union
 
 import numpy as np
 
-from symfc.basis_sets import FCBasisSetBase, FCBasisSetO2Slow
-from symfc.solvers import FCSolverO2
+from symfc.basis_sets import FCBasisSetBase, FCBasisSetO2
 from symfc.utils.utils import SymfcAtoms
 
 
@@ -101,7 +100,7 @@ class Symfc:
     def compute_basis_set(self, order: int):
         """Set order of force constants."""
         if order == 2:
-            basis_set_o2 = FCBasisSetO2Slow(
+            basis_set_o2 = FCBasisSetO2(
                 self._supercell, log_level=self._log_level
             ).run()
             self._basis_set[2] = basis_set_o2
@@ -118,14 +117,32 @@ class Symfc:
         self._check_dataset()
         for order in orders:
             if order == 2:
-                basis_set: FCBasisSetO2Slow = self._basis_set[2]
-                solver = FCSolverO2(
-                    basis_set,
-                    log_level=self._log_level,
+                from symfc.solvers.solver_O2 import run_solver_sparse_O2
+
+                basis_set: FCBasisSetO2 = self._basis_set[2]
+
+                n_data, N = self._forces.shape[0:2]
+                f = self._forces.reshape(n_data, -1)
+                d = self._displacements.reshape(n_data, -1)
+                coefs = run_solver_sparse_O2(
+                    d, f, basis_set.compression_matrix, basis_set.basis_set
                 )
-                fc2 = solver.solve(
-                    self._displacements, self._forces, is_compact_fc=is_compact_fc
-                )
+
+                fc2 = basis_set.basis_set @ coefs
+                if is_compact_fc:
+                    fc2 = (basis_set.compact_compression_matrix @ fc2).reshape(
+                        (-1, N, 3, 3)
+                    )
+                else:
+                    fc2 = (basis_set.compression_matrix @ fc2).reshape((-1, N, 3, 3))
+
+                # solver = FCSolverO2(
+                #     basis_set,
+                #     log_level=self._log_level,
+                # )
+                # fc2 = solver.solve(
+                #     self._displacements, self._forces, is_compact_fc=is_compact_fc
+                # )
                 self._force_constants[2] = fc2
             else:
                 raise NotImplementedError("Only order-2 is implemented.")

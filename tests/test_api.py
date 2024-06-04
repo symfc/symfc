@@ -5,7 +5,7 @@ import pytest
 from phonopy import Phonopy
 
 from symfc import Symfc
-from symfc.basis_sets import FCBasisSetO2Slow
+from symfc.basis_sets import FCBasisSetO2
 
 
 def test_api_NaCl_222(ph_nacl_222: Phonopy):
@@ -68,7 +68,7 @@ def test_api_full_basis_set_SnO2_223(ph_sno2_223: Phonopy):
     ph = ph_sno2_223
     symfc = Symfc(ph.supercell, displacements=ph.displacements, forces=ph.forces)
     symfc.compute_basis_set(2)
-    basis_set: FCBasisSetO2Slow = symfc.basis_set[2]
+    basis_set: FCBasisSetO2 = symfc.basis_set[2]
     full_basis_set = basis_set.full_basis_set
     compressed_basis_set: np.ndarray = basis_set.basis_set
     N = len(ph.supercell)

@@ -2,7 +2,7 @@
 
 from abc import ABC
 
-from symfc.basis_sets import FCBasisSetO2Base
+from symfc.basis_sets import FCBasisSetO2
 
 
 class FCSolverBase(ABC):
@@ -10,7 +10,7 @@ class FCSolverBase(ABC):
 
     def __init__(
         self,
-        fc_basis_set: FCBasisSetO2Base,
+        fc_basis_set: FCBasisSetO2,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
