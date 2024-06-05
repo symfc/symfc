@@ -20,7 +20,6 @@ class Symfc:
         supercell: SymfcAtoms,
         displacements: Optional[np.ndarray] = None,
         forces: Optional[np.ndarray] = None,
-        orders: Optional[Sequence[int]] = None,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -33,9 +32,6 @@ class Symfc:
 
         self._basis_set: dict[FCBasisSetBase] = {}
         self._force_constants: dict[np.ndarray] = {}
-
-        if orders:
-            self.run(orders)
 
     @property
     def basis_set(self) -> dict[FCBasisSetBase]:
@@ -89,7 +85,7 @@ class Symfc:
     def forces(self, forces: Union[np.ndarray, list, tuple]):
         self._forces = np.array(forces, dtype="double", order="C")
 
-    def run(self, orders: Sequence[int]):
+    def run(self, orders: Sequence[int], is_compact_fc=True) -> Symfc:
         """Run basis set and force constants calculation."""
         if (
             orders is not None
@@ -97,24 +93,9 @@ class Symfc:
             and self._forces is not None
         ):
             for order in orders:
-                self.compute_basis_set(order)
-            self.solve(orders)
-
-    def compute_basis_set(self, order: int):
-        """Set order of force constants."""
-        if order not in (2, 3):
-            raise NotImplementedError("Only fc2 basis set is implemented.")
-
-        if order == 2:
-            basis_set_o2 = FCBasisSetO2(
-                self._supercell, use_mkl=self._use_mkl, log_level=self._log_level
-            ).run()
-            self._basis_set[2] = basis_set_o2
-        if order == 3:
-            basis_set_o3 = FCBasisSetO3(
-                self._supercell, use_mkl=self._use_mkl, log_level=self._log_level
-            ).run()
-            self._basis_set[3] = basis_set_o3
+                self._compute_basis_set(order)
+            self.solve(orders, is_compact_fc=is_compact_fc)
+        return self
 
     def solve(self, orders: Sequence[int], is_compact_fc=True) -> Symfc:
         """Calculate force constants.
@@ -153,6 +134,22 @@ class Symfc:
                 self._force_constants[2] = fc2
                 self._force_constants[3] = fc3
         return self
+
+    def _compute_basis_set(self, order: int):
+        """Set order of force constants."""
+        if order not in (2, 3):
+            raise NotImplementedError("Only fc2 basis set is implemented.")
+
+        if order == 2:
+            basis_set_o2 = FCBasisSetO2(
+                self._supercell, use_mkl=self._use_mkl, log_level=self._log_level
+            ).run()
+            self._basis_set[2] = basis_set_o2
+        if order == 3:
+            basis_set_o3 = FCBasisSetO3(
+                self._supercell, use_mkl=self._use_mkl, log_level=self._log_level
+            ).run()
+            self._basis_set[3] = basis_set_o3
 
     def _check_dataset(self):
         if self._displacements is None:

@@ -1,11 +1,11 @@
 """Tests of FCBasisSetO2."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 import numpy as np
-import phonopy
 import pytest
-from phonopy import Phonopy
 
 from symfc.basis_sets import FCBasisSetO2
 from symfc.solvers.solver_O2 import FCSolverO2
@@ -45,140 +45,48 @@ def test_fc_basis_set_o2():
     assert np.linalg.norm(sbs.basis_set) == pytest.approx(1.0)
 
 
-def test_fc2_NaCl_222(ph_nacl_222: Phonopy):
-    """Test force constants by NaCl 64 atoms supercell and compared with ALM.
-
-    This test uses FCBasisSetO2.
-
-    Also test force constants by NaCl 64 atoms supercell.
-
-    This test with ALM is skipped when ALM is not installed.
-
-    """
-    basis_set = FCBasisSetO2(ph_nacl_222.supercell, log_level=1).run()
-    ph = phonopy.load(cwd / ".." / "phonopy_NaCl_222_rd.yaml.xz", produce_fc=False)
-    fc_solver = FCSolverO2(basis_set, log_level=1).solve(
-        ph.dataset["displacements"], ph.dataset["forces"]
-    )
-    fc_compact = fc_solver.compact_fc
-    ph_ref = phonopy.load(
-        cwd / ".." / "phonopy_NaCl_222_fc.yaml.xz",
-        produce_fc=False,
-    )
-    np.testing.assert_allclose(ph_ref.force_constants, fc_compact, atol=1e-6)
+@pytest.mark.parametrize("is_compact_fc", [True, False])
+def test_fc2_NaCl_222(
+    ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray], is_compact_fc: bool
+):
+    """Test force constants by NaCl 64 atoms supercell."""
+    _assert_fc(ph_nacl_222, "NaCl_222", is_compact_fc)
 
 
 @pytest.mark.parametrize("is_compact_fc", [True, False])
-def test_fc2_NaCl_222_wrt_ALM(ph_nacl_222: Phonopy, is_compact_fc: bool):
-    _ = _compare_fc2_with_alm(
-        cwd / ".." / "phonopy_NaCl_222_rd.yaml.xz",
-        FCBasisSetO2(ph_nacl_222.supercell, log_level=1),
-        is_compact_fc=is_compact_fc,
-    )
+def test_fc2_SnO2_223(
+    ph_sno2_223: tuple[SymfcAtoms, np.ndarray, np.ndarray], is_compact_fc: bool
+):
+    """Test force constants by SnO2 72 atoms supercell."""
+    _assert_fc(ph_sno2_223, "SnO2_223", is_compact_fc)
 
 
-@pytest.mark.parametrize("is_compact_fc", [True, False])
-def test_fc2_SnO2_223_wrt_ALM(ph_sno2_223: Phonopy, is_compact_fc: bool):
-    """Test force constants by SnO2 72 atoms supercell and compared with ALM.
-
-    This test is skipped when ALM is not installed.
-
-    """
-    _ = _compare_fc2_with_alm(
-        cwd / ".." / "phonopy_SnO2_223_rd.yaml.xz",
-        FCBasisSetO2(ph_sno2_223.supercell, log_level=1),
-        is_compact_fc=is_compact_fc,
-    )
+def test_fc2_SiO2_221(ph_sio2_221: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
+    """Test force constants by SiO2 36 atoms supercell."""
+    _assert_fc(ph_sio2_221, "SiO2_221")
 
 
-def test_fc2_SnO2_222_wrt_ALM(ph_sno2_222: Phonopy):
-    """Test force constants by SnO2 48 atoms supercell and compared with ALM.
-
-    This test is skipped when ALM is not installed.
-
-    """
-    _ = _compare_fc2_with_alm(
-        cwd / ".." / "phonopy_SnO2_222_rd.yaml.xz",
-        FCBasisSetO2(ph_sno2_222.supercell, log_level=1),
-    )
+def test_fc2_GaN_442(ph_gan_442: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
+    """Test force constants by GaN 128 atoms supercell."""
+    _assert_fc(ph_gan_442, "GaN_442")
 
 
-def test_fc2_SiO2_222_wrt_ALM(ph_sio2_222: Phonopy):
-    """Test force constants by SiO2 72 atoms supercell and compared with ALM.
-
-    This test is skipped when ALM is not installed.
-
-    """
-    _ = _compare_fc2_with_alm(
-        cwd / ".." / "phonopy_SiO2_222_rd.yaml.xz",
-        FCBasisSetO2(ph_sio2_222.supercell, log_level=1),
-    )
-    # _write_phonopy_fc_yaml(
-    #     "phonopy_SiO2_222_fc.yaml", "phonopy_SiO2_222_rd.yaml.xz", fc_compact
-    # )
+def test_fc2_GaN_222(ph_gan_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
+    """Test force constants by GaN 32 atoms supercell."""
+    _assert_fc(ph_gan_222, "GaN_222")
 
 
-def test_fc2_SiO2_221_wrt_ALM(ph_sio2_221: Phonopy):
-    """Test force constants by SiO2 36 atoms supercell and compared with ALM.
-
-    This test is skipped when ALM is not installed.
-
-    """
-    _ = _compare_fc2_with_alm(
-        cwd / ".." / "phonopy_SiO2_221_rd.yaml.xz",
-        FCBasisSetO2(ph_sio2_221.supercell, log_level=1),
-    )
-    # _write_phonopy_fc_yaml(
-    #     "phonopy_SiO2_221_fc.yaml", "phonopy_SiO2_221_rd.yaml.xz", fc_compact
-    # )
-
-
-def test_fc2_GaN_442_wrt_ALM(ph_gan_442: Phonopy):
-    """Test force constants by GaN 128 atoms supercell and compared with ALM.
-
-    This test is skipped when ALM is not installed.
-
-    """
-    _ = _compare_fc2_with_alm(
-        cwd / ".." / "phonopy_GaN_442_rd.yaml.xz",
-        FCBasisSetO2(ph_gan_442.supercell, log_level=1),
-    )
-    # _write_phonopy_fc_yaml(
-    #     "phonopy_GaN_442_fc.yaml", "phonopy_GaN_442_rd.yaml.xz", fc_compact
-    # )
-
-
-@pytest.mark.parametrize("is_compact_fc", [True, False])
-def test_fc2_GaN_222_wrt_ALM(ph_gan_222: Phonopy, is_compact_fc: bool):
-    """Test force constants by GaN 32 atoms supercell and compared with ALM.
-
-    This test is skipped when ALM is not installed.
-
-    """
-    _ = _compare_fc2_with_alm(
-        cwd / ".." / "phonopy_GaN_222_rd.yaml.xz",
-        FCBasisSetO2(ph_gan_222.supercell, log_level=1),
-        is_compact_fc=is_compact_fc,
-    )
-    # _write_phonopy_fc_yaml(
-    #     "phonopy_GaN_222_fc.yaml", "phonopy_GaN_222_rd.yaml.xz", fc_compact
-    # )
-
-
-def _compare_fc2_with_alm(
-    filename: Path,
-    fc_basis_set: FCBasisSetO2,
-    is_compact_fc: bool = True,
-) -> np.ndarray:
-    pytest.importorskip("alm")
-    basis_set = fc_basis_set.run()
-    ph = phonopy.load(filename, fc_calculator="alm", is_compact_fc=is_compact_fc)
-    fc_solver = FCSolverO2(basis_set, log_level=1).solve(
-        ph.dataset["displacements"], ph.dataset["forces"]
-    )
+def _assert_fc(
+    ph: tuple[SymfcAtoms, np.ndarray, np.ndarray], name: str, is_compact_fc: bool = True
+):
+    supercell, displacements, forces = ph
+    basis_set = FCBasisSetO2(supercell, log_level=1).run()
+    fc_solver = FCSolverO2(basis_set, log_level=1).solve(displacements, forces)
     if is_compact_fc:
         fc = fc_solver.compact_fc
+        # np.savetxt(f"compact_fc_{name}.xz", fc.ravel())
+        fc_ref = np.loadtxt(cwd / ".." / f"compact_fc_{name}.xz").reshape(fc.shape)
     else:
         fc = fc_solver.full_fc
-    np.testing.assert_allclose(ph.force_constants, fc, atol=1e-6)
-    return fc
+        fc_ref = np.loadtxt(cwd / ".." / f"full_fc_{name}.xz").reshape(fc.shape)
+    np.testing.assert_allclose(fc, fc_ref, atol=1e-6)

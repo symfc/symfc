@@ -3,9 +3,7 @@
 from pathlib import Path
 
 import numpy as np
-import phono3py
 import pytest
-from phono3py import Phono3py
 
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3
 from symfc.solvers import FCSolverO2O3
@@ -83,29 +81,20 @@ def test_fc_basis_set_o3():
     assert lat_trans_compr_matrix_O3.indices[-1] == 2726
 
 
-def test_si_111_222(ph3_si_111_222: Phono3py):
+def test_si_111_fc3(ph3_si_111_fc3: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
     """Test fc2 and fc3 by Si-111-222 supercells and compared with ALM.
 
     This test with ALM is skipped when ALM is not installed.
 
     """
-    ph3 = ph3_si_111_222
-    basis_set_o2 = FCBasisSetO2(ph3.supercell, log_level=1).run()
-    basis_set_o3 = FCBasisSetO3(ph3.supercell, log_level=1).run()
-    ph3 = phono3py.load(
-        cwd / ".." / "phono3py_params_Si-111-222-rd.yaml.xz", produce_fc=False
+    supercell, displacements, forces = ph3_si_111_fc3
+    basis_set_o2 = FCBasisSetO2(supercell, log_level=1).run()
+    basis_set_o3 = FCBasisSetO3(supercell, log_level=1).run()
+    fc_solver = FCSolverO2O3([basis_set_o2, basis_set_o3], log_level=1).solve(
+        displacements, forces
     )
-    d = ph3.dataset["displacements"]
-    f = ph3.dataset["forces"]
-    ph3 = Phono3py(
-        ph3.unitcell,
-        supercell_matrix=ph3.supercell_matrix,
-        primitive_matrix=ph3.primitive_matrix,
-    )
-    ph3.displacements = d
-    ph3.forces = f
-    ph3.produce_fc3(fc_calculator="alm", is_compact_fc=True)
-    fc_solver = FCSolverO2O3([basis_set_o2, basis_set_o3], log_level=1).solve(d, f)
     fc2, fc3 = fc_solver.compact_fc
-    np.testing.assert_allclose(ph3.fc2, fc2, atol=1e-6)
-    np.testing.assert_allclose(ph3.fc3, fc3, atol=1e-6)
+    fc2_ref = np.loadtxt(cwd / ".." / "compact_fc_Si_111_fc3_2.xz").reshape(fc2.shape)
+    fc3_ref = np.loadtxt(cwd / ".." / "compact_fc_Si_111_fc3_3.xz").reshape(fc3.shape)
+    np.testing.assert_allclose(fc2_ref, fc2, atol=1e-6)
+    np.testing.assert_allclose(fc3_ref, fc3, atol=1e-6)

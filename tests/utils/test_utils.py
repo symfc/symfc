@@ -1,28 +1,39 @@
 """Tests of matrix manipulating functions."""
 
 import numpy as np
-from phonopy import Phonopy
-from phonopy.structure.cells import compute_all_sg_permutations
+import pytest
 
 from symfc.spg_reps import SpgRepsBase
-from symfc.utils.utils import compute_sg_permutations, get_indep_atoms_by_lat_trans
+from symfc.utils.utils import (
+    SymfcAtoms,
+    compute_sg_permutations,
+    get_indep_atoms_by_lat_trans,
+)
 
 
-def test_get_indep_atoms_by_lattice_translation(ph_nacl_222: Phonopy):
+def test_get_indep_atoms_by_lattice_translation(
+    ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]
+):
     """Test of get_indep_atoms_by_lattice_translation."""
-    ph = ph_nacl_222
-    sym_op_reps = SpgRepsBase(ph.supercell)
+    supercell, _, _ = ph_nacl_222
+    sym_op_reps = SpgRepsBase(supercell)
     trans_perms = sym_op_reps.translation_permutations
     assert trans_perms.shape == (32, 64)
     indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
     np.testing.assert_array_equal(indep_atoms, [0, 32])
 
 
-def test_compute_sg_permutations(ph_gan_222: Phonopy):
+def test_compute_sg_permutations(
+    ph_gan_222: tuple[SymfcAtoms, np.ndarray, np.ndarray], cell_gan_111: SymfcAtoms
+):
     """Test compute_sg_permutations."""
+    pytest.importorskip("spglib")
+    from spglib import spglib
 
-    primitive_dataset = ph_gan_222.primitive_symmetry.dataset
-    primitive = ph_gan_222.primitive
+    supercell, _, _ = ph_gan_222
+    primitive = cell_gan_111
+    dataset = spglib.get_symmetry_dataset(supercell.totuple())
+    primitive_dataset = spglib.get_symmetry_dataset(primitive.totuple())
     perms = compute_sg_permutations(
         primitive.scaled_positions,
         primitive_dataset["rotations"],
@@ -45,19 +56,12 @@ def test_compute_sg_permutations(ph_gan_222: Phonopy):
     ]
     np.testing.assert_array_equal(ref_perms, perms)
 
-    dataset = ph_gan_222.symmetry.dataset
-    supercell = ph_gan_222.supercell
-    ref_perms_super = compute_all_sg_permutations(
-        supercell.scaled_positions,
-        dataset["rotations"],
-        dataset["translations"],
-        supercell.cell,
-        1e-5,
-    )
     perms_super = compute_sg_permutations(
         supercell.scaled_positions,
         dataset["rotations"],
         dataset["translations"],
         supercell.cell,
     )
-    np.testing.assert_array_equal(ref_perms_super, perms_super)
+    # np.savetxt("perms_super.dat", perms_super, fmt="%d")
+    perms_super_ref = np.loadtxt("perms_super.dat", dtype=int)
+    np.testing.assert_array_equal(perms_super_ref, perms_super)

@@ -1,12 +1,12 @@
 """Tests of SpgRepsO1 class."""
 
 import numpy as np
-from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.spg_reps import SpgRepsO1
+from symfc.utils.utils import SymfcAtoms
 
 
-def test_spg_reps_o1_get_sigma1_rep_NaCl111(cell_nacl_111: PhonopyAtoms):
+def test_spg_reps_o1_get_sigma1_rep_NaCl111(cell_nacl_111: SymfcAtoms):
     """Test of SpgRepsO1.get_sigma1_rep."""
     spg_reps_o1 = SpgRepsO1(cell_nacl_111)
     N = len(cell_nacl_111)
@@ -24,7 +24,7 @@ def test_spg_reps_o1_get_sigma1_rep_NaCl111(cell_nacl_111: PhonopyAtoms):
             assert r_atoms[j] == idx
 
 
-def test_spg_reps_o1_r_reps_NaCl111(cell_nacl_111: PhonopyAtoms):
+def test_spg_reps_o1_r_reps_NaCl111(cell_nacl_111: SymfcAtoms):
     """Test of SpgRepsO1.r_reps."""
     ref_r_reps = np.array(
         [
