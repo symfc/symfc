@@ -1,12 +1,12 @@
 """Tests of SpgRepsO2 class."""
 
 import numpy as np
-from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.spg_reps import SpgRepsO2
+from symfc.utils.utils import SymfcAtoms
 
 
-def test_spg_reps_o2(cell_nacl_111: PhonopyAtoms):
+def test_spg_reps_o2(cell_nacl_111: SymfcAtoms):
     """Test of SpgRepsO2."""
     spg_reps_o2 = SpgRepsO2(cell_nacl_111)
     trace_sum = 0

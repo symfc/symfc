@@ -1,13 +1,14 @@
 """Tests of SpgRepsBase class."""
 
+from __future__ import annotations
+
 import numpy as np
-from phonopy import Phonopy
-from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.spg_reps import SpgRepsBase
+from symfc.utils.utils import SymfcAtoms
 
 
-def test_translation_permutations_NaCl_111(cell_nacl_111: PhonopyAtoms):
+def test_translation_permutations_NaCl_111(cell_nacl_111: SymfcAtoms):
     """Test SpgReps.translation_permutations."""
     cell = cell_nacl_111
     sym_reps = SpgRepsBase(cell)
@@ -29,9 +30,11 @@ def test_translation_permutations_NaCl_111(cell_nacl_111: PhonopyAtoms):
     np.testing.assert_array_equal(np.sort(done), [0, 1, 2, 3])
 
 
-def test_translation_permutations_shape_GaN_222(ph_gan_222: Phonopy):
+def test_translation_permutations_shape_GaN_222(
+    ph_gan_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]
+):
     """Test SpgReps.translation_permutations."""
-    cell = ph_gan_222.supercell
-    sym_reps = SpgRepsBase(cell)
+    supercell, _, _ = ph_gan_222
+    sym_reps = SpgRepsBase(supercell)
     trans_perms = sym_reps.translation_permutations
     assert trans_perms.shape == (8, 32)

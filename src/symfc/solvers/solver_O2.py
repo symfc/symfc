@@ -1,140 +1,96 @@
 """2nd order force constants solver."""
 
+from __future__ import annotations
+
 import time
 from typing import Optional
 
 import numpy as np
-from scipy.sparse import csc_array, csr_array
+from scipy.sparse import csr_array
 
-from symfc.basis_sets import FCBasisSetO2Base
+from symfc.basis_sets import FCBasisSetO2
 from symfc.utils.eig_tools import dot_product_sparse
-from symfc.utils.utils_O2 import get_lat_trans_decompr_indices
+from symfc.utils.solver_funcs import fit, get_batch_slice, solve_linear_equation
 
 from .solver_base import FCSolverBase
-from .solver_funcs import fit, get_batch_slice, solve_linear_equation
 
 
 class FCSolverO2(FCSolverBase):
-    """Second order force constants solver."""
+    """Third order force constants solver."""
 
     def __init__(
         self,
-        fc_basis_set: FCBasisSetO2Base,
+        basis_set: FCBasisSetO2,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
         """Init method."""
-        super().__init__(
-            fc_basis_set,
-            use_mkl=use_mkl,
-            log_level=log_level,
-        )
+        super().__init__(basis_set, use_mkl=use_mkl, log_level=log_level)
 
-    def solve(
-        self, displacements: np.ndarray, forces: np.ndarray, is_compact_fc=True
-    ) -> Optional[np.ndarray]:
-        """Solve force constants.
-
-        Parameters
-        ----------
-        displacements : ndarray
-            Displacements of atoms in Cartesian coordinates. shape=(n_snapshot,
-            N, 3), dtype='double'
-        forces : ndarray
-            Forces of atoms in Cartesian coordinates. shape=(n_snapshot, N, 3),
-            dtype='double'
-        is_compact_fc : bool
-            Shape of force constants array is (n_a, N, 3, 3) if True or (N, N,
-            3, 3) if False.
+    @property
+    def full_fc(self) -> Optional[np.ndarray]:
+        """Return full force constants.
 
         Returns
         -------
-        ndarray
-            Force constants.
-            shape=(n_a, N, 3, 3) or (N, N, 3, 3). See `is_compact_fc` parameter.
-            dtype='double', order='C'
+        np.ndarray
+            shape=(N, N, 3, 3), dtype='double', order='C'
 
         """
         N = self._natom
-        if self._fc_basis_set.basis_set is None:
-            return None
-        assert displacements.shape == forces.shape
-        compr_fc = self._fc_basis_set.basis_set @ self._get_basis_coeff(
-            displacements, forces
-        )
-        if is_compact_fc:
-            n_lp = self._fc_basis_set.translation_permutations.shape[0]
-            n_a = N // n_lp
-            if isinstance(self._fc_basis_set.compact_compression_matrix, int):
-                return compr_fc.reshape(n_a, N, 3, 3)
-            else:
-                fc = dot_product_sparse(
-                    self._fc_basis_set.compact_compression_matrix,
-                    csr_array(compr_fc.reshape(-1, 1)),
-                    use_mkl=self._use_mkl,
-                )
-                return fc.toarray().reshape(n_a, N, 3, 3)
-        else:
-            if isinstance(self._fc_basis_set.compact_compression_matrix, int):
-                return compr_fc[self._fc_basis_set.decompression_indices].reshape(
-                    N, N, 3, 3
-                )
-            else:
-                fc = dot_product_sparse(
-                    self._fc_basis_set.compression_matrix,
-                    csr_array(compr_fc.reshape(-1, 1)),
-                    use_mkl=self._use_mkl,
-                )
-                return fc.toarray().reshape(N, N, 3, 3)
-
-    def _get_basis_coeff(
-        self, displacements: np.ndarray, forces: np.ndarray
-    ) -> Optional[np.ndarray]:
-        N = self._natom
-        if self._fc_basis_set.basis_set is None:
-            return None
-        n_snapshot = displacements.shape[0]
-        disps = displacements.reshape(n_snapshot, N * 3)
-        d_basis = np.zeros(
-            (n_snapshot * N * 3, self._fc_basis_set.basis_set.shape[1]),
+        fc = self._basis_set.basis_set @ self._coefs
+        return np.array(
+            (self._basis_set.compression_matrix @ fc).reshape((-1, N, 3, 3)),
             dtype="double",
             order="C",
         )
 
-        if isinstance(self._fc_basis_set.compact_compression_matrix, int):
-            self._compute_with_trans_perms(d_basis, disps)
-        else:
-            self._compute_with_compression_matrix(d_basis, disps)
-        if self._log_level:
-            print("Computing product of displacements and basis set...")
-        if self._log_level:
-            print("Solving basis-set coefficients...")
-        coeff = -(np.linalg.pinv(d_basis) @ forces.ravel())
-        return coeff
+    @property
+    def compact_fc(self) -> Optional[np.ndarray]:
+        """Return full force constants.
 
-    def _compute_with_compression_matrix(self, d_basis: np.ndarray, disps: np.ndarray):
+        Returns
+        -------
+        np.ndarray
+            shape=(n_a, N, 3, 3), dtype='double', order='C'
+
+        """
         N = self._natom
-        full_basis_set = dot_product_sparse(
-            self._fc_basis_set.compression_matrix,
-            csc_array(self._fc_basis_set.basis_set),
-            use_mkl=self._use_mkl,
+        fc = self._basis_set.basis_set @ self._coefs
+        return np.array(
+            (self._basis_set.compact_compression_matrix @ fc).reshape((-1, N, 3, 3)),
+            dtype="double",
+            order="C",
         )
-        for i_basis_set in range(full_basis_set.shape[1]):
-            vec = np.transpose(
-                full_basis_set[:, [i_basis_set]].toarray().reshape(N, N, 3, 3),
-                (0, 2, 1, 3),
-            ).reshape(N * 3, N * 3)
-            d_basis[:, i_basis_set] = (disps @ vec).ravel()
 
-    def _compute_with_trans_perms(self, d_basis: np.ndarray, disps: np.ndarray):
-        N = self._natom
-        trans_perms = self._fc_basis_set.translation_permutations
-        decompr_idx = get_lat_trans_decompr_indices(trans_perms)
-        decompr_array = np.transpose(
-            decompr_idx.reshape(N, N, 3, 3), (0, 2, 1, 3)
-        ).reshape(N * 3, N * 3)
-        for i, vec in enumerate(self._fc_basis_set.basis_set.T):
-            d_basis[:, i] = (disps @ vec[decompr_array]).ravel()
+    def solve(
+        self,
+        displacements: np.ndarray,
+        forces: np.ndarray,
+    ) -> FCSolverO2:
+        """Solve coefficients of basis set from displacements and forces.
+
+        Parameters
+        ----------
+        displacements : ndarray
+            Displacements of atoms in Cartesian coordinates.
+            shape=(n_snapshot, N, 3), dtype='double'
+        forces : ndarray
+            Forces of atoms in Cartesian coordinates.
+            shape=(n_snapshot, N, 3), dtype='double'
+
+        Returns
+        -------
+        self : FCSolverO2
+
+        """
+        n_data = forces.shape[0]
+        f = forces.reshape(n_data, -1)
+        d = displacements.reshape(n_data, -1)
+        self._coefs = run_solver_sparse_O2(
+            d, f, self._basis_set.compression_matrix, self._basis_set.basis_set
+        )
+        return self
 
 
 def get_training_from_full_basis(disps, forces, full_basis):

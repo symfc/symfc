@@ -1,60 +1,57 @@
 """Tests of Symfc."""
 
+from __future__ import annotations
+
+from pathlib import Path
+
 import numpy as np
 import pytest
-from phonopy import Phonopy
 
 from symfc import Symfc
-from symfc.basis_sets import FCBasisSetO2Slow
+from symfc.utils.utils import SymfcAtoms
+
+cwd = Path(__file__).parent
 
 
-def test_api_NaCl_222(ph_nacl_222: Phonopy):
+def test_api_NaCl_222(ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
     """Test Symfc class."""
-    pytest.importorskip("alm")
-    ph = ph_nacl_222
-    symfc = Symfc(ph.supercell)
-    symfc.compute_basis_set(2)
-    symfc.displacements = ph.displacements
-    np.testing.assert_array_almost_equal(symfc.displacements, ph.displacements)
-    symfc.forces = ph.forces
-    np.testing.assert_array_almost_equal(symfc.forces, ph.forces)
+    supercell, displacements, forces = ph_nacl_222
+    symfc = Symfc(supercell)
+    symfc._compute_basis_set(2)
+    symfc.displacements = displacements
+    np.testing.assert_array_almost_equal(symfc.displacements, displacements)
+    symfc.forces = forces
+    np.testing.assert_array_almost_equal(symfc.forces, forces)
     symfc.solve(
         [
             2,
         ]
     )
     fc = symfc.force_constants[2]
-    ph.produce_force_constants(
-        fc_calculator="alm", calculate_full_force_constants=False
-    )
-    np.testing.assert_array_almost_equal(fc, ph.force_constants)
+    fc_ref = np.loadtxt(cwd / "compact_fc_NaCl_222.xz").reshape(fc.shape)
+    np.testing.assert_allclose(fc, fc_ref)
 
 
-def test_api_NaCl_222_with_dataset(ph_nacl_222: Phonopy):
+def test_api_NaCl_222_with_dataset(
+    ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]
+):
     """Test Symfc class with displacements and forces as input."""
-    pytest.importorskip("alm")
-    ph = ph_nacl_222
+    supercell, displacements, forces = ph_nacl_222
     symfc = Symfc(
-        ph.supercell,
-        displacements=ph.displacements,
-        forces=ph.forces,
-        orders=[
-            2,
-        ],
-    )
+        supercell,
+        displacements=displacements,
+        forces=forces,
+    ).run(orders=[2])
     fc = symfc.force_constants[2]
-    ph.produce_force_constants(
-        fc_calculator="alm", calculate_full_force_constants=False
-    )
-    np.testing.assert_array_almost_equal(fc, ph.force_constants)
+    fc_ref = np.loadtxt(cwd / "compact_fc_NaCl_222.xz").reshape(fc.shape)
+    np.testing.assert_allclose(fc, fc_ref)
 
 
-def test_api_NaCl_222_exception(ph_nacl_222: Phonopy):
+def test_api_NaCl_222_exception(ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
     """Test Symfc class with displacements and forces as input."""
-    pytest.importorskip("alm")
-    ph = ph_nacl_222
-    symfc = Symfc(ph.supercell)
-    symfc.compute_basis_set(2)
+    supercell, _, _ = ph_nacl_222
+    symfc = Symfc(supercell)
+    symfc._compute_basis_set(2)
     with pytest.raises(RuntimeError):
         symfc.solve(
             orders=[
@@ -63,13 +60,19 @@ def test_api_NaCl_222_exception(ph_nacl_222: Phonopy):
         )
 
 
-def test_api_full_basis_set_SnO2_223(ph_sno2_223: Phonopy):
-    """Test to obtain full basis set."""
-    ph = ph_sno2_223
-    symfc = Symfc(ph.supercell, displacements=ph.displacements, forces=ph.forces)
-    symfc.compute_basis_set(2)
-    basis_set: FCBasisSetO2Slow = symfc.basis_set[2]
-    full_basis_set = basis_set.full_basis_set
-    compressed_basis_set: np.ndarray = basis_set.basis_set
-    N = len(ph.supercell)
-    assert full_basis_set.shape == (N**2 * 9, compressed_basis_set.shape[1])
+def test_api_si_111_222(ph3_si_111_fc3: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
+    """Test Symfc class with displacements and forces as input."""
+    supercell, displacements, forces = ph3_si_111_fc3
+    symfc = Symfc(supercell, displacements=displacements, forces=forces).run(
+        orders=[2, 3]
+    )
+    # np.savetxt("compact_fc_Si_111_fc3_2.xz", symfc.force_constants[2].ravel())
+    # np.savetxt("compact_fc_Si_111_fc3_3.xz", symfc.force_constants[3].ravel())
+    fc2_ref = np.loadtxt(cwd / "compact_fc_Si_111_fc3_2.xz").reshape(
+        symfc.force_constants[2].shape
+    )
+    fc3_ref = np.loadtxt(cwd / "compact_fc_Si_111_fc3_3.xz").reshape(
+        symfc.force_constants[3].shape
+    )
+    np.testing.assert_allclose(fc2_ref, symfc.force_constants[2], atol=1e-6)
+    np.testing.assert_allclose(fc3_ref, symfc.force_constants[3], atol=1e-6)

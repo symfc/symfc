@@ -1,9 +1,9 @@
 """Tests of matrix manipulating functions for 2nd order force constants."""
 
 import numpy as np
-from phonopy.structure.atoms import PhonopyAtoms
 
 from symfc.spg_reps import SpgRepsBase
+from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O2 import (
     _get_atomic_lat_trans_decompr_indices,
     _get_perm_compr_matrix_reference,
@@ -22,7 +22,7 @@ def test_get_perm_compr_matrix():
     np.testing.assert_array_almost_equal((C1.T @ C1).toarray(), (C2.T @ C2).toarray())
 
 
-def test_get_lat_trans_decompr_indices(cell_nacl_111: PhonopyAtoms):
+def test_get_lat_trans_decompr_indices(cell_nacl_111: SymfcAtoms):
     """Test of get_lat_trans_decompr_indices.
 
     The one dimensional array with row-size of compr-mat.
@@ -625,7 +625,7 @@ def test_get_lat_trans_decompr_indices(cell_nacl_111: PhonopyAtoms):
     np.testing.assert_array_equal(ref, decompr_idx)
 
 
-def test_get_lat_trans_compr_indices(cell_nacl_111: PhonopyAtoms):
+def test_get_lat_trans_compr_indices(cell_nacl_111: SymfcAtoms):
     """Test get_lat_trans_compr_indices.
 
     The two dimensional array (n_a * N * 9, n_lp) stores NN33 indices where
@@ -655,7 +655,7 @@ def test_get_lat_trans_compr_indices(cell_nacl_111: PhonopyAtoms):
             np.testing.assert_almost_equal(compr_mat[r, c], 0.5)
 
 
-def test_get_atomic_lat_trans_decompr_indices(cell_nacl_111: PhonopyAtoms):
+def test_get_atomic_lat_trans_decompr_indices(cell_nacl_111: SymfcAtoms):
     """Test of get_atomic_lat_trans_decompr_indices.
 
     This function is an atomic version of get_lat_trans_decompr_indices.
