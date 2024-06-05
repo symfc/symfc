@@ -1,6 +1,7 @@
 """Solver of 2nd and 3rd order force constants simultaneously."""
 
 import time
+from typing import Optional, Union
 
 import numpy as np
 from scipy.sparse import csr_array
@@ -8,9 +9,79 @@ from scipy.sparse import csr_array
 from symfc.utils.eig_tools import dot_product_sparse
 from symfc.utils.utils_O2 import get_perm_compr_matrix
 
+from .solver_base import FCSolverBase
 from .solver_funcs import get_batch_slice, solve_linear_equation
 from .solver_O2 import get_training_from_full_basis
 from .solver_O3 import csr_NNN333_to_NN33N3, set_2nd_disps
+
+
+class FCSolverO2O3(FCSolverBase):
+    """Simultaneous second and third order force constants solver."""
+
+    def __init__(
+        self,
+        basis_set: Union[np.ndarray, csr_array],
+        use_mkl: bool = False,
+        log_level: int = 0,
+    ):
+        """Init method."""
+        super().__init__(basis_set, use_mkl=use_mkl, log_level=log_level)
+
+    def solve(
+        self,
+        displacements: np.ndarray,
+        forces: np.ndarray,
+    ) -> Optional[np.ndarray]:
+        """Solve force constants.
+
+        Parameters
+        ----------
+        displacements : ndarray
+            Displacements of atoms in Cartesian coordinates. shape=(n_snapshot,
+            N, 3), dtype='double'
+        forces : ndarray
+            Forces of atoms in Cartesian coordinates. shape=(n_snapshot, N, 3),
+            dtype='double'
+        is_compact_fc : bool
+            For FC2, shape of force constants array is (n_a, N, 3, 3) if True or
+            (M, N, 3, 3) if False. For FC3, shape of force constants array is
+            (n_a, N, N, 3, 3, 3) if True or (M, N, N, 3, 3, 3) if False.
+
+        Returns
+        -------
+        ndarray
+            Force constants. shape=(n_a, N, 3, 3) or (N, N, 3, 3). See
+            `is_compact_fc` parameter. dtype='double', order='C'
+
+        """
+
+    @property
+    def full_fc(self) -> Optional[np.ndarray]:
+        """Return full force constants.
+
+        Returns
+        -------
+        np.ndarray
+            shape=(N, N, 3, 3), dtype='double', order='C'
+
+        """
+        N = self._natom
+        fc = self._basis_set.basis_set @ self._coefs
+        return (self._basis_set.compression_matrix @ fc).reshape((-1, N, 3, 3))
+
+    @property
+    def compact_fc(self) -> Optional[np.ndarray]:
+        """Return full force constants.
+
+        Returns
+        -------
+        np.ndarray
+            shape=(n_a, N, 3, 3), dtype='double', order='C'
+
+        """
+        N = self._natom
+        fc = self._basis_set.basis_set @ self._coefs
+        return (self._basis_set.compact_compression_matrix @ fc).reshape((-1, N, 3, 3))
 
 
 def get_training_exact(

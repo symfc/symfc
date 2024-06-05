@@ -16,26 +16,33 @@ cwd = Path(__file__).parent
 
 def test_fc_basis_set_o2():
     """Test symmetry adapted basis sets of FCBasisSetO2."""
-    basis_ref = [
-        [-0.28867513, 0, 0, 0.28867513, 0, 0],
-        [0, -0.28867513, 0, 0, 0.28867513, 0],
-        [0, 0, -0.28867513, 0, 0, 0.28867513],
-        [0.28867513, 0, 0, -0.28867513, 0, 0],
-        [0, 0.28867513, 0, 0, -0.28867513, 0],
-        [0, 0, 0.28867513, 0, 0, -0.28867513],
-    ]
-
     lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
     positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
     numbers = [1, 1]
     supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
     sbs = FCBasisSetO2(supercell, log_level=1).run()
-    N = len(supercell)
-    basis = np.transpose(sbs.full_basis_set.reshape(N, N, 3, 3), (0, 2, 1, 3)).reshape(
-        N * 3, N * 3
+
+    np.testing.assert_allclose(
+        np.sort(sbs.basis_set), [[-np.sqrt(2) / 2], [np.sqrt(2) / 2]]
     )
-    np.testing.assert_allclose(basis, basis_ref, atol=1e-6)
-    assert np.linalg.norm(basis) == pytest.approx(1.0)
+
+    comp_mat = sbs.compression_matrix
+    np.testing.assert_allclose(comp_mat.data, [0.40824829046386313] * comp_mat.size)
+    ref_col = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0]
+    ref_row = [0, 4, 8, 9, 13, 17, 18, 22, 26, 27, 31, 35]
+    np.testing.assert_array_equal(comp_mat.tocoo().col, ref_col)
+    np.testing.assert_array_equal(comp_mat.tocoo().row, ref_row)
+
+    compact_comp_mat = sbs.compact_compression_matrix
+    np.testing.assert_allclose(
+        compact_comp_mat.data, [0.40824829046386313] * compact_comp_mat.size
+    )
+    ref_col = [0, 0, 0, 1, 1, 1]
+    ref_row = [0, 4, 8, 9, 13, 17]
+    np.testing.assert_array_equal(compact_comp_mat.tocoo().col, ref_col)
+    np.testing.assert_array_equal(compact_comp_mat.tocoo().row, ref_row)
+
+    assert np.linalg.norm(sbs.basis_set) == pytest.approx(1.0)
 
 
 def test_fc2_NaCl_222(ph_nacl_222: Phonopy):
@@ -158,20 +165,6 @@ def test_fc2_GaN_222_wrt_ALM(ph_gan_222: Phonopy, is_compact_fc: bool):
     # )
 
 
-def test_full_basis_set_o2_NaCl222_wrt_ALM(ph_nacl_222: Phonopy):
-    _ = _full_basis_set_o2_compare_with_alm(
-        cwd / ".." / "phonopy_NaCl_222_rd.yaml.xz",
-        FCBasisSetO2(ph_nacl_222.supercell, log_level=1),
-    )
-
-
-def test_full_basis_set_o2_SnO2_223_wrt_ALM(ph_sno2_223: Phonopy):
-    _ = _full_basis_set_o2_compare_with_alm(
-        cwd / ".." / "phonopy_SnO2_223_rd.yaml.xz",
-        FCBasisSetO2(ph_sno2_223.supercell, log_level=1),
-    )
-
-
 def _compare_fc2_with_alm(
     filename: Path,
     fc_basis_set: FCBasisSetO2,
@@ -189,27 +182,3 @@ def _compare_fc2_with_alm(
         fc = fc_solver.full_fc
     np.testing.assert_allclose(ph.force_constants, fc, atol=1e-6)
     return fc
-
-
-def _full_basis_set_o2_compare_with_alm(
-    filename: Path,
-    fc_basis_set: FCBasisSetO2,
-):
-    """This is the test for FCBasisSetO2.full_basis_set."""
-    pytest.importorskip("alm")
-    basis_set = fc_basis_set.run()
-    ph = phonopy.load(filename, fc_calculator="alm", is_compact_fc=False)
-    f = ph.dataset["forces"]
-    d = ph.dataset["displacements"]
-    full_basis_set = basis_set.full_basis_set
-    n_bases = full_basis_set.shape[-1]
-    N = len(ph.supercell)
-    square_basis_set = full_basis_set.reshape(N, N, 3, 3, n_bases)
-    coeff = (
-        -np.linalg.pinv(
-            np.einsum("ijk,jlkmn->ilmn", d, square_basis_set).reshape(-1, n_bases)
-        )
-        @ f.ravel()
-    )
-    full_fc = (full_basis_set @ coeff).reshape(N, N, 3, 3)
-    np.testing.assert_allclose(ph.force_constants, full_fc, atol=1e-6)

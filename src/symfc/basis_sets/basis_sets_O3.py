@@ -6,7 +6,7 @@ import time
 from typing import Optional, Union
 
 import numpy as np
-from scipy.sparse import coo_array, csc_array, csr_array
+from scipy.sparse import coo_array, csr_array
 
 from symfc.spg_reps import SpgRepsO3
 from symfc.utils.eig_tools import (
@@ -86,34 +86,6 @@ class FCBasisSetO3(FCBasisSetBase):
 
         """
         return self._basis_set
-
-    @property
-    def compact_basis_set(self) -> Optional[csc_array]:
-        """Return compressed basis set.
-
-        shape=(n_a*N*N*3*3*3, n_bases), dtype='double'.
-
-        Data in first dimension is ordered by (n_a,N,N,3,3,3).
-
-        """
-        if self._basis_set is None:
-            return None
-        return dot_product_sparse(
-            self.compact_compression_matrix, self._basis_set, use_mkl=self._use_mkl
-        )
-
-    @property
-    def full_basis_set(self) -> Optional[np.ndarray]:
-        """Return full (decompressed) basis set.
-
-        shape=(N*N*N*3*3*3, n_bases), dtype='double'.
-
-        Data in first dimension is ordered by (N,N,N,3,3,3).
-
-        """
-        if self._basis_set is None:
-            return None
-        return dot_product_sparse(self.compression_matrix, self._basis_set)
 
     @property
     def compression_matrix(self) -> Optional[csr_array]:

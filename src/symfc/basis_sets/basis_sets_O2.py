@@ -79,38 +79,6 @@ class FCBasisSetO2(FCBasisSetBase):
         return self._basis_set
 
     @property
-    def compact_basis_set(self) -> Optional[np.ndarray]:
-        """Return compact basis set.
-
-        n_a : number of atoms in primitive cell.
-
-        shape=(n_a*N*3*3, n_bases), dtype='double'.
-
-        Data in first dimension is ordered by (n_a,N,3,3).
-
-        """
-        if self._basis_set is None:
-            return None
-        return dot_product_sparse(
-            self._n_a_compression_matrix, self._basis_set, use_mkl=self._use_mkl
-        )
-
-    @property
-    def full_basis_set(self) -> Optional[np.ndarray]:
-        """Return full (decompressed) basis set.
-
-        shape=(N*N*3*3, n_bases), dtype='double'.
-
-        Data in first dimension is ordered by (N,N,3,3).
-
-        """
-        if self._basis_set is None:
-            return None
-        return dot_product_sparse(
-            self.compression_matrix, self._basis_set, use_mkl=self._use_mkl
-        )
-
-    @property
     def compression_matrix(self) -> Optional[csr_array]:
         """Return compression matrix.
 

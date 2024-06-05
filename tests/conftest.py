@@ -3,8 +3,10 @@
 from pathlib import Path
 from typing import Final
 
+import phono3py
 import phonopy
 import pytest
+from phono3py import Phono3py
 from phonopy import Phonopy
 from phonopy.interface.phonopy_yaml import read_cell_yaml
 from phonopy.structure.atoms import PhonopyAtoms
@@ -90,3 +92,10 @@ def ph_gan_442() -> Phonopy:
     """Return phonopy instance of GaN-442."""
     ph = phonopy.load(cwd / "phonopy_GaN_442_rd.yaml.xz", produce_fc=False)
     return ph
+
+
+@pytest.fixture(scope="session")
+def ph_si_111_222() -> Phono3py:
+    """Return phono3py instance of Si-111-222."""
+    ph3 = phono3py.load(cwd / "phono3py_params_Si-111-222-rd.yaml.xz", produce_fc=False)
+    return ph3
