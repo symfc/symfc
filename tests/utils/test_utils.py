@@ -1,5 +1,9 @@
 """Tests of matrix manipulating functions."""
 
+from __future__ import annotations
+
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -9,6 +13,8 @@ from symfc.utils.utils import (
     compute_sg_permutations,
     get_indep_atoms_by_lat_trans,
 )
+
+cwd = Path(__file__).parent
 
 
 def test_get_indep_atoms_by_lattice_translation(
@@ -63,5 +69,5 @@ def test_compute_sg_permutations(
         supercell.cell,
     )
     # np.savetxt("perms_super.dat", perms_super, fmt="%d")
-    perms_super_ref = np.loadtxt("perms_super.dat", dtype=int)
+    perms_super_ref = np.loadtxt(cwd / ".." / "perms_super.dat", dtype=int)
     np.testing.assert_array_equal(perms_super_ref, perms_super)
