@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from phono3py import Phono3py
 from phonopy import Phonopy
 
 from symfc import Symfc
@@ -50,7 +51,6 @@ def test_api_NaCl_222_with_dataset(ph_nacl_222: Phonopy):
 
 def test_api_NaCl_222_exception(ph_nacl_222: Phonopy):
     """Test Symfc class with displacements and forces as input."""
-    pytest.importorskip("alm")
     ph = ph_nacl_222
     symfc = Symfc(ph.supercell)
     symfc.compute_basis_set(2)
@@ -60,3 +60,22 @@ def test_api_NaCl_222_exception(ph_nacl_222: Phonopy):
                 2,
             ]
         )
+
+
+def test_api_si_111_222(ph3_si_111_222: Phono3py):
+    """Test Symfc class with displacements and forces as input."""
+    pytest.importorskip("alm")
+    ph3 = ph3_si_111_222
+    symfc = Symfc(
+        ph3.supercell, displacements=ph3.displacements, forces=ph3.forces, orders=[2, 3]
+    )
+    ph3 = Phono3py(
+        ph3.unitcell,
+        supercell_matrix=ph3.supercell_matrix,
+        primitive_matrix=ph3.primitive_matrix,
+    )
+    ph3.displacements = symfc.displacements
+    ph3.forces = symfc.forces
+    ph3.produce_fc3(fc_calculator="alm", is_compact_fc=True)
+    np.testing.assert_allclose(ph3.fc2, symfc.force_constants[2], atol=1e-6)
+    np.testing.assert_allclose(ph3.fc3, symfc.force_constants[3], atol=1e-6)

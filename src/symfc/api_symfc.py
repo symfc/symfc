@@ -7,7 +7,8 @@ from typing import Optional, Union
 
 import numpy as np
 
-from symfc.basis_sets import FCBasisSetBase, FCBasisSetO2
+from symfc.basis_sets import FCBasisSetBase, FCBasisSetO2, FCBasisSetO3
+from symfc.solvers import FCSolverO2, FCSolverO2O3
 from symfc.utils.utils import SymfcAtoms
 
 
@@ -20,12 +21,14 @@ class Symfc:
         displacements: Optional[np.ndarray] = None,
         forces: Optional[np.ndarray] = None,
         orders: Optional[Sequence[int]] = None,
+        use_mkl: bool = False,
         log_level: int = 0,
     ):
         """Init method."""
         self._supercell: SymfcAtoms = supercell
         self._displacements: Optional[np.ndarray] = displacements
         self._forces: Optional[np.ndarray] = forces
+        self._use_mkl = use_mkl
         self._log_level = log_level
 
         self._basis_set: dict[FCBasisSetBase] = {}
@@ -99,13 +102,19 @@ class Symfc:
 
     def compute_basis_set(self, order: int):
         """Set order of force constants."""
+        if order not in (2, 3):
+            raise NotImplementedError("Only fc2 basis set is implemented.")
+
         if order == 2:
             basis_set_o2 = FCBasisSetO2(
-                self._supercell, log_level=self._log_level
+                self._supercell, use_mkl=self._use_mkl, log_level=self._log_level
             ).run()
             self._basis_set[2] = basis_set_o2
-        else:
-            raise NotImplementedError("Only fc2 basis set is implemented.")
+        if order == 3:
+            basis_set_o3 = FCBasisSetO3(
+                self._supercell, use_mkl=self._use_mkl, log_level=self._log_level
+            ).run()
+            self._basis_set[3] = basis_set_o3
 
     def solve(self, orders: Sequence[int], is_compact_fc=True) -> Symfc:
         """Calculate force constants.
@@ -116,36 +125,33 @@ class Symfc:
         """
         self._check_dataset()
         for order in orders:
+            if order not in (2, 3):
+                raise NotImplementedError("Only order-2 and order-3 are implemented.")
             if order == 2:
-                from symfc.solvers.solver_O2 import run_solver_sparse_O2
-
                 basis_set: FCBasisSetO2 = self._basis_set[2]
-
-                n_data, N = self._forces.shape[0:2]
-                f = self._forces.reshape(n_data, -1)
-                d = self._displacements.reshape(n_data, -1)
-                coefs = run_solver_sparse_O2(
-                    d, f, basis_set.compression_matrix, basis_set.basis_set
-                )
-
-                fc2 = basis_set.basis_set @ coefs
+                solver_o2 = FCSolverO2(
+                    basis_set,
+                    use_mkl=self._use_mkl,
+                    log_level=self._log_level,
+                ).solve(self._displacements, self._forces)
                 if is_compact_fc:
-                    fc2 = (basis_set.compact_compression_matrix @ fc2).reshape(
-                        (-1, N, 3, 3)
-                    )
+                    self._force_constants[2] = solver_o2.compact_fc
                 else:
-                    fc2 = (basis_set.compression_matrix @ fc2).reshape((-1, N, 3, 3))
-
-                # solver = FCSolverO2(
-                #     basis_set,
-                #     log_level=self._log_level,
-                # )
-                # fc2 = solver.solve(
-                #     self._displacements, self._forces, is_compact_fc=is_compact_fc
-                # )
+                    self._force_constants[2] = solver_o2.full_fc
+            if order == 3:
+                basis_set_o2: FCBasisSetO2 = self._basis_set[2]
+                basis_set_o3: FCBasisSetO3 = self._basis_set[3]
+                solver_o2o3 = FCSolverO2O3(
+                    [basis_set_o2, basis_set_o3],
+                    use_mkl=self._use_mkl,
+                    log_level=self._log_level,
+                ).solve(self._displacements, self._forces)
+                if is_compact_fc:
+                    fc2, fc3 = solver_o2o3.compact_fc
+                else:
+                    fc2, fc3 = solver_o2o3.full_fc
                 self._force_constants[2] = fc2
-            else:
-                raise NotImplementedError("Only order-2 is implemented.")
+                self._force_constants[3] = fc3
         return self
 
     def _check_dataset(self):
