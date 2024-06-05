@@ -10,9 +10,9 @@ from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2
 from symfc.utils.eig_tools import dot_product_sparse
+from symfc.utils.solver_funcs import fit, get_batch_slice, solve_linear_equation
 
 from .solver_base import FCSolverBase
-from .solver_funcs import fit, get_batch_slice, solve_linear_equation
 
 
 class FCSolverO2(FCSolverBase):
@@ -39,7 +39,11 @@ class FCSolverO2(FCSolverBase):
         """
         N = self._natom
         fc = self._basis_set.basis_set @ self._coefs
-        return (self._basis_set.compression_matrix @ fc).reshape((-1, N, 3, 3))
+        return np.array(
+            (self._basis_set.compression_matrix @ fc).reshape((-1, N, 3, 3)),
+            dtype="double",
+            order="C",
+        )
 
     @property
     def compact_fc(self) -> Optional[np.ndarray]:
@@ -53,7 +57,11 @@ class FCSolverO2(FCSolverBase):
         """
         N = self._natom
         fc = self._basis_set.basis_set @ self._coefs
-        return (self._basis_set.compact_compression_matrix @ fc).reshape((-1, N, 3, 3))
+        return np.array(
+            (self._basis_set.compact_compression_matrix @ fc).reshape((-1, N, 3, 3)),
+            dtype="double",
+            order="C",
+        )
 
     def solve(
         self,
@@ -70,9 +78,6 @@ class FCSolverO2(FCSolverBase):
         forces : ndarray
             Forces of atoms in Cartesian coordinates.
             shape=(n_snapshot, N, 3), dtype='double'
-        is_compact_fc : bool
-            Shape of force constants array is (n_a, N, 3, 3) if True or
-            (M, N, 3, 3) if False.
 
         Returns
         -------

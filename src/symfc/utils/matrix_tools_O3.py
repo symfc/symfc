@@ -7,8 +7,8 @@ import numpy as np
 import scipy
 from scipy.sparse import csr_array
 
-from symfc.solvers.solver_funcs import get_batch_slice
 from symfc.utils.eig_tools import dot_product_sparse
+from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.utils_O3 import get_lat_trans_decompr_indices_O3
 
 

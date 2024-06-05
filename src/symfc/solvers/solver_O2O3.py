@@ -1,16 +1,20 @@
 """Solver of 2nd and 3rd order force constants simultaneously."""
 
+from __future__ import annotations
+
 import time
-from typing import Optional, Union
+from collections.abc import Sequence
+from typing import Literal, Optional
 
 import numpy as np
 from scipy.sparse import csr_array
 
+from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3
 from symfc.utils.eig_tools import dot_product_sparse
+from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 from symfc.utils.utils_O2 import get_perm_compr_matrix
 
 from .solver_base import FCSolverBase
-from .solver_funcs import get_batch_slice, solve_linear_equation
 from .solver_O2 import get_training_from_full_basis
 from .solver_O3 import csr_NNN333_to_NN33N3, set_2nd_disps
 
@@ -20,7 +24,7 @@ class FCSolverO2O3(FCSolverBase):
 
     def __init__(
         self,
-        basis_set: Union[np.ndarray, csr_array],
+        basis_set: Sequence[FCBasisSetO2, FCBasisSetO3],
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -28,11 +32,13 @@ class FCSolverO2O3(FCSolverBase):
         super().__init__(basis_set, use_mkl=use_mkl, log_level=log_level)
 
     def solve(
-        self,
-        displacements: np.ndarray,
-        forces: np.ndarray,
-    ) -> Optional[np.ndarray]:
+        self, displacements: np.ndarray, forces: np.ndarray, batch_size: int = 200
+    ) -> FCSolverO2O3:
         """Solve force constants.
+
+        Note
+        ----
+        self._coefs = (coefs_fc2, coefs_fc3)
 
         Parameters
         ----------
@@ -42,10 +48,6 @@ class FCSolverO2O3(FCSolverBase):
         forces : ndarray
             Forces of atoms in Cartesian coordinates. shape=(n_snapshot, N, 3),
             dtype='double'
-        is_compact_fc : bool
-            For FC2, shape of force constants array is (n_a, N, 3, 3) if True or
-            (M, N, 3, 3) if False. For FC3, shape of force constants array is
-            (n_a, N, N, 3, 3, 3) if True or (M, N, N, 3, 3, 3) if False.
 
         Returns
         -------
@@ -54,34 +56,84 @@ class FCSolverO2O3(FCSolverBase):
             `is_compact_fc` parameter. dtype='double', order='C'
 
         """
+        n_data = forces.shape[0]
+        f = forces.reshape(n_data, -1)
+        d = displacements.reshape(n_data, -1)
+
+        fc2_basis: FCBasisSetO2 = self._basis_set[0]
+        fc3_basis: FCBasisSetO3 = self._basis_set[1]
+        compress_mat_fc2 = fc2_basis.compression_matrix
+        basis_set_fc2 = fc2_basis.basis_set
+        compress_mat_fc3 = fc3_basis.compression_matrix
+        basis_set_fc3 = fc3_basis.basis_set
+
+        self._coefs = run_solver_sparse_O2O3(
+            d,
+            f,
+            compress_mat_fc2,
+            compress_mat_fc3,
+            basis_set_fc2,
+            basis_set_fc3,
+            batch_size=batch_size,
+            use_mkl=self._use_mkl,
+        )
+        return self
 
     @property
-    def full_fc(self) -> Optional[np.ndarray]:
+    def full_fc(self) -> Optional[tuple[np.ndarray, np.ndarray]]:
         """Return full force constants.
 
         Returns
         -------
-        np.ndarray
+        tuple[np.ndarray, np.ndarray]
             shape=(N, N, 3, 3), dtype='double', order='C'
+            shape=(N, N, N, 3, 3, 3), dtype='double', order='C'
 
         """
-        N = self._natom
-        fc = self._basis_set.basis_set @ self._coefs
-        return (self._basis_set.compression_matrix @ fc).reshape((-1, N, 3, 3))
+        return self._recover_fcs("full")
 
     @property
-    def compact_fc(self) -> Optional[np.ndarray]:
+    def compact_fc(self) -> Optional[tuple[np.ndarray, np.ndarray]]:
         """Return full force constants.
 
         Returns
         -------
-        np.ndarray
+        tuple[np.ndarray, np.ndarray]
             shape=(n_a, N, 3, 3), dtype='double', order='C'
+            shape=(n_a, N, N, 3, 3, 3), dtype='double', order='C'
 
         """
+        return self._recover_fcs("compact")
+
+    def _recover_fcs(
+        self, comp_mat_type: str = Literal["full", "compact"]
+    ) -> Optional[tuple[np.ndarray, np.ndarray]]:
+        if self._coefs is None:
+            return None
+
+        fc2_basis: FCBasisSetO2 = self._basis_set[0]
+        fc3_basis: FCBasisSetO3 = self._basis_set[1]
+        if comp_mat_type == "full":
+            comp_mat_fc2 = fc2_basis.compression_matrix
+            comp_mat_fc3 = fc3_basis.compression_matrix
+        elif comp_mat_type == "compact":
+            comp_mat_fc2 = fc2_basis.compact_compression_matrix
+            comp_mat_fc3 = fc3_basis.compact_compression_matrix
+        else:
+            raise ValueError("Invalid comp_mat_type.")
+
         N = self._natom
-        fc = self._basis_set.basis_set @ self._coefs
-        return (self._basis_set.compact_compression_matrix @ fc).reshape((-1, N, 3, 3))
+        fc2 = fc2_basis.basis_set @ self._coefs[0]
+        fc2 = np.array(
+            (comp_mat_fc2 @ fc2).reshape((-1, N, 3, 3)), dtype="double", order="C"
+        )
+        fc3 = fc3_basis.basis_set @ self._coefs[1]
+        fc3 = np.array(
+            (comp_mat_fc3 @ fc3).reshape((-1, N, N, 3, 3, 3)),
+            dtype="double",
+            order="C",
+        )
+        return fc2, fc3
 
 
 def get_training_exact(

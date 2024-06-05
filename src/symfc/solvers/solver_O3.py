@@ -7,9 +7,8 @@ import numpy as np
 from scipy.sparse import csr_array
 
 from symfc.utils.eig_tools import dot_product_sparse
+from symfc.utils.solver_funcs import fit, get_batch_slice, solve_linear_equation
 from symfc.utils.utils_O2 import get_perm_compr_matrix
-
-from .solver_funcs import fit, get_batch_slice, solve_linear_equation
 
 
 def run_solver_dense_O3(disps, forces, compress_mat, compress_eigvecs):

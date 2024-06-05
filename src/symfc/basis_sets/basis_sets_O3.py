@@ -24,7 +24,7 @@ from symfc.utils.utils_O3 import (
     get_lat_trans_compr_matrix_O3,
 )
 
-from .basis_sets_base import FCBasisSetBase
+from . import FCBasisSetBase
 
 
 def print_sp_matrix_size(c: Union[csr_array, coo_array], header: str):

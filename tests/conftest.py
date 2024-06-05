@@ -95,7 +95,7 @@ def ph_gan_442() -> Phonopy:
 
 
 @pytest.fixture(scope="session")
-def ph_si_111_222() -> Phono3py:
+def ph3_si_111_222() -> Phono3py:
     """Return phono3py instance of Si-111-222."""
     ph3 = phono3py.load(cwd / "phono3py_params_Si-111-222-rd.yaml.xz", produce_fc=False)
     return ph3
