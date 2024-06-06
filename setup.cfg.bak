@@ -1,0 +1,10 @@
+[options]
+package_dir=
+    =src
+packages=find:
+
+[options.packages.find]
+where=.
+
+[metadata]
+version = attr: symfc.version.__version__
