@@ -5,3 +5,6 @@ packages=find:
 
 [options.packages.find]
 where=.
+
+[metadata]
+version = attr: symfc.version.__version__
