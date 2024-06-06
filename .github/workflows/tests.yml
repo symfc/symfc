@@ -1,4 +1,4 @@
-name: symfc test using conda-forge environment and ALM
+name: symfc test using conda-forge environment
 
 on:
   pull_request:
