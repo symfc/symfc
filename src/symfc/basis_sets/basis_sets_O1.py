@@ -112,6 +112,16 @@ class FCBasisSetO1(FCBasisSetO1Base):
         """
         return self._full_basis_set
 
+    @property
+    def compact_compression_matrix(self) -> Optional[np.ndarray]:
+        """Return compression matrix for compact basis set."""
+        pass
+
+    @property
+    def compression_matrix(self) -> Optional[np.ndarray]:
+        """Return compression matrix."""
+        pass
+
     def run(self) -> FCBasisSetO1:
         """Compute compressed force constants basis set."""
         c_trans = self._get_c_trans()
