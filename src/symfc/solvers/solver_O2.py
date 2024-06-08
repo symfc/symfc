@@ -88,7 +88,11 @@ class FCSolverO2(FCSolverBase):
         f = forces.reshape(n_data, -1)
         d = displacements.reshape(n_data, -1)
         self._coefs = run_solver_sparse_O2(
-            d, f, self._basis_set.compression_matrix, self._basis_set.basis_set
+            d,
+            f,
+            self._basis_set.compression_matrix,
+            self._basis_set.basis_set,
+            verbose=self._log_level > 0,
         )
         return self
 
@@ -157,7 +161,9 @@ def run_solver_dense_O2(disps, forces, compress_mat, compress_eigvecs):
     return coefs
 
 
-def run_solver_sparse_O2(disps, forces, compress_mat, compress_eigvecs, batch_size=200):
+def run_solver_sparse_O2(
+    disps, forces, compress_mat, compress_eigvecs, batch_size=200, verbose=True
+):
     """Estimating coeffs. in X @ coeffs = y by solving normal equation.
 
     (X.T @ X) @ coeffs = X.T @ y
@@ -169,14 +175,25 @@ def run_solver_sparse_O2(disps, forces, compress_mat, compress_eigvecs, batch_si
 
     """
     XTX, XTy = _get_training(
-        disps, forces, compress_mat, compress_eigvecs, batch_size=batch_size
+        disps,
+        forces,
+        compress_mat,
+        compress_eigvecs,
+        batch_size=batch_size,
+        verbose=verbose,
     )
     coefs = solve_linear_equation(XTX, XTy)
     return coefs
 
 
 def _get_training(
-    disps, forces, compress_mat, compress_eigvecs, batch_size=200, use_mkl=False
+    disps,
+    forces,
+    compress_mat,
+    compress_eigvecs,
+    batch_size=200,
+    use_mkl=False,
+    verbose=True,
 ):
     r"""Calculate X.T @ X and X.T @ y.
 
@@ -201,7 +218,8 @@ def _get_training(
     t1 = time.time()
     compress_mat = _csr_NN33_to_N3N3(compress_mat, N).reshape((N3, -1)).tocsr()
     t2 = time.time()
-    print(" reshape(compr):   ", t2 - t1)
+    if verbose:
+        print(" reshape(compr):   ", t2 - t1)
 
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
     XTX = np.zeros((n_basis, n_basis), dtype=float)
@@ -217,9 +235,11 @@ def _get_training(
         XTX += X.T @ X
         XTy += X.T @ y
         t02 = time.time()
-        print(" solver_block:", end, ":, t =", t02 - t01)
+        if verbose:
+            print(" solver_block:", end, ":, t =", t02 - t01)
     t3 = time.time()
-    print(" (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):", t3 - t2)
+    if verbose:
+        print(" (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):", t3 - t2)
     return XTX, XTy
 
 

@@ -46,6 +46,7 @@ class FCBasisSetO2(FCBasisSetBase):
     def __init__(
         self,
         supercell: SymfcAtoms,
+        spacegroup_operations: Optional[dict] = None,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -55,6 +56,12 @@ class FCBasisSetO2(FCBasisSetBase):
         ----------
         supercell : SymfcAtoms
             Supercell.
+        spacegroup_operations : dict, optional
+            Space group operations in supercell, by default None. When None,
+            spglib is used. The following keys and values correspond to spglib
+            symmetry dataset:
+                rotations : array_like
+                translations : array_like
         use_mkl : bool
             Use MKL or not. Default is False.
         log_level : int, optional
@@ -62,7 +69,9 @@ class FCBasisSetO2(FCBasisSetBase):
 
         """
         super().__init__(supercell, use_mkl=use_mkl, log_level=log_level)
-        self._spg_reps = SpgRepsO2(supercell)
+        self._spg_reps = SpgRepsO2(
+            supercell, spacegroup_operations=spacegroup_operations
+        )
         self._n_a_compression_matrix: Optional[csr_array] = None
 
     @property
@@ -129,7 +138,7 @@ class FCBasisSetO2(FCBasisSetBase):
             c_trans, n_a_compress_mat, use_mkl=self._use_mkl
         )
         proj = compressed_projector_sum_rules(compress_mat, N, use_mkl=self._use_mkl)
-        eigvecs = eigsh_projector_sumrule(proj)
+        eigvecs = eigsh_projector_sumrule(proj, verbose=self._log_level > 0)
 
         if self._log_level:
             print(f"Final size of basis set: {eigvecs.shape}")
@@ -156,10 +165,10 @@ class FCBasisSetO2(FCBasisSetBase):
         c_pt = dot_product_sparse(c_perm.T, c_trans, use_mkl=self._use_mkl)
         proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=self._use_mkl)
         coset_reps_sum = get_compr_coset_reps_sum(self._spg_reps)
-        c_pt = eigsh_projector(proj_pt)
+        c_pt = eigsh_projector(proj_pt, verbose=self._log_level > 0)
         proj_rpt = dot_product_sparse(coset_reps_sum, c_pt, use_mkl=self._use_mkl)
         proj_rpt = dot_product_sparse(c_pt.T, proj_rpt)
-        c_rpt = eigsh_projector(proj_rpt)
+        c_rpt = eigsh_projector(proj_rpt, verbose=self._log_level > 0)
         n_a_compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
         return n_a_compress_mat
 

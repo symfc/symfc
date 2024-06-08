@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 import numpy as np
 from scipy.sparse import csr_array
 
@@ -13,19 +15,27 @@ from .spg_reps_base import SpgRepsBase
 class SpgRepsO1(SpgRepsBase):
     """Class of reps of space group operations for fc1."""
 
-    def __init__(self, supercell: SymfcAtoms):
+    def __init__(
+        self, supercell: SymfcAtoms, spacegroup_operations: Optional[dict] = None
+    ):
         """Init method.
 
         Parameters
         ----------
         supercell : SymfcAtoms
             Supercell.
+        spacegroup_operations : dict, optional
+            Space group operations in supercell, by default None. When None,
+            spglib is used. The following keys and values correspond to spglib
+            symmetry dataset:
+                rotations : array_like
+                translations : array_like
 
         """
         self._r1_reps: list[csr_array]
         self._col: np.ndarray
         self._data: np.ndarray
-        super().__init__(supercell)
+        super().__init__(supercell, spacegroup_operations=spacegroup_operations)
 
     @property
     def r_reps(self) -> list[csr_array]:
@@ -44,8 +54,8 @@ class SpgRepsO1(SpgRepsBase):
         data, row, col, shape = self._get_sigma1_rep_data(i)
         return csr_array((data, (row, col)), shape=shape)
 
-    def _prepare(self):
-        super()._prepare()
+    def _prepare(self, spacegroup_operations):
+        super()._prepare(spacegroup_operations)
         N = len(self._numbers)
         self._col = np.arange(N, dtype=int)
         self._data = np.ones(N, dtype=int)
