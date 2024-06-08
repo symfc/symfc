@@ -57,7 +57,16 @@ class FCBasisSetBase(ABC):
     @property
     def translation_permutations(self) -> np.ndarray:
         """Return permutations by lattice translation."""
+        if self._spg_reps is None:
+            raise ValueError("SpgRepsBase is not set.")
         return self._spg_reps.translation_permutations
+
+    @property
+    def p2s_map(self) -> np.ndarray:
+        """Return indices of translationally independent atoms."""
+        if self._spg_reps is None:
+            raise ValueError("SpgRepsBase is not set.")
+        return self._spg_reps._p2s_map
 
     @abstractmethod
     def run(self):

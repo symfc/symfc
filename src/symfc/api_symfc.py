@@ -20,18 +20,50 @@ class Symfc:
         supercell: SymfcAtoms,
         displacements: Optional[np.ndarray] = None,
         forces: Optional[np.ndarray] = None,
+        spacegroup_operations: Optional[dict] = None,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
-        """Init method."""
-        self._supercell: SymfcAtoms = supercell
-        self._displacements: Optional[np.ndarray] = displacements
-        self._forces: Optional[np.ndarray] = forces
+        """Init method.
+
+        Parameters
+        ----------
+        supercell : SymfcAtoms
+            Supercell.
+        displacements : ndarray, optional
+            Displacements of supercell atoms. shape=(n_snapshot, natom, 3),
+            dtype='double', order='C'
+        forces : ndarray, optional
+            Forces of supercell atoms. shape=(n_snapshot, natom, 3),
+            dtype='double', order='C'
+        spacegroup_operations : dict, optional
+            Space group operations in supercell, by default None. When None,
+            spglib is used. The following keys and values correspond to spglib
+            symmetry dataset:
+                rotations : array_like translations : array_like
+        use_mkl : bool, optional
+            Use MKL library, by default False.
+        log_level : int, optional
+            Log level, by default 0.
+
+        """
+        self._supercell = supercell
+        self._displacements = displacements
+        self._forces = forces
+        self._spacegroup_operations = spacegroup_operations
         self._use_mkl = use_mkl
         self._log_level = log_level
 
         self._basis_set: dict[FCBasisSetBase] = {}
         self._force_constants: dict[np.ndarray] = {}
+
+    @property
+    def p2s_map(self) -> Optional[np.ndarray]:
+        """Return indices of translationally independent atoms."""
+        if self._basis_set:
+            return next(iter(self._basis_set.values())).p2s_map
+        else:
+            raise ValueError("No FCBasisSet set is not set.")
 
     @property
     def basis_set(self) -> dict[FCBasisSetBase]:
@@ -142,12 +174,18 @@ class Symfc:
 
         if order == 2:
             basis_set_o2 = FCBasisSetO2(
-                self._supercell, use_mkl=self._use_mkl, log_level=self._log_level
+                self._supercell,
+                spacegroup_operations=self._spacegroup_operations,
+                use_mkl=self._use_mkl,
+                log_level=self._log_level,
             ).run()
             self._basis_set[2] = basis_set_o2
         if order == 3:
             basis_set_o3 = FCBasisSetO3(
-                self._supercell, use_mkl=self._use_mkl, log_level=self._log_level
+                self._supercell,
+                spacegroup_operations=self._spacegroup_operations,
+                use_mkl=self._use_mkl,
+                log_level=self._log_level,
             ).run()
             self._basis_set[3] = basis_set_o3
 
