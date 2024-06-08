@@ -5,21 +5,32 @@ from __future__ import annotations
 from typing import Optional
 
 import numpy as np
-import spglib
 
-from symfc.utils.utils import SymfcAtoms, compute_sg_permutations
+from symfc.utils.utils import (
+    SymfcAtoms,
+    compute_sg_permutations,
+    get_indep_atoms_by_lat_trans,
+)
 
 
 class SpgRepsBase:
     """Base class of reps of space group operations."""
 
-    def __init__(self, supercell: SymfcAtoms):
+    def __init__(
+        self, supercell: SymfcAtoms, spacegroup_operations: Optional[dict] = None
+    ):
         """Init method.
 
         Parameters
         ----------
         supercell : SymfcAtoms
             Supercell.
+        spacegroup_operations : dict, optional
+            Space group operations in supercell, by default None. When None,
+            spglib is used. The following keys and values correspond to spglib
+            symmetry dataset:
+                rotations : array_like
+                translations : array_like
 
         """
         self._lattice = np.array(supercell.cell, dtype="double", order="C")
@@ -30,7 +41,8 @@ class SpgRepsBase:
         self._unique_rotations: Optional[np.ndarray] = None
         self._unique_rotation_indices: Optional[np.ndarray] = None
         self._translation_permutations: Optional[np.ndarray] = None
-        self._prepare()
+        self._p2s_map: Optional[np.ndarray] = None
+        self._prepare(spacegroup_operations)
 
     @property
     def translation_permutations(self) -> np.ndarray:
@@ -49,8 +61,13 @@ class SpgRepsBase:
         """Return indices of coset representatives of space group operations."""
         return self._unique_rotation_indices
 
-    def _prepare(self) -> np.ndarray:
-        rotations, translations = self._get_symops()
+    @property
+    def p2s_map(self) -> np.ndarray:
+        """Return indices of translationally independent atoms."""
+        return self._p2s_map
+
+    def _prepare(self, spacegroup_operations) -> np.ndarray:
+        rotations, translations = self._get_symops(spacegroup_operations)
         (
             self._unique_rotation_indices,
             self._unique_rotations,
@@ -59,6 +76,7 @@ class SpgRepsBase:
             self._positions, rotations, translations, self._lattice.T, 1e-5
         )
         self._translation_permutations = self._get_translation_permutations(rotations)
+        self._p2s_map = get_indep_atoms_by_lat_trans(self._translation_permutations)
 
     def _get_translation_permutations(self, rotations) -> np.ndarray:
         eye3 = np.eye(3, dtype=int)
@@ -82,10 +100,18 @@ class SpgRepsBase:
                 indices.append(i)
         return indices, unique_rotations
 
-    def _get_symops(self) -> tuple[np.ndarray, np.ndarray]:
+    def _get_symops(
+        self, spacegroup_operations: Optional[dict] = None
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Return symmetry operations.
 
         The set of inverse operations is the same as the set of the operations.
+
+        Parameters
+        ----------
+        spacegroup_operations : dict, optional
+            Space group operations in supercell, by default None.
+            When None, spglib is used to get the operations.
 
         Returns
         -------
@@ -98,5 +124,15 @@ class SpgRepsBase:
             (n_symops, 3), dtype='double'.
 
         """
-        symops = spglib.get_symmetry((self._lattice, self._positions, self._numbers))
+        if spacegroup_operations is None:
+            try:
+                import spglib
+            except ImportError:
+                raise ImportError("Spglib python module was not found.")
+
+            symops = spglib.get_symmetry(
+                (self._lattice, self._positions, self._numbers)
+            )
+        else:
+            symops = spacegroup_operations
         return symops["rotations"], symops["translations"]

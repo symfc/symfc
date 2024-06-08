@@ -58,6 +58,7 @@ class FCBasisSetO3(FCBasisSetBase):
     def __init__(
         self,
         supercell: SymfcAtoms,
+        spacegroup_operations: Optional[dict] = None,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -67,12 +68,20 @@ class FCBasisSetO3(FCBasisSetBase):
         ----------
         supercell : SymfcAtoms
             Supercell.
+        spacegroup_operations : dict, optional
+            Space group operations in supercell, by default None. When None,
+            spglib is used. The following keys and values correspond to spglib
+            symmetry dataset:
+                rotations : array_like
+                translations : array_like
         log_level : int, optional
             Log level. Default is 0.
 
         """
         super().__init__(supercell, use_mkl=use_mkl, log_level=log_level)
-        self._spg_reps = SpgRepsO3(supercell)
+        self._spg_reps = SpgRepsO3(
+            supercell, spacegroup_operations=spacegroup_operations
+        )
 
     @property
     def basis_set(self) -> Optional[csr_array]:
@@ -138,7 +147,7 @@ class FCBasisSetO3(FCBasisSetBase):
         print_sp_matrix_size(proj, " P_(perm,trans,coset,sum):")
         tt6 = time.time()
 
-        eigvecs = eigsh_projector_sumrule(proj)
+        eigvecs = eigsh_projector_sumrule(proj, verbose=self._log_level > 0)
         print(" basis (size) =", eigvecs.shape)
 
         tt7 = time.time()
@@ -173,7 +182,7 @@ class FCBasisSetO3(FCBasisSetBase):
         print_sp_matrix_size(c_pt, " C_(perm,trans):")
         proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=self._use_mkl)
         print_sp_matrix_size(proj_pt, " P_(perm,trans):")
-        c_pt = eigsh_projector(proj_pt)
+        c_pt = eigsh_projector(proj_pt, verbose=self._log_level > 0)
         print_sp_matrix_size(c_pt, " C_(perm,trans,compressed):")
         return c_pt
 
@@ -211,7 +220,7 @@ class FCBasisSetO3(FCBasisSetBase):
         proj_rpt = dot_product_sparse(coset_reps_sum, c_pt, use_mkl=self._use_mkl)
         proj_rpt = dot_product_sparse(c_pt.T, proj_rpt, use_mkl=self._use_mkl)
         print_sp_matrix_size(proj_rpt, " P_(perm,trans,coset):")
-        c_rpt = eigsh_projector(proj_rpt)
+        c_rpt = eigsh_projector(proj_rpt, verbose=self._log_level > 0)
         print_sp_matrix_size(c_rpt, " C_(perm,trans,coset):")
         n_a_compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
         print_sp_matrix_size(n_a_compress_mat, " n_a_compression matrix:")

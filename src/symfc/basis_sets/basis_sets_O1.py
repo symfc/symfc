@@ -73,6 +73,7 @@ class FCBasisSetO1(FCBasisSetO1Base):
     def __init__(
         self,
         supercell: SymfcAtoms,
+        spacegroup_operations: Optional[dict] = None,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -82,12 +83,20 @@ class FCBasisSetO1(FCBasisSetO1Base):
         ----------
         supercell : SymfcAtoms
             Supercell.
+        spacegroup_operations : dict, optional
+            Space group operations in supercell, by default None. When None,
+            spglib is used. The following keys and values correspond to spglib
+            symmetry dataset:
+                rotations : array_like
+                translations : array_like
         log_level : int, optional
             Log level. Default is 0.
 
         """
         super().__init__(supercell, use_mkl=use_mkl, log_level=log_level)
-        self._spg_reps = SpgRepsO1(supercell)
+        self._spg_reps = SpgRepsO1(
+            supercell, spacegroup_operations=spacegroup_operations
+        )
         self._n_a_compression_matrix: Optional[csr_array] = None
 
     @property
@@ -131,10 +140,10 @@ class FCBasisSetO1(FCBasisSetO1Base):
         if len(proj_rt.data) == 0:
             raise ValueError("No basis vectors exist.")
 
-        c_rt = eigsh_projector(proj_rt)
+        c_rt = eigsh_projector(proj_rt, verbose=self._log_level > 0)
         compress_mat = c_trans @ c_rt
         proj = compressed_projector_sum_rules(compress_mat, self._natom)
-        self._basis_set = eigsh_projector(proj)
+        self._basis_set = eigsh_projector(proj, verbose=self._log_level > 0)
         self._full_basis_set = compress_mat @ self._basis_set
 
         return self
