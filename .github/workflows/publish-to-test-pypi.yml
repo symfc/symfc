@@ -3,7 +3,7 @@ name: publish PyPI and TestPyPI
 on:
   push:
     branches:
-    - master
+    - main
     - rc
 
 jobs:
