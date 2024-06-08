@@ -3,7 +3,7 @@ name: publish PyPI and TestPyPI
 on:
   push:
     branches:
-    - master
+    - main
     - rc
 
 jobs:
@@ -21,8 +21,8 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Make sdist
       run: |
-        pip install numpy scipy
-        python setup.py sdist
+        pip install numpy scipy build
+        python -m build
     - name: Publish package to TestPyPI
       if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/rc')
       uses: pypa/gh-action-pypi-publish@release/v1
@@ -31,7 +31,7 @@ jobs:
         password: ${{ secrets.TEST_PYPI_API_TOKEN }}
         repository_url: https://test.pypi.org/legacy/
     - name: Publish package to PyPI
-      if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/master')
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/main')
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         user: __token__
