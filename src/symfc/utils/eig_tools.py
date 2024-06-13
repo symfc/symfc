@@ -26,6 +26,23 @@ def dot_product_sparse(
     return A @ B
 
 
+def compr_projector(p: csr_array) -> csr_array:
+    """Compress projection matrix p with many zero rows and columns."""
+    _, col_p = p.nonzero()
+    col_p = np.unique(col_p)
+    size = len(col_p)
+
+    if p.shape[1] > size:
+        compr = csr_array(
+            (np.ones(size), (col_p, np.arange(size))),
+            shape=(p.shape[1], size),
+            dtype="int",
+        )
+        p = compr.T @ p @ compr
+        return p, compr
+    return p, None
+
+
 def eigsh_projector(
     p: csr_array, verbose: bool = True, log_interval: int = 10000
 ) -> csr_array:
@@ -42,6 +59,7 @@ def eigsh_projector(
     matrices.
 
     """
+    p, compr_p = compr_projector(p)
     n_components, labels = scipy.sparse.csgraph.connected_components(p)
     group = defaultdict(list)
     for i, l in enumerate(labels):
@@ -98,7 +116,10 @@ def eigsh_projector(
                 col_id += 1
 
     n_col = col_id
-    return csr_array((data, (row, col)), shape=(p.shape[0], n_col))
+    c_p = csr_array((data, (row, col)), shape=(p.shape[0], n_col))
+    if compr_p is not None:
+        return compr_p @ c_p
+    return c_p
 
 
 def eigsh_projector_sumrule(p: csr_array, verbose: bool = True) -> np.ndarray:
