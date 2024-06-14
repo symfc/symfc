@@ -53,10 +53,8 @@ class SpgRepsO3(SpgRepsBase):
         data, row, col, shape = self._get_sigma3_rep_data(i)
         return csr_array((data, (row, col)), shape=shape)
 
-    def get_sigma3_rep_nonzero(self, i: int) -> csr_array:
-        """Compute and return nonzero rows and columns.
-
-        Rows and columns of i-th atomic pair permutation matrix.
+    def get_sigma3_rep_vec(self, i: int) -> csr_array:
+        """Compute vector representation of i-th atomic pair permutation matrix.
 
         Parameters
         ----------
@@ -65,7 +63,10 @@ class SpgRepsO3(SpgRepsBase):
 
         """
         _, row, col, _ = self._get_sigma3_rep_data(i)
-        return row, col
+        permutation = np.zeros(len(col), dtype=int)
+        # permutation[row] = col
+        permutation[col] = row
+        return permutation
 
     def _prepare(self, spacegroup_operations):
         super()._prepare(spacegroup_operations)

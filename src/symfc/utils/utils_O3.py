@@ -50,6 +50,23 @@ def get_atomic_lat_trans_decompr_indices_O3(trans_perms: np.ndarray) -> np.ndarr
     return indices
 
 
+def dot_lat_trans_compr_matrix_O3(
+    C: csr_array,
+    trans_perms: np.ndarray,
+    decompr_idx=None,
+    slicing=False,
+) -> csr_array:
+    """Return C_trans @ C."""
+    n_lp, N = trans_perms.shape
+    if slicing:
+        """If NNN333 is large (e.g., diamond 4x4x4 supercell),
+        [ValueError: could not convert integer scalar] is found."""
+        if decompr_idx is None:
+            decompr_idx = get_lat_trans_decompr_indices_O3(trans_perms)
+        return C[decompr_idx] * (1 / np.sqrt(n_lp))
+    return get_lat_trans_compr_matrix_O3(trans_perms) @ C
+
+
 def get_lat_trans_compr_matrix_O3(trans_perms):
     """Return lat trans compression matrix."""
     n_lp, N = trans_perms.shape
@@ -124,6 +141,40 @@ def get_compr_coset_reps_sum_O3(spg_reps: SpgRepsO3) -> csr_array:
         mat = mat @ C
         mat = C.T @ mat
         coset_reps_sum += kron(mat, spg_reps.r_reps[i] * factor)
+
+    return coset_reps_sum
+
+
+def get_compr_coset_reps_sum_O3_slicing(
+    spg_reps: SpgRepsO3, c_pt: csr_array = None
+) -> csr_array:
+    """Return compr matrix of sum of coset reps."""
+    trans_perms = spg_reps.translation_permutations
+    n_lp, N = trans_perms.shape
+    size = N**3 * 27 // n_lp if c_pt is None else c_pt.shape[1]
+    coset_reps_sum = csr_array(([], ([], [])), shape=(size, size), dtype="double")
+    atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
+
+    factor = 1 / n_lp / len(spg_reps.unique_rotation_indices)
+    for i, _ in enumerate(spg_reps.unique_rotation_indices):
+        """Equivalent to mat = C.T @ spg_reps.get_sigma3_rep(i) @ C
+        C: atomic_lat_trans_compr_mat, shape=(NNN, NNN/n_lp)"""
+        print(
+            "Coset sum:", str(i + 1) + "/" + str(len(spg_reps.unique_rotation_indices))
+        )
+        permutation = spg_reps.get_sigma3_rep_vec(i)
+        mat = csr_array(
+            (
+                np.ones(N**3, dtype=int),
+                (atomic_decompr_idx[permutation], atomic_decompr_idx),
+            ),
+            shape=(N**3 // n_lp, N**3 // n_lp),
+        )
+        mat = kron(mat, spg_reps.r_reps[i] * factor)
+        if c_pt is not None:
+            mat = c_pt.T @ mat @ c_pt
+
+        coset_reps_sum += mat
 
     return coset_reps_sum
 
