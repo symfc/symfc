@@ -275,19 +275,17 @@ def get_combinations(n, r):
 
 def N3N3N3_to_NNNand333(combinations_perm: np.ndarray, N: int) -> np.ndarray:
     """Transform index order."""
-    vecNNN = combinations_perm[:, 0] // 3 * N**2
-    vecNNN += combinations_perm[:, 1] // 3 * N
-    vecNNN += combinations_perm[:, 2] // 3
-    vec333 = combinations_perm[:, 0] % 3 * 9
-    vec333 += combinations_perm[:, 1] % 3 * 3
-    vec333 += combinations_perm[:, 2] % 3
+    vecNNN, vec333 = np.divmod(combinations_perm, 3)
+    vecNNN = vecNNN @ np.array([N**2, N, 1])
+    vec333 = vec333 @ np.array([9, 3, 1])
     return vecNNN, vec333
 
 
-def projector_permutation_lat_trans(
-    trans_perms,
+def projector_permutation_lat_trans_O3(
+    trans_perms: np.ndarray,
+    atomic_decompr_idx: np.ndarray = None,
     fc_cutoff: FCCutoffO3 = None,
-    n_batch=12,
+    n_batch=None,
     use_mkl=False,
 ):
     """Calculate a projector for permutation rules compressed by C_trans.
@@ -311,7 +309,11 @@ def projector_permutation_lat_trans(
     """
     n_lp, natom = trans_perms.shape
     NNN27 = natom**3 * 27
-    decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms) * 27
+    if atomic_decompr_idx is None:
+        atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
+
+    if n_batch is None:
+        n_batch = 1 if natom <= 128 else int(round((natom / 128) ** 2))
 
     # (1) for FC3 with single index ia
     if fc_cutoff is None:
@@ -325,7 +327,10 @@ def projector_permutation_lat_trans(
     c_pt = csr_array(
         (
             np.full(n_perm1, 1.0 / np.sqrt(n_lp)),
-            (np.arange(n_perm1), decompr_idx[combinations] + combinations333),
+            (
+                np.arange(n_perm1),
+                atomic_decompr_idx[combinations] * 27 + combinations333,
+            ),
         ),
         shape=(n_perm1, NNN27 // n_lp),
         dtype="double",
@@ -355,7 +360,7 @@ def projector_permutation_lat_trans(
             np.full(n_perm2 * 3, 1 / np.sqrt(3 * n_lp)),
             (
                 np.repeat(range(n_perm2), 3),
-                decompr_idx[combinations] + combinations333,
+                atomic_decompr_idx[combinations] * 27 + combinations333,
             ),
         ),
         shape=(n_perm2, NNN27 // n_lp),
@@ -394,7 +399,7 @@ def projector_permutation_lat_trans(
                 np.full(batch_size * 6, 1 / np.sqrt(6 * n_lp)),
                 (
                     np.repeat(np.arange(batch_size), 6),
-                    decompr_idx[combinations_perm] + combinations333,
+                    atomic_decompr_idx[combinations_perm] * 27 + combinations333,
                 ),
             ),
             shape=(batch_size, NNN27 // n_lp),

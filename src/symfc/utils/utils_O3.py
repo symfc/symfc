@@ -146,14 +146,17 @@ def get_compr_coset_reps_sum_O3(spg_reps: SpgRepsO3) -> csr_array:
 
 
 def get_compr_coset_reps_sum_O3_slicing(
-    spg_reps: SpgRepsO3, c_pt: csr_array = None
+    spg_reps: SpgRepsO3, atomic_decompr_idx: np.ndarray = None, c_pt: csr_array = None
 ) -> csr_array:
     """Return compr matrix of sum of coset reps."""
     trans_perms = spg_reps.translation_permutations
     n_lp, N = trans_perms.shape
     size = N**3 * 27 // n_lp if c_pt is None else c_pt.shape[1]
     coset_reps_sum = csr_array(([], ([], [])), shape=(size, size), dtype="double")
-    atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
+
+    if atomic_decompr_idx is None:
+        print("Preparing lattice_translation")
+        atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
 
     factor = 1 / n_lp / len(spg_reps.unique_rotation_indices)
     for i, _ in enumerate(spg_reps.unique_rotation_indices):
@@ -165,10 +168,11 @@ def get_compr_coset_reps_sum_O3_slicing(
         permutation = spg_reps.get_sigma3_rep_vec(i)
         mat = csr_array(
             (
-                np.ones(N**3, dtype=int),
+                np.ones(N**3, dtype="int_"),
                 (atomic_decompr_idx[permutation], atomic_decompr_idx),
             ),
             shape=(N**3 // n_lp, N**3 // n_lp),
+            dtype="int_",
         )
         mat = kron(mat, spg_reps.r_reps[i] * factor)
         if c_pt is not None:
