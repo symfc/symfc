@@ -34,7 +34,6 @@ class SpgRepsO3(SpgRepsBase):
         self._r3_reps: list[csr_array]
         self._col: np.ndarray
         self._data: np.ndarray
-        self.__atomic_decompr_idx: np.ndarray = None
         super().__init__(supercell, spacegroup_operations=spacegroup_operations)
 
     @property
