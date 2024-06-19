@@ -76,6 +76,7 @@ class FCSolverO2O3(FCSolverBase):
             basis_set_fc3,
             batch_size=batch_size,
             use_mkl=self._use_mkl,
+            verbose=self._log_level > 0,
         )
         return self
 
@@ -137,14 +138,15 @@ class FCSolverO2O3(FCSolverBase):
 
 
 def get_training_exact(
-    disps,
-    forces,
+    disps: np.ndarray,
+    forces: np.ndarray,
     compress_mat_fc2,
     compress_mat_fc3,
     compress_eigvecs_fc2,
     compress_eigvecs_fc3,
-    batch_size=200,
-    use_mkl=False,
+    batch_size: int = 200,
+    use_mkl: bool = False,
+    verbose: bool = True,
 ):
     r"""Calculate X.T @ X and X.T @ y.
 
@@ -179,7 +181,8 @@ def get_training_exact(
         disps, forces, full_basis_fc2.T.reshape((n_basis_fc2, N, N, 3, 3))
     )
     t2 = time.time()
-    print(" training data (fc2):    ", t2 - t1)
+    if verbose:
+        print(" training data (fc2):    ", t2 - t1)
 
     t1 = time.time()
     c_perm_fc2 = get_perm_compr_matrix(N)
@@ -188,7 +191,8 @@ def get_training_exact(
     )
     compress_mat_fc3 = -0.5 * (c_perm_fc2.T @ compress_mat_fc3)
     t2 = time.time()
-    print(" precond. compress_mat (for fc3):", t2 - t1)
+    if verbose:
+        print(" precond. compress_mat (for fc3):", t2 - t1)
 
     sparse_disps = True if use_mkl else False
     mat33 = np.zeros((n_compr_fc3, n_compr_fc3), dtype=float)
@@ -207,7 +211,8 @@ def get_training_exact(
         mat33 += X3.T @ X3
         mat3y += X3.T @ y_batch
         t02 = time.time()
-        print(" solver_block:", end, ":, t =", t02 - t01)
+        if verbose:
+            print(" solver_block:", end, ":, t =", t02 - t01)
 
     XTX = np.zeros((n_basis, n_basis), dtype=float)
     XTy = np.zeros(n_basis, dtype=float)
@@ -221,19 +226,21 @@ def get_training_exact(
     XTy[n_basis_fc2:] = compress_eigvecs_fc3.T @ mat3y
 
     t3 = time.time()
-    print(" (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):", t3 - t2)
+    if verbose:
+        print(" (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):", t3 - t2)
     return XTX, XTy
 
 
 def run_solver_sparse_O2O3(
-    disps,
-    forces,
+    disps: np.ndarray,
+    forces: np.ndarray,
     compress_mat_fc2,
     compress_mat_fc3,
     compress_eigvecs_fc2,
     compress_eigvecs_fc3,
-    batch_size=200,
-    use_mkl=False,
+    batch_size: int = 200,
+    use_mkl: bool = False,
+    verbose: bool = True,
 ):
     """Estimate coeffs. in X @ coeffs = y.
 
@@ -255,6 +262,7 @@ def run_solver_sparse_O2O3(
         compress_eigvecs_fc3,
         batch_size=batch_size,
         use_mkl=use_mkl,
+        verbose=verbose,
     )
     coefs = solve_linear_equation(XTX, XTy)
     n_basis_fc2 = compress_eigvecs_fc2.shape[1]

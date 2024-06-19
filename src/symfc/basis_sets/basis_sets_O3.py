@@ -129,7 +129,8 @@ class FCBasisSetO3(FCBasisSetBase):
         tt1 = time.time()
 
         coset_reps_sum = get_compr_coset_reps_sum_O3(self._spg_reps)
-        print_sp_matrix_size(coset_reps_sum, " R_(coset):")
+        if self._log_level:
+            print_sp_matrix_size(coset_reps_sum, " R_(coset):")
         tt2 = time.time()
 
         c_pt = self._get_perm_trans_compr_matrix(c_trans, N)
@@ -140,25 +141,29 @@ class FCBasisSetO3(FCBasisSetBase):
         compress_mat = dot_product_sparse(
             c_trans, n_a_compress_mat, use_mkl=self._use_mkl
         )
-        print_sp_matrix_size(compress_mat, " compression matrix:")
+        if self._log_level:
+            print_sp_matrix_size(compress_mat, " compression matrix:")
         tt5 = time.time()
 
         proj = compressed_projector_sum_rules(compress_mat, N, use_mkl=self._use_mkl)
-        print_sp_matrix_size(proj, " P_(perm,trans,coset,sum):")
+        if self._log_level:
+            print_sp_matrix_size(proj, " P_(perm,trans,coset,sum):")
         tt6 = time.time()
 
         eigvecs = eigsh_projector_sumrule(proj, verbose=self._log_level > 0)
-        print(" basis (size) =", eigvecs.shape)
+        if self._log_level:
+            print(" basis (size) =", eigvecs.shape)
 
         tt7 = time.time()
 
-        print("  t (init., trans)        = ", tt1 - tt0)
-        print("  t (coset_reps_sum)      = ", tt2 - tt1)
-        print("  t (dot, trans, perm)    = ", tt4 - tt2)
-        print("  t (rot, trans, perm)    = ", tt5 - tt4)
-        print("  t (proj_st)             = ", tt6 - tt5)
-        print("  t (eigh(svd))           = ", tt7 - tt6)
-        # print('  t (reconstruction)      = ', tt8-tt7)
+        if self._log_level:
+            print("  t (init., trans)        = ", tt1 - tt0)
+            print("  t (coset_reps_sum)      = ", tt2 - tt1)
+            print("  t (dot, trans, perm)    = ", tt4 - tt2)
+            print("  t (rot, trans, perm)    = ", tt5 - tt4)
+            print("  t (proj_st)             = ", tt6 - tt5)
+            print("  t (eigh(svd))           = ", tt7 - tt6)
+            # print('  t (reconstruction)      = ', tt8-tt7)
 
         self._basis_set = eigvecs
         self._n_a_compression_matrix = n_a_compress_mat
@@ -177,13 +182,17 @@ class FCBasisSetO3(FCBasisSetBase):
 
         """
         c_perm = get_perm_compr_matrix_O3(N)
-        print_sp_matrix_size(c_perm, " C_perm:")
+        if self._log_level:
+            print_sp_matrix_size(c_perm, " C_perm:")
         c_pt = dot_product_sparse(c_perm.T, c_trans, use_mkl=self._use_mkl)
-        print_sp_matrix_size(c_pt, " C_(perm,trans):")
+        if self._log_level:
+            print_sp_matrix_size(c_pt, " C_(perm,trans):")
         proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=self._use_mkl)
-        print_sp_matrix_size(proj_pt, " P_(perm,trans):")
+        if self._log_level:
+            print_sp_matrix_size(proj_pt, " P_(perm,trans):")
         c_pt = eigsh_projector(proj_pt, verbose=self._log_level > 0)
-        print_sp_matrix_size(c_pt, " C_(perm,trans,compressed):")
+        if self._log_level:
+            print_sp_matrix_size(c_pt, " C_(perm,trans,compressed):")
         return c_pt
 
     def _get_n_a_compress_mat(
@@ -219,9 +228,12 @@ class FCBasisSetO3(FCBasisSetBase):
         """
         proj_rpt = dot_product_sparse(coset_reps_sum, c_pt, use_mkl=self._use_mkl)
         proj_rpt = dot_product_sparse(c_pt.T, proj_rpt, use_mkl=self._use_mkl)
-        print_sp_matrix_size(proj_rpt, " P_(perm,trans,coset):")
+        if self._log_level:
+            print_sp_matrix_size(proj_rpt, " P_(perm,trans,coset):")
         c_rpt = eigsh_projector(proj_rpt, verbose=self._log_level > 0)
-        print_sp_matrix_size(c_rpt, " C_(perm,trans,coset):")
+        if self._log_level:
+            print_sp_matrix_size(c_rpt, " C_(perm,trans,coset):")
         n_a_compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
-        print_sp_matrix_size(n_a_compress_mat, " n_a_compression matrix:")
+        if self._log_level:
+            print_sp_matrix_size(n_a_compress_mat, " n_a_compression matrix:")
         return n_a_compress_mat
