@@ -114,6 +114,25 @@ class FCCutoffO3:
             return np.hstack([combs, np.full((combs.shape[0], 1), kc)])
         return []
 
+    def nonzero_atomic_indices(self):
+        """Return atomic indices of nonzero FC3.
+
+        Return
+        ------
+        nonzero: FC3 element is nonzero (True) or zero (False), shape=(NNN).
+        """
+        nonzero = np.zeros(self.__n_atom**3, dtype=bool)
+        for i in range(self.__n_atom):
+            jlist = self.neighbors[i]
+            combs = np.array(list(itertools.product(jlist, jlist)))
+            if len(combs) > 0:
+                combs = combs[
+                    self.distances[(combs[:, 0], combs[:, 1])] < self.__cutoff
+                ]
+                ids = combs @ np.array([self.__n_atom, 1]) + i * self.__n_atom**2
+                nonzero[ids] = True
+        return nonzero
+
     @property
     def neighbors(self):
         """Neighbor atoms: shape=(n_atom, n_neighbors)."""
@@ -131,7 +150,6 @@ class FCCutoffO3:
             np.where(self.__distances[i] >= self.__cutoff)[0]
             for i in range(self.__n_atom)
         ]
-        return self.__neighbors
 
     @property
     def distances(self):
