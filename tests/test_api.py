@@ -6,7 +6,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
 from symfc import Symfc
 from symfc.utils.utils import SymfcAtoms
 
@@ -33,7 +32,7 @@ def test_api_NaCl_222(ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
 
 
 def test_api_NaCl_222_with_dataset(
-    ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]
+    ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray],
 ):
     """Test Symfc class with displacements and forces as input."""
     supercell, displacements, forces = ph_nacl_222

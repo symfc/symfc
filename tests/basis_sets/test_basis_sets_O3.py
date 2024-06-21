@@ -4,7 +4,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3
 from symfc.solvers import FCSolverO2O3
 from symfc.utils.utils import SymfcAtoms

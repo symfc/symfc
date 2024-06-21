@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.utils import SymfcAtoms
 
@@ -31,7 +30,7 @@ def test_translation_permutations_NaCl_111(cell_nacl_111: SymfcAtoms):
 
 
 def test_translation_permutations_shape_GaN_222(
-    ph_gan_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]
+    ph_gan_222: tuple[SymfcAtoms, np.ndarray, np.ndarray],
 ):
     """Test SpgReps.translation_permutations."""
     supercell, _, _ = ph_gan_222

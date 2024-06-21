@@ -49,7 +49,7 @@ class SpgRepsBase:
         """Return permutations by lattice translation.
 
         Returns
-        --------
+        -------
         Atom indices after lattice translations.
         shape=(lattice_translations, supercell_atoms), dtype=int
 
@@ -127,8 +127,10 @@ class SpgRepsBase:
         if spacegroup_operations is None:
             try:
                 import spglib
-            except ImportError:
-                raise ImportError("Spglib python module was not found.")
+            except ImportError as exc:
+                raise ModuleNotFoundError(
+                    "Spglib python module was not found."
+                ) from exc
 
             symops = spglib.get_symmetry(
                 (self._lattice, self._positions, self._numbers)

@@ -102,8 +102,8 @@ def csr_NNN333_to_NN33na3(compress_mat: csr_array, N: int, n_a: Optional[int] = 
     N3 = _N * 3
     conversion_array = np.array(
         [
-            j * NN333 + k * N333 + m * N33 + n * N3 + i * 3 + l
-            for i, j, k, l, m, n in np.ndindex((_N, N, N, 3, 3, 3))
+            j * NN333 + k * N333 + m * N33 + n * N3 + i * 3 + ll
+            for i, j, k, ll, m, n in np.ndindex((_N, N, N, 3, 3, 3))
         ],
         dtype=int,
     )

@@ -62,8 +62,8 @@ def eigsh_projector(
     p, compr_p = compr_projector(p)
     n_components, labels = scipy.sparse.csgraph.connected_components(p)
     group = defaultdict(list)
-    for i, l in enumerate(labels):
-        group[l].append(i)
+    for i, ll in enumerate(labels):
+        group[ll].append(i)
 
     r = np.array([i for ids in group.values() for i in ids for j in ids])
     c = np.array([j for ids in group.values() for i in ids for j in ids])
@@ -139,8 +139,8 @@ def eigsh_projector_sumrule(p: csr_array, verbose: bool = True) -> np.ndarray:
     """
     n_components, labels = scipy.sparse.csgraph.connected_components(p)
     group = defaultdict(list)
-    for i, l in enumerate(labels):
-        group[l].append(i)
+    for i, ll in enumerate(labels):
+        group[ll].append(i)
 
     if verbose:
         print(" n_blocks in P =", n_components)
@@ -210,8 +210,8 @@ def eigsh_projector_memory_efficient(
         labels = connected_components(p)
 
     group = defaultdict(list)
-    for i, l in enumerate(labels):
-        group[l].append(i)
+    for i, ll in enumerate(labels):
+        group[ll].append(i)
 
     if verbose:
         print(" N (blocks) =", len(group.keys()))
