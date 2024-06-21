@@ -6,7 +6,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.utils import (
     SymfcAtoms,
@@ -18,7 +17,7 @@ cwd = Path(__file__).parent
 
 
 def test_get_indep_atoms_by_lattice_translation(
-    ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]
+    ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray],
 ):
     """Test of get_indep_atoms_by_lattice_translation."""
     supercell, _, _ = ph_nacl_222
