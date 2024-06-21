@@ -44,6 +44,7 @@ class FCCutoffO3:
 
         self.__distances = self.__calc_distances()
         self.__neighbors = None
+        self.__nonzero = None
 
     def __calc_distances(self):
         """Calculate minimum distances between atoms.
@@ -87,15 +88,15 @@ class FCCutoffO3:
             combinations.extend(combs)
         return np.array(combinations)
 
-    def combinations3_all(self):
+    def combinations3_all(self, dtype="uint16"):
         """Return combinations of FC3 with three distinguished indices (ia,jb,kc)."""
         combinations = []
         for kc in range(3 * self.__n_atom):
             combs = self.combinations3(kc)
             combinations.extend(combs)
-        return np.array(combinations)
+        return np.array(combinations).astype(dtype, copy=False)
 
-    def combinations3(self, kc):
+    def combinations3(self, kc, dtype="uint16"):
         """Return combinations of FC3 with three distinguished indices (ia,jb,kc).
 
         Return only combinations with kc.
@@ -111,7 +112,9 @@ class FCCutoffO3:
                 self.distances[(combs[:, 0] // 3, combs[:, 1] // 3)] < self.__cutoff
             )[0]
             combs = combs[indices]
-            return np.hstack([combs, np.full((combs.shape[0], 1), kc)])
+            return np.hstack([combs, np.full((combs.shape[0], 1), kc)]).astype(
+                dtype, copy=False
+            )
         return []
 
     def nonzero_atomic_indices(self):
@@ -121,7 +124,10 @@ class FCCutoffO3:
         ------
         nonzero: FC3 element is nonzero (True) or zero (False), shape=(NNN).
         """
-        nonzero = np.zeros(self.__n_atom**3, dtype=bool)
+        if self.__nonzero is not None:
+            return self.__nonzero
+
+        self.__nonzero = nonzero = np.zeros(self.__n_atom**3, dtype=bool)
         for i in range(self.__n_atom):
             jlist = self.neighbors[i]
             combs = np.array(list(itertools.product(jlist, jlist)))
@@ -131,7 +137,7 @@ class FCCutoffO3:
                 ]
                 ids = combs @ np.array([self.__n_atom, 1]) + i * self.__n_atom**2
                 nonzero[ids] = True
-        return nonzero
+        return self.__nonzero
 
     @property
     def neighbors(self):
