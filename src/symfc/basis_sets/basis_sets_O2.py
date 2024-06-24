@@ -16,6 +16,7 @@ from symfc.utils.eig_tools import (
 from symfc.utils.matrix_tools_O2 import compressed_projector_sum_rules
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O2 import (
+    _get_atomic_lat_trans_decompr_indices,
     get_compr_coset_reps_sum,
     get_lat_trans_compr_matrix,
     get_lat_trans_decompr_indices,
@@ -74,6 +75,9 @@ class FCBasisSetO2(FCBasisSetBase):
         )
         self._n_a_compression_matrix: Optional[csr_array] = None
 
+        trans_perms = self._spg_reps.translation_permutations
+        self._atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
+
     @property
     def basis_set(self) -> Optional[np.ndarray]:
         """Return compressed basis set.
@@ -114,6 +118,11 @@ class FCBasisSetO2(FCBasisSetBase):
         """Return decompression indices in (N,N,3,3) order."""
         trans_perms = self.translation_permutations
         return get_lat_trans_decompr_indices(trans_perms)
+
+    @property
+    def atomic_decompr_idx(self) -> np.ndarray:
+        """Return atomic permutation."""
+        return self._atomic_decompr_idx
 
     def run(self) -> FCBasisSetO2:
         """Compute compressed force constants basis set.

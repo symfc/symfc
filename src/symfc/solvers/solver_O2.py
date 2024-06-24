@@ -10,7 +10,7 @@ from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2
 from symfc.utils.eig_tools import dot_product_sparse
-from symfc.utils.solver_funcs import fit, get_batch_slice, solve_linear_equation
+from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 from symfc.utils.utils_O2 import _get_atomic_lat_trans_decompr_indices
 
 from .solver_base import FCSolverBase
@@ -98,70 +98,6 @@ class FCSolverO2(FCSolverBase):
         return self
 
 
-def get_training_from_full_basis(disps, forces, full_basis):
-    """Return training dataset (X, y).
-
-    The dataset is transformed from displacements, forces, and full basis-set.
-
-    disps: (n_samples, N3)
-    forces: (n_samples, N3)
-    full_basis: (n_basis, N, N, 3, 3)
-
-    X: features (calculated from displacements),(n_samples * N3, N_basis)
-    y: observations (forces), (n_samples * N3)
-
-    Note
-    ----
-    #algorithm 1
-    X = []
-    for disp_st, force_st in zip(disps, forces):
-        disp_reshape = disp_st.reshape(-1)
-        X_tmp = []
-        for basis in full_basis:
-            Bb = basis.transpose((0,2,1,3)).reshape(N3,N3)
-            X_tmp.append(-np.dot(Bb, disp_reshape))
-        X_tmp = np.array(X_tmp).T
-        X.append(X_tmp)
-    X = np.vstack(X)
-
-    #algorithm 2
-    disps_reshape = disps.reshape((n_samples, N3))
-    X = np.zeros((N3*n_samples, n_basis))
-    for i, basis in enumerate(full_basis):
-        Bb = basis.transpose((0,2,1,3)).reshape(N3,N3)
-        prod = - np.dot(disps_reshape, Bb)
-        X[:,i] = np.ravel(prod)
-
-    """
-    N3 = full_basis.shape[1] * 3
-    n_basis = full_basis.shape[0]
-    n_samples = disps.shape[0]
-
-    disps_reshape = disps.reshape((n_samples, N3))
-    full_basis = full_basis.transpose((1, 3, 2, 4, 0)).reshape((N3, -1))
-    X = -np.dot(disps_reshape, full_basis)
-    X = X.reshape((-1, n_basis))
-    y = forces.reshape(-1)
-
-    return X, y
-
-
-def run_solver_dense_O2(disps, forces, compress_mat, compress_eigvecs):
-    """Estimating coeffs. in X @ coeffs = y using least squares.
-
-    X: features (calculated from displacements), (n_samples * N3, N_basis)
-    y: observations (forces), (n_samples * N3)
-
-    """
-    N3 = disps.shape[1]
-    N = N3 // 3
-
-    full_basis = compress_mat @ compress_eigvecs
-    n_basis = full_basis.shape[1]
-    coefs = _solve(disps, forces, full_basis.T.reshape((n_basis, N, N, 3, 3)))
-    return coefs
-
-
 def run_solver_sparse_O2(
     disps, forces, compress_mat, compress_eigvecs, batch_size=200, verbose=True
 ):
@@ -242,13 +178,6 @@ def _get_training(
     if verbose:
         print(" (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):", t3 - t2)
     return XTX, XTy
-
-
-def _solve(disps, forces, full_basis):
-    """Solve force constants."""
-    X, y = get_training_from_full_basis(disps, forces, full_basis)
-    coefs = fit(X, y)
-    return coefs
 
 
 def _NN33_to_N3N3(row, N):
