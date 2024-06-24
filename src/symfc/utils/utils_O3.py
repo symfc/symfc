@@ -3,9 +3,8 @@
 import numpy as np
 from scipy.sparse import csr_array, kron
 
-from symfc.spg_reps import SpgRepsO3
-from symfc.spg_reps.spg_reps_O3_dev import SpgRepsO3Dev
-from symfc.utils.cutoff_tools_O3 import FCCutoffO3
+from symfc.spg_reps.spg_reps_O3 import SpgRepsO3
+from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.utils import get_indep_atoms_by_lat_trans
 
 
@@ -50,34 +49,6 @@ def get_atomic_lat_trans_decompr_indices_O3(trans_perms: np.ndarray) -> np.ndarr
                 n += 1
     assert n * n_lp == size_row
     return indices
-
-
-def dot_lat_trans_compr_matrix_O3(
-    C: csr_array,
-    trans_perms: np.ndarray,
-    decompr_idx=None,
-    slicing=False,
-) -> csr_array:
-    """Return C_trans @ C.
-
-    Deprecated.
-    """
-    n_lp, N = trans_perms.shape
-    if slicing:
-        """If NNN333 is large (e.g., diamond 4x4x4 supercell),
-        [ValueError: could not convert integer scalar] is found."""
-        if decompr_idx is None:
-            decompr_idx = get_lat_trans_decompr_indices_O3(trans_perms)
-        return C[decompr_idx] * (1 / np.sqrt(n_lp))
-    return get_lat_trans_compr_matrix_O3(trans_perms) @ C
-
-
-def get_lat_trans_compr_matrix_O3(trans_perms):
-    """Return lat trans compression matrix."""
-    n_lp, N = trans_perms.shape
-    decompr_idx = get_lat_trans_decompr_indices_O3(trans_perms)
-    c_trans = _get_lat_trans_compr_matrix_O3(decompr_idx, N, n_lp)
-    return c_trans
 
 
 def get_lat_trans_decompr_indices_O3(trans_perms: np.ndarray) -> np.ndarray:
@@ -126,67 +97,12 @@ def get_lat_trans_decompr_indices_O3(trans_perms: np.ndarray) -> np.ndarray:
     return indices
 
 
-def get_compr_coset_reps_sum_O3(spg_reps: SpgRepsO3) -> csr_array:
-    """Return compr matrix of sum of coset reps."""
-    trans_perms = spg_reps.translation_permutations
-    n_lp, N = trans_perms.shape
-    size = N**3 * 27 // n_lp
-    coset_reps_sum = csr_array(([], ([], [])), shape=(size, size), dtype="double")
-    atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
-    C = csr_array(
-        (
-            np.ones(N**3, dtype=int),
-            (np.arange(N**3, dtype=int), atomic_decompr_idx),
-        ),
-        shape=(N**3, N**3 // n_lp),
-    )
-    factor = 1 / n_lp / len(spg_reps.unique_rotation_indices)
-    for i, _ in enumerate(spg_reps.unique_rotation_indices):
-        mat = spg_reps.get_sigma3_rep(i)
-        mat = mat @ C
-        mat = C.T @ mat
-        coset_reps_sum += kron(mat, spg_reps.r_reps[i] * factor)
-
-    return coset_reps_sum
-
-
-def _get_lat_trans_compr_matrix_O3(
-    decompr_idx: np.ndarray, N: int, n_lp: int
-) -> csr_array:
-    """Return compression matrix by lattice translation symmetry.
-
-    `decompr_idx` is obtained by `get_lat_trans_decompr_indices`.
-
-    Matrix shape is (NNN333, n_a*NN333), where n_a is the number of independent
-    atoms by lattice translation symmetry.
-
-    Data order is (N, N, N, 3, 3, 3, n_a, N, N, 3, 3, 3)
-    if it is in dense array.
-
-    """
-    NNN27 = N**3 * 27
-    compression_mat = csr_array(
-        (
-            np.full(NNN27, 1 / np.sqrt(n_lp), dtype="double"),
-            (np.arange(NNN27, dtype=int), decompr_idx),
-        ),
-        shape=(NNN27, NNN27 // n_lp),
-        dtype="double",
-    )
-    return compression_mat
-
-
-"""
-Memory-efficient updated functions for running FCBasisSetO3.
-But they have not been yet implemented in FCBasisSetO3.
-"""
-
-
-def get_compr_coset_reps_sum_O3_dev(
-    spg_reps: SpgRepsO3Dev,
-    fc_cutoff: FCCutoffO3 = None,
+def get_compr_coset_projector_O3(
+    spg_reps: SpgRepsO3,
+    fc_cutoff: FCCutoff = None,
     atomic_decompr_idx: np.ndarray = None,
     c_pt: csr_array = None,
+    verbose: bool = False,
 ) -> csr_array:
     """Return compr matrix of sum of coset reps."""
     trans_perms = spg_reps.translation_permutations
@@ -195,19 +111,19 @@ def get_compr_coset_reps_sum_O3_dev(
     coset_reps_sum = csr_array(([], ([], [])), shape=(size, size), dtype="double")
 
     if atomic_decompr_idx is None:
-        print("Preparing lattice_translation")
         atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
 
     if fc_cutoff is None:
         nonzero = None
         size_data = N**3
     else:
-        nonzero = fc_cutoff.nonzero_atomic_indices()
+        nonzero = fc_cutoff.nonzero_atomic_indices_fc3()
         size_data = np.count_nonzero(nonzero)
 
     factor = 1 / n_lp / len(spg_reps.unique_rotation_indices)
     for i, _ in enumerate(spg_reps.unique_rotation_indices):
-        print("Coset sum:", i + 1, "/", len(spg_reps.unique_rotation_indices))
+        if verbose:
+            print("Coset sum:", i + 1, "/", len(spg_reps.unique_rotation_indices))
         permutation = spg_reps.get_sigma3_rep(i, nonzero=nonzero)
         if nonzero is None:
             """Equivalent to mat = C.T @ spg_reps.get_sigma3_rep(i) @ C
@@ -237,3 +153,37 @@ def get_compr_coset_reps_sum_O3_dev(
         coset_reps_sum += mat
 
     return coset_reps_sum
+
+
+def get_lat_trans_compr_matrix_O3(trans_perms):
+    """Return lat trans compression matrix."""
+    n_lp, N = trans_perms.shape
+    decompr_idx = get_lat_trans_decompr_indices_O3(trans_perms)
+    c_trans = _get_lat_trans_compr_matrix_O3(decompr_idx, N, n_lp)
+    return c_trans
+
+
+def _get_lat_trans_compr_matrix_O3(
+    decompr_idx: np.ndarray, N: int, n_lp: int
+) -> csr_array:
+    """Return compression matrix by lattice translation symmetry.
+
+    `decompr_idx` is obtained by `get_lat_trans_decompr_indices`.
+
+    Matrix shape is (NNN333, n_a*NN333), where n_a is the number of independent
+    atoms by lattice translation symmetry.
+
+    Data order is (N, N, N, 3, 3, 3, n_a, N, N, 3, 3, 3)
+    if it is in dense array.
+
+    """
+    NNN27 = N**3 * 27
+    compression_mat = csr_array(
+        (
+            np.full(NNN27, 1 / np.sqrt(n_lp), dtype="double"),
+            (np.arange(NNN27, dtype=int), decompr_idx),
+        ),
+        shape=(NNN27, NNN27 // n_lp),
+        dtype="double",
+    )
+    return compression_mat

@@ -9,18 +9,20 @@ import numpy as np
 from scipy.sparse import coo_array, csr_array
 
 from symfc.spg_reps import SpgRepsO3
+from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.eig_tools import (
     dot_product_sparse,
     eigsh_projector,
     eigsh_projector_sumrule,
 )
 from symfc.utils.matrix_tools_O3 import (
-    compressed_projector_sum_rules,
-    get_perm_compr_matrix_O3,
+    compressed_projector_sum_rules_O3,
+    projector_permutation_lat_trans_O3,
 )
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O3 import (
-    get_compr_coset_reps_sum_O3,
+    get_atomic_lat_trans_decompr_indices_O3,
+    get_compr_coset_projector_O3,
     get_lat_trans_compr_matrix_O3,
 )
 
@@ -58,6 +60,7 @@ class FCBasisSetO3(FCBasisSetBase):
     def __init__(
         self,
         supercell: SymfcAtoms,
+        cutoff: float = None,
         spacegroup_operations: Optional[dict] = None,
         use_mkl: bool = False,
         log_level: int = 0,
@@ -82,6 +85,13 @@ class FCBasisSetO3(FCBasisSetBase):
         self._spg_reps = SpgRepsO3(
             supercell, spacegroup_operations=spacegroup_operations
         )
+        if cutoff is None:
+            self._fc_cutoff = None
+        else:
+            self._fc_cutoff = FCCutoff(supercell, cutoff=cutoff)
+
+        trans_perms = self._spg_reps.translation_permutations
+        self._atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
 
     @property
     def basis_set(self) -> Optional[csr_array]:
@@ -119,121 +129,71 @@ class FCBasisSetO3(FCBasisSetBase):
         n_lp = self.translation_permutations.shape[0]
         return self._n_a_compression_matrix / np.sqrt(n_lp)
 
+    @property
+    def atomic_decompr_idx(self) -> np.ndarray:
+        """Return atomic permutation."""
+        return self._atomic_decompr_idx
+
     def run(self) -> FCBasisSetO3:
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
-        N = self._natom
 
         tt0 = time.time()
-        c_trans = get_lat_trans_compr_matrix_O3(trans_perms)
+        proj_pt = projector_permutation_lat_trans_O3(
+            trans_perms,
+            atomic_decompr_idx=self._atomic_decompr_idx,
+            fc_cutoff=self._fc_cutoff,
+            use_mkl=self._use_mkl,
+        )
         tt1 = time.time()
 
-        coset_reps_sum = get_compr_coset_reps_sum_O3(self._spg_reps)
+        c_pt = eigsh_projector(proj_pt, verbose=self._log_level > 0)
         if self._log_level:
-            print_sp_matrix_size(coset_reps_sum, " R_(coset):")
+            print(" c_pt (size) :", c_pt.shape)
         tt2 = time.time()
 
-        c_pt = self._get_perm_trans_compr_matrix(c_trans, N)
+        proj_rpt = get_compr_coset_projector_O3(
+            self._spg_reps,
+            fc_cutoff=self._fc_cutoff,
+            atomic_decompr_idx=self._atomic_decompr_idx,
+            c_pt=c_pt,
+        )
+        tt3 = time.time()
 
+        c_rpt = eigsh_projector(proj_rpt, verbose=self._log_level > 0)
+        if self._log_level:
+            print(" c_rpt (size) :", c_rpt.shape)
         tt4 = time.time()
 
-        n_a_compress_mat = self._get_n_a_compress_mat(c_pt, coset_reps_sum)
-        compress_mat = dot_product_sparse(
-            c_trans, n_a_compress_mat, use_mkl=self._use_mkl
-        )
-        if self._log_level:
-            print_sp_matrix_size(compress_mat, " compression matrix:")
+        n_a_compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
         tt5 = time.time()
 
-        proj = compressed_projector_sum_rules(compress_mat, N, use_mkl=self._use_mkl)
-        if self._log_level:
-            print_sp_matrix_size(proj, " P_(perm,trans,coset,sum):")
+        proj = compressed_projector_sum_rules_O3(
+            trans_perms,
+            n_a_compress_mat,
+            atomic_decompr_idx=self._atomic_decompr_idx,
+            fc_cutoff=self._fc_cutoff,
+            use_mkl=self._use_mkl,
+        )
         tt6 = time.time()
-
         eigvecs = eigsh_projector_sumrule(proj, verbose=self._log_level > 0)
-        if self._log_level:
-            print(" basis (size) =", eigvecs.shape)
 
+        if self._log_level:
+            print("Final size of basis set:", eigvecs.shape)
         tt7 = time.time()
 
         if self._log_level:
-            print("  t (init., trans)        = ", tt1 - tt0)
-            print("  t (coset_reps_sum)      = ", tt2 - tt1)
-            print("  t (dot, trans, perm)    = ", tt4 - tt2)
-            print("  t (rot, trans, perm)    = ", tt5 - tt4)
-            print("  t (proj_st)             = ", tt6 - tt5)
-            print("  t (eigh(svd))           = ", tt7 - tt6)
-            # print('  t (reconstruction)      = ', tt8-tt7)
+            print("Time (proj(perm @ lattice trans.)  :", "{:.3f}".format(tt1 - tt0))
+            print("Time (eigh(perm @ ltrans))         :", "{:.3f}".format(tt2 - tt1))
+            print("Time (coset)                       :", "{:.3f}".format(tt3 - tt2))
+            print("Time (eigh(coset @ perm @ ltrans)) :", "{:.3f}".format(tt4 - tt3))
+            print("Time (c_pt @ c_rpt)                :", "{:.3f}".format(tt5 - tt4))
+            print("Time (proj(sum))                   :", "{:.3f}".format(tt6 - tt5))
+            print("Time (eigh(sum))                   :", "{:.3f}".format(tt7 - tt6))
+            print("---")
+            print("Time (Basis FC3)                   :", "{:.3f}".format(tt7 - tt0))
 
         self._basis_set = eigvecs
         self._n_a_compression_matrix = n_a_compress_mat
-        # self._compression_matrix = compress_mat
 
         return self
-
-    def _get_perm_trans_compr_matrix(self, c_trans: csr_array, N: int):
-        """Return perm trans compression matrix.
-
-        compression using C(pt)
-            = eigvecs of C(trans).T @ C(perm) @ C(perm).T @ C(trans)
-        proj_rpt = c_pt.T @ coset_reps_sum @ c_pt
-
-        C(pt) = C(perm).T @ C(trans)
-
-        """
-        c_perm = get_perm_compr_matrix_O3(N)
-        if self._log_level:
-            print_sp_matrix_size(c_perm, " C_perm:")
-        c_pt = dot_product_sparse(c_perm.T, c_trans, use_mkl=self._use_mkl)
-        if self._log_level:
-            print_sp_matrix_size(c_pt, " C_(perm,trans):")
-        proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=self._use_mkl)
-        if self._log_level:
-            print_sp_matrix_size(proj_pt, " P_(perm,trans):")
-        c_pt = eigsh_projector(proj_pt, verbose=self._log_level > 0)
-        if self._log_level:
-            print_sp_matrix_size(c_pt, " C_(perm,trans,compressed):")
-        return c_pt
-
-    def _get_n_a_compress_mat(
-        self, c_pt: csr_array, coset_reps_sum: csr_array
-    ) -> csr_array:
-        """Return compression matrix without c_trans mutiplied.
-
-        This compression matrix is preserved as a class instance variable.
-        The full compression matrix is obtained by
-
-        c_trans @ n_a_compression_matrix.
-
-        The compact compression matrix is obtained by
-
-        n_a_compression_matrix / sqrt(n_lp).
-
-        About compression matrix
-        ------------------------
-        compress_mat = c_trans @ c_pt @ c_rpt
-
-        c_trans : compression matrix by lattice translations
-        c_pt : basis vectors of projection matrix of perm & trans
-        c_rpt : basis vectors of projection matrix of  coset rots & perm & trans
-
-        More precisely,
-
-        [C_pt @ C_trans.T] @ P_sum @ [C_trans @ C_pt] @ C_rpt
-         = C_rpt @ [C_rpt.T @ C_pt @ C_trans.T] @ P_sum @ [C_trans @ C_pt @ C_rpt]
-         = C_rpt @ compression_mat.T @ (I - P_sum^(c)) @ compression_mat
-         = C_rpt @ compression_mat.T @ (I - Csum(c) @ Csum(c).T) @ compression_mat
-         = C_rpt @ proj
-
-        """
-        proj_rpt = dot_product_sparse(coset_reps_sum, c_pt, use_mkl=self._use_mkl)
-        proj_rpt = dot_product_sparse(c_pt.T, proj_rpt, use_mkl=self._use_mkl)
-        if self._log_level:
-            print_sp_matrix_size(proj_rpt, " P_(perm,trans,coset):")
-        c_rpt = eigsh_projector(proj_rpt, verbose=self._log_level > 0)
-        if self._log_level:
-            print_sp_matrix_size(c_rpt, " C_(perm,trans,coset):")
-        n_a_compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
-        if self._log_level:
-            print_sp_matrix_size(n_a_compress_mat, " n_a_compression matrix:")
-        return n_a_compress_mat

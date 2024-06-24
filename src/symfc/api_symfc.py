@@ -21,6 +21,7 @@ class Symfc:
         displacements: Optional[np.ndarray] = None,
         forces: Optional[np.ndarray] = None,
         spacegroup_operations: Optional[dict] = None,
+        cutoff: float = None,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -51,6 +52,7 @@ class Symfc:
         self._displacements = displacements
         self._forces = forces
         self._spacegroup_operations = spacegroup_operations
+        self._cutoff = cutoff
         self._use_mkl = use_mkl
         self._log_level = log_level
 
@@ -170,7 +172,7 @@ class Symfc:
     def _compute_basis_set(self, order: int):
         """Set order of force constants."""
         if order not in (2, 3):
-            raise NotImplementedError("Only fc2 basis set is implemented.")
+            raise NotImplementedError("Only fc2 and fc3 basis sets are implemented.")
 
         if order == 2:
             basis_set_o2 = FCBasisSetO2(
@@ -184,6 +186,7 @@ class Symfc:
             basis_set_o3 = FCBasisSetO3(
                 self._supercell,
                 spacegroup_operations=self._spacegroup_operations,
+                cutoff=self._cutoff,
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
             ).run()

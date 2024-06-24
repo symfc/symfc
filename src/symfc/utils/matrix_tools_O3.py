@@ -1,165 +1,14 @@
 """Matrix utility functions for 3rd order force constants."""
 
-import itertools
-import math
-
 import numpy as np
 import scipy
 from scipy.sparse import csr_array
 
-from symfc.utils.cutoff_tools_O3 import FCCutoffO3
+from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.eig_tools import dot_product_sparse
+from symfc.utils.matrix_tools import get_combinations
 from symfc.utils.solver_funcs import get_batch_slice
-from symfc.utils.utils_O3 import (
-    get_atomic_lat_trans_decompr_indices_O3,
-    get_lat_trans_decompr_indices_O3,
-)
-
-
-def N3N3N3_to_NNN333(combinations_perm: np.ndarray, N: int) -> np.ndarray:
-    """Transform index order."""
-    vec = combinations_perm[:, 0] // 3 * 27 * N**2
-    vec += combinations_perm[:, 1] // 3 * 27 * N
-    vec += combinations_perm[:, 2] // 3 * 27
-    vec += combinations_perm[:, 0] % 3 * 9
-    vec += combinations_perm[:, 1] % 3 * 3
-    vec += combinations_perm[:, 2] % 3
-    return vec
-
-
-def get_perm_compr_matrix_O3(natom: int) -> csr_array:
-    """Return compression matrix by permutation symmetry.
-
-    Matrix shape is (NNN333, (N*3)(N*3+1)(N*3+2)/6).
-
-    """
-    NNN333 = 27 * natom**3
-    combinations3 = np.array(
-        list(itertools.combinations(range(3 * natom), 3)), dtype=int
-    )
-    combinations2 = np.array(
-        list(itertools.combinations(range(3 * natom), 2)), dtype=int
-    )
-    combinations1 = np.array([[i, i, i] for i in range(3 * natom)], dtype=int)
-
-    n_col3 = combinations3.shape[0]
-    n_col2 = combinations2.shape[0] * 2
-    n_col1 = combinations1.shape[0]
-    n_col = n_col3 + n_col2 + n_col1
-    n_data3 = combinations3.shape[0] * 6
-    n_data2 = combinations2.shape[0] * 6
-    n_data1 = combinations1.shape[0]
-    n_data = n_data3 + n_data2 + n_data1
-
-    row = np.zeros(n_data, dtype="int_")
-    col = np.zeros(n_data, dtype="int_")
-    data = np.zeros(n_data, dtype="double")
-
-    # (3) for FC3 with three distinguished indices (ia,jb,kc)
-    begin_id, end_id = 0, n_data3
-    perms = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]]
-    combinations_perm = combinations3[:, perms].reshape((-1, 3))
-    row[begin_id:end_id] = N3N3N3_to_NNN333(combinations_perm, natom)
-    col[begin_id:end_id] = np.repeat(range(n_col3), 6)
-    data[begin_id:end_id] = 1 / math.sqrt(6)
-
-    # (2) for FC3 with two distinguished indices (ia,ia,jb)
-    begin_id = end_id
-    end_id = begin_id + n_data2
-    perms = [[0, 0, 1], [0, 1, 0], [1, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]]
-    combinations_perm = combinations2[:, perms].reshape((-1, 3))
-    row[begin_id:end_id] = N3N3N3_to_NNN333(combinations_perm, natom)
-    col[begin_id:end_id] = np.repeat(range(n_col3, n_col3 + n_col2), 3)
-    data[begin_id:end_id] = 1 / math.sqrt(3)
-
-    # (1) for FC3 with single index ia
-    begin_id = end_id
-    row[begin_id:] = N3N3N3_to_NNN333(combinations1, natom)
-    col[begin_id:] = np.array(range(n_col3 + n_col2, n_col))
-    data[begin_id:] = 1.0
-
-    return csr_array((data, (row, col)), shape=(NNN333, n_col))
-
-
-def compressed_complement_projector_sum_rules_algo1(
-    compress_mat: csr_array, N: int, use_mkl: bool = False
-) -> csr_array:
-    r"""Return complementary projection matrix for sum rule compressed by C.
-
-    C = compress_mat.
-
-    proj_sum_cplmt = [C.T @ Csum(c)] @ [Csum(c).T @ C]
-                   = c_sum_cplmt_compr.T @ c_sum_cplmt_compr
-    Matrix shape of proj_sum_cplmt is (C.shape[1], C.shape[1]).
-    C.shape[0] must be equal to NNN333.
-
-    Sum rules are given as sums over i: \sum_i \phi_{ia,jb,kc} = 0
-
-    """
-    NNN333 = 27 * N**3
-    NN333 = 27 * N**2
-
-    row = np.arange(NNN333)
-    col = np.tile(range(NN333), N)
-    data = np.zeros(NNN333)
-    data[:] = 1 / math.sqrt(N)
-    c_sum_cplmt = csr_array((data, (row, col)), shape=(NNN333, NN333))
-
-    if use_mkl:
-        compress_mat = compress_mat.tocsr()
-        c_sum_cplmt = c_sum_cplmt.tocsr()
-
-    # bottleneck part
-    c_sum_cplmt_compr = dot_product_sparse(c_sum_cplmt.T, compress_mat, use_mkl=use_mkl)
-    proj_sum_cplmt = dot_product_sparse(
-        c_sum_cplmt_compr.T, c_sum_cplmt_compr, use_mkl=use_mkl
-    )
-    # bottleneck part: end
-    return proj_sum_cplmt
-
-
-def compressed_complement_projector_sum_rules(
-    compress_mat: csr_array, N: int, use_mkl: bool = False
-) -> csr_array:
-    """Return complementary projection matrix for sum rule compressed by C."""
-    return compressed_complement_projector_sum_rules_algo1(
-        compress_mat, N, use_mkl=use_mkl
-    )
-
-
-def compressed_projector_sum_rules(
-    compress_mat: csr_array, N: int, use_mkl: bool = False
-) -> csr_array:
-    """Return projection matrix for sum rule compressed by C."""
-    proj_cplmt = compressed_complement_projector_sum_rules(
-        compress_mat, N, use_mkl=use_mkl
-    )
-    return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt
-
-
-"""
-Memory-efficient updated functions for running FCBasisSetO3.
-But they have not been yet implemented in FCBasisSetO3.
-"""
-
-
-def get_combinations(n, r):
-    """Return numpy array of combinations.
-
-    combinations = np.array(
-       list(itertools.combinations(range(n), r)), dtype=int
-    )
-    """
-    combs = np.ones((r, n - r + 1), dtype=int)
-    combs[0] = np.arange(n - r + 1)
-    for j in range(1, r):
-        reps = (n - r + j) - combs[j - 1]
-        combs = np.repeat(combs, reps, axis=1)
-        ind = np.add.accumulate(reps)
-        combs[j, ind[:-1]] = 1 - reps[1:]
-        combs[j, 0] = j
-        combs[j] = np.add.accumulate(combs[j])
-    return combs.T
+from symfc.utils.utils_O3 import get_atomic_lat_trans_decompr_indices_O3
 
 
 def N3N3N3_to_NNNand333(combinations_perm: np.ndarray, N: int) -> np.ndarray:
@@ -173,7 +22,7 @@ def N3N3N3_to_NNNand333(combinations_perm: np.ndarray, N: int) -> np.ndarray:
 def projector_permutation_lat_trans_O3(
     trans_perms: np.ndarray,
     atomic_decompr_idx: np.ndarray = None,
-    fc_cutoff: FCCutoffO3 = None,
+    fc_cutoff: FCCutoff = None,
     n_batch=None,
     use_mkl=False,
 ):
@@ -189,7 +38,7 @@ def projector_permutation_lat_trans_O3(
         dtype='intc'.
         shape=(n_l, N), where n_l and N are the numbers of lattce points and
         atoms in supercell.
-    fc_cutoff : FCCutoffO3
+    fc_cutoff : FCCutoff
 
     Return
     ------
@@ -205,11 +54,7 @@ def projector_permutation_lat_trans_O3(
         n_batch = 1 if natom <= 128 else int(round((natom / 128) ** 2))
 
     # (1) for FC3 with single index ia
-    if fc_cutoff is None:
-        combinations = np.array([[i, i, i] for i in range(3 * natom)], dtype=int)
-    else:
-        combinations = fc_cutoff.combinations1()
-
+    combinations = np.array([[i, i, i] for i in range(3 * natom)], dtype=int)
     n_perm1 = combinations.shape[0]
     combinations, combinations333 = N3N3N3_to_NNNand333(combinations, natom)
 
@@ -343,7 +188,7 @@ def compressed_projector_sum_rules_O3(
 
     decompr_idx = atomic_decompr_idx.reshape((natom, NN)).T.reshape(-1) * 27
     if fc_cutoff is not None:
-        nonzero = fc_cutoff.nonzero_atomic_indices()
+        nonzero = fc_cutoff.nonzero_atomic_indices_fc3()
         nonzero = nonzero.reshape((natom, NN)).T.reshape(-1)
 
     abc = np.arange(27)
@@ -387,34 +232,3 @@ def compressed_projector_sum_rules_O3(
 
     proj_cplmt /= n_lp * natom
     return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt
-
-
-def set_complement_sum_rules(trans_perms) -> csr_array:
-    """Calculate a decomposition of complementary projector for sum rules.
-
-    It is compressed by C_trans without allocating C_trans.
-    P_sum^(c) = C_trans.T @ C_sum^(c) @ C_sum^(c).T @ C_trans
-              = [C_sum^(c).T @ C_trans].T @ [C_sum^(c).T @ C_trans]
-
-    Return
-    ------
-    Product of C_sum^(c).T and C_trans.
-    """
-    n_lp, natom = trans_perms.shape
-    NNN27 = natom**3 * 27
-    NN27 = natom**2 * 27
-
-    decompr_idx = get_lat_trans_decompr_indices_O3(trans_perms)
-    decompr_idx = decompr_idx.reshape((natom, NN27)).T.reshape(-1)
-
-    row = np.repeat(np.arange(NN27), natom)
-    c_sum_cplmt = csr_array(
-        (
-            np.ones(NNN27, dtype="double"),
-            (row, decompr_idx),
-        ),
-        shape=(NN27, NNN27 // n_lp),
-        dtype="double",
-    )
-    c_sum_cplmt /= n_lp * natom
-    return c_sum_cplmt
