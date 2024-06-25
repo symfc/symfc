@@ -47,7 +47,6 @@ class FCCutoff:
         self.__nonzero_fc2 = None
         self.__nonzero_fc3 = None
         self.__nonzero_fc4 = None
-        self.__combinations_fc3 = None
 
     def __calc_distances(self):
         """Calculate minimum distances between atoms.
@@ -86,7 +85,8 @@ class FCCutoff:
                 if 3 * i + a < jb
             ]
             combinations.extend(combs)
-        return np.array(combinations)
+        combinations_fc2 = np.array(combinations)
+        return combinations_fc2
 
     def combinations3_all(self, dtype="uint16"):
         """Return combinations with three distinguished indices (ia,jb,kc)."""
@@ -94,8 +94,8 @@ class FCCutoff:
         for kc in range(3 * self.__n_atom):
             combs = self.combinations3(kc)
             combinations.extend(combs)
-        self.__combinations_fc3 = np.array(combinations).astype(dtype, copy=False)
-        return self.__combinations_fc3
+        combinations_fc3 = np.array(combinations).astype(dtype, copy=False)
+        return combinations_fc3
 
     def combinations3(self, kc, dtype="uint16"):
         """Return combinations with three distinguished indices (ia,jb,kc).
@@ -108,7 +108,6 @@ class FCCutoff:
         ]
         combs = np.array(list(itertools.combinations(neighbors_N3, 2)))
         if len(combs) > 0:
-            """Algorithm to eliminate FC3 should be reconsidered."""
             indices = np.where(
                 self.distances[(combs[:, 0] // 3, combs[:, 1] // 3)] < self.__cutoff
             )[0]
@@ -118,39 +117,36 @@ class FCCutoff:
             )
         return []
 
-    #    def combinations4_all(self, dtype="uint16"):
-    #        """Return combinations with four distinguished indices (ia,jb,kc,ld)."""
-    #        combinations = []
-    #        for ld in range(3 * self.__n_atom):
-    #            combs = self.combinations4(ld)
-    #            combinations.extend(combs)
-    #        return np.array(combinations).astype(dtype, copy=False)
+    def combinations4_all(self, dtype="uint16"):
+        """Return combinations with three distinguished indices (ia,jb,kc,ld)."""
+        combinations = []
+        for ld in range(3 * self.__n_atom):
+            combs = self.combinations4(ld)
+            combinations.extend(combs)
+        combinations_fc4 = np.array(combinations).astype(dtype, copy=False)
+        return combinations_fc4
 
-    #    def combinations4_all(self, dtype="uint16"):
-    #        """Return combinations with four distinguished indices (ia,jb,kc,ld).
-    #
-    #        Return only combinations with kc.
-    #        """
-    #        if self.__combinations_fc3:
-    #            self.__combinations_fc3 = self.combinations3_all()
-    #
-    #        k = kc // 3
-    #        neighbors_N3 = [
-    #            3 * j + b for j in self.neighbors[k] for b in range(3)
-    #            if 3 * j + b < kc
-    #        ]
-    #        combs = np.array(list(itertools.combinations(neighbors_N3, 2)))
-    #        if len(combs) > 0:
-    #            """Algorithm to eliminate FC3 should be reconsidered."""
-    #            indices = np.where(
-    #                self.distances[(combs[:, 0] // 3, combs[:, 1] // 3)]
-    #               < self.__cutoff
-    #            )[0]
-    #            combs = combs[indices]
-    #            return np.hstack([combs, np.full((combs.shape[0], 1), kc)]).astype(
-    #                dtype, copy=False
-    #            )
-    #        return []
+    def combinations4(self, ld, dtype="uint16"):
+        """Return combinations with three distinguished indices (ia,jb,kc,ld).
+
+        Return only combinations with kc.
+        """
+        ll = ld // 3
+        neighbors_N3 = [
+            3 * j + b for j in self.neighbors[ll] for b in range(3) if 3 * j + b < ld
+        ]
+        combs = np.array(list(itertools.combinations(neighbors_N3, 3)))
+        if len(combs) > 0:
+            indices = np.where(
+                (self.distances[(combs[:, 0] // 3, combs[:, 1] // 3)] < self.__cutoff)
+                & (self.distances[(combs[:, 0] // 3, combs[:, 2] // 3)] < self.__cutoff)
+                & (self.distances[(combs[:, 1] // 3, combs[:, 2] // 3)] < self.__cutoff)
+            )[0]
+            combs = combs[indices]
+            return np.hstack([combs, np.full((combs.shape[0], 1), ld)]).astype(
+                dtype, copy=False
+            )
+        return []
 
     def nonzero_atomic_indices_fc2(self):
         """Return atomic indices of nonzero FC2.
@@ -203,7 +199,7 @@ class FCCutoff:
         self.__nonzero_fc4 = nonzero = np.zeros(self.__n_atom**4, dtype=bool)
         for i in range(self.__n_atom):
             jlist = self.neighbors[i]
-            combs = np.array(list(itertools.product(jlist, jlist, jlist)))
+            combs = np.array(list(itertools.product(*[jlist, jlist, jlist])))
             if len(combs) > 0:
                 combs = combs[
                     (self.distances[(combs[:, 0], combs[:, 1])] < self.__cutoff)
@@ -237,21 +233,3 @@ class FCCutoff:
     def distances(self):
         """Minimum distances between atoms: shape=(n_atom, n_atom)."""
         return self.__distances
-
-    def find_zero_indices(self):
-        """Find zero FC3 elements outside a sphere given by cutoff radius.
-
-        Deprecated.
-        The number of shells may be better than cutoff radius,
-        because the minimal cutoff radius is strongly system-dependent.
-        """
-        NN27 = self.__n_atom**2 * 27
-        N27 = self.__n_atom * 27
-
-        """Algorithm to eliminate FC3 should be reconsidered."""
-        zero_atom_indices = np.array(np.where(self.__distances >= self.__cutoff)).T
-        zero_atom_indices = zero_atom_indices @ np.array([NN27, N27])
-
-        zero_indices = zero_atom_indices[:, None] + np.arange(N27)[None, :]
-        zero_indices = zero_indices.reshape(-1)
-        return zero_indices

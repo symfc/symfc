@@ -23,8 +23,9 @@ def projector_permutation_lat_trans_O3(
     trans_perms: np.ndarray,
     atomic_decompr_idx: np.ndarray = None,
     fc_cutoff: FCCutoff = None,
-    n_batch=None,
-    use_mkl=False,
+    n_batch: int = None,
+    use_mkl: bool = False,
+    verbose: bool = False,
 ):
     """Calculate a projector for permutation rules compressed by C_trans.
 
@@ -121,7 +122,8 @@ def projector_permutation_lat_trans_O3(
         [2, 1, 0],
     ]
     for begin, end in zip(*get_batch_slice(n_perm3, n_perm3 // n_batch)):
-        print("Proj (perm.T @ trans):", str(end) + "/" + str(n_perm3))
+        if verbose:
+            print("Proj (perm.T @ trans):", str(end) + "/" + str(n_perm3))
         batch_size = end - begin
         combinations_perm = combinations[begin:end][:, perms].reshape((-1, 3))
         combinations_perm, combinations333 = N3N3N3_to_NNNand333(
@@ -147,10 +149,11 @@ def projector_permutation_lat_trans_O3(
 def compressed_projector_sum_rules_O3(
     trans_perms,
     n_a_compress_mat: csr_array,
-    fc_cutoff=None,
-    atomic_decompr_idx=None,
+    fc_cutoff: FCCutoff = None,
+    atomic_decompr_idx: np.ndarray = None,
     use_mkl: bool = False,
-    n_batch=None,
+    n_batch: int = None,
+    verbose: bool = False,
 ) -> csr_array:
     """Return projection matrix for sum rule.
 
@@ -193,7 +196,8 @@ def compressed_projector_sum_rules_O3(
 
     abc = np.arange(27)
     for begin, end in zip(*get_batch_slice(NNN, batch_size)):
-        print("Complementary P (Sum rule):", str(end) + "/" + str(NNN))
+        if verbose:
+            print("Complementary P (Sum rule):", str(end) + "/" + str(NNN))
         size = end - begin
         size_vector = size * 27
         size_row = size_vector // natom
