@@ -42,6 +42,8 @@ class Symfc:
             spglib is used. The following keys and values correspond to spglib
             symmetry dataset:
                 rotations : array_like translations : array_like
+        cutoff : float, optional
+            Cutoff radius in angstrom, by default None.
         use_mkl : bool, optional
             Use MKL library, by default False.
         log_level : int, optional
