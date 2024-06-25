@@ -1,56 +1,47 @@
-"""Symmetry adapted basis sets of 3rd order force constants."""
+"""Symmetry adapted basis sets of 4th order force constants."""
 
 from __future__ import annotations
 
 import time
-from typing import Optional, Union
+from typing import Optional
 
 import numpy as np
-from scipy.sparse import coo_array, csr_array
+from scipy.sparse import csr_array
 
-from symfc.spg_reps import SpgRepsO3
+from symfc.spg_reps import SpgRepsO4
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.eig_tools import (
     dot_product_sparse,
     eigsh_projector,
     eigsh_projector_sumrule,
 )
-from symfc.utils.matrix_tools_O3 import (
-    compressed_projector_sum_rules_O3,
-    projector_permutation_lat_trans_O3,
+from symfc.utils.matrix_tools_O4 import (
+    compressed_projector_sum_rules_O4,
+    projector_permutation_lat_trans_O4,
 )
 from symfc.utils.utils import SymfcAtoms
-from symfc.utils.utils_O3 import (
-    get_atomic_lat_trans_decompr_indices_O3,
-    get_compr_coset_projector_O3,
-    get_lat_trans_compr_matrix_O3,
+from symfc.utils.utils_O4 import (
+    get_atomic_lat_trans_decompr_indices_O4,
+    get_compr_coset_projector_O4,
 )
 
 from . import FCBasisSetBase
 
 
-def print_sp_matrix_size(c: Union[csr_array, coo_array], header: str):
-    """Show sparse matrix size."""
-    print(header, c.shape, len(c.data))
-
-
-class FCBasisSetO3(FCBasisSetBase):
-    """Symmetry adapted basis set for 3rd order force constants.
+class FCBasisSetO4(FCBasisSetBase):
+    """Symmetry adapted basis set for 4th order force constants.
 
     Attributes
     ----------
     basis_set : ndarray
         Compressed force constants basis set.
-        shape=(n_a * N * 9, n_bases), dtype='double'
+        shape=(n_a * N * N * N * 81, n_bases), dtype='double'
     full_basis_set : ndarray
         Full (decompressed) force constants basis set.
-        shape=(N * N * 9, n_bases), dtype='double'
-    decompression_indices : ndarray
-        Decompression indices in (N,N,3,3) order.
-        shape=(N^2*9,), dtype='int_'.
-    compresssion_indices : ndarray
-        Compression indices in (n_a,N,3,3) order.
-        shape=(n_a*N*9, n_lp), dtype='int_'.
+        shape=(N * N * N * N * 81, n_bases), dtype='double'
+    atomic_decompression_indices : ndarray
+        Decompression indices in (N,N,N,N) order.
+        shape=(N**4,), dtype='int_'.
     translation_permutations : ndarray
         Atom indices after lattice translations.
         shape=(lattice_translations, supercell_atoms), dtype=int.
@@ -82,7 +73,7 @@ class FCBasisSetO3(FCBasisSetBase):
 
         """
         super().__init__(supercell, use_mkl=use_mkl, log_level=log_level)
-        self._spg_reps = SpgRepsO3(
+        self._spg_reps = SpgRepsO4(
             supercell, spacegroup_operations=spacegroup_operations
         )
         if cutoff is None:
@@ -91,7 +82,7 @@ class FCBasisSetO3(FCBasisSetBase):
             self._fc_cutoff = FCCutoff(supercell, cutoff=cutoff)
 
         trans_perms = self._spg_reps.translation_permutations
-        self._atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
+        self._atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
 
     @property
     def basis_set(self) -> Optional[csr_array]:
@@ -99,9 +90,9 @@ class FCBasisSetO3(FCBasisSetBase):
 
         n_c = len(compressed_indices).
 
-        shape=(n_c*N*N*3*3*3, n_bases), dtype='double'.
+        shape=(n_c*N*N*N*3*3*3*3, n_bases), dtype='double'.
 
-        Data in first dimension is ordered by (n_c,N,N,3,3,3).
+        Data in first dimension is ordered by (n_c,N,N,N,3,3,3,3).
 
         """
         return self._basis_set
@@ -110,20 +101,23 @@ class FCBasisSetO3(FCBasisSetBase):
     def compression_matrix(self) -> Optional[csr_array]:
         """Return compression matrix.
 
-        This expands fc basis_sets to (N*N*N*3*3*3, n_bases).
+        This expands fc basis_sets to (N*N*N*N*3*3*3*3, n_bases).
 
         """
+        raise NotImplementedError("Full compression matrix for FC4 is not implemented.")
+        """
         trans_perms = self._spg_reps.translation_permutations
-        c_trans = get_lat_trans_compr_matrix_O3(trans_perms)
+        c_trans = get_lat_trans_compr_matrix_O4(trans_perms)
         return dot_product_sparse(
             c_trans, self._n_a_compression_matrix, use_mkl=self._use_mkl
         )
+        """
 
     @property
     def compact_compression_matrix(self) -> Optional[csr_array]:
         """Return compact compression matrix.
 
-        This expands basis_sets to (n_a*N*N*3*3*3, n_bases).
+        This expands basis_sets to (n_a*N*N*N*3*3*3*3, n_bases).
 
         """
         n_lp = self.translation_permutations.shape[0]
@@ -134,12 +128,12 @@ class FCBasisSetO3(FCBasisSetBase):
         """Return atomic permutation."""
         return self._atomic_decompr_idx
 
-    def run(self) -> FCBasisSetO3:
+    def run(self) -> FCBasisSetO4:
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
 
         tt0 = time.time()
-        proj_pt = projector_permutation_lat_trans_O3(
+        proj_pt = projector_permutation_lat_trans_O4(
             trans_perms,
             atomic_decompr_idx=self._atomic_decompr_idx,
             fc_cutoff=self._fc_cutoff,
@@ -153,7 +147,7 @@ class FCBasisSetO3(FCBasisSetBase):
             print(" c_pt (size) :", c_pt.shape)
         tt2 = time.time()
 
-        proj_rpt = get_compr_coset_projector_O3(
+        proj_rpt = get_compr_coset_projector_O4(
             self._spg_reps,
             fc_cutoff=self._fc_cutoff,
             atomic_decompr_idx=self._atomic_decompr_idx,
@@ -170,7 +164,7 @@ class FCBasisSetO3(FCBasisSetBase):
         n_a_compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
         tt5 = time.time()
 
-        proj = compressed_projector_sum_rules_O3(
+        proj = compressed_projector_sum_rules_O4(
             trans_perms,
             n_a_compress_mat,
             atomic_decompr_idx=self._atomic_decompr_idx,
@@ -194,7 +188,7 @@ class FCBasisSetO3(FCBasisSetBase):
             print("Time (proj(sum))                   :", "{:.3f}".format(tt6 - tt5))
             print("Time (eigh(sum))                   :", "{:.3f}".format(tt7 - tt6))
             print("---")
-            print("Time (Basis FC3)                   :", "{:.3f}".format(tt7 - tt0))
+            print("Time (Basis FC4)                   :", "{:.3f}".format(tt7 - tt0))
 
         self._basis_set = eigvecs
         self._n_a_compression_matrix = n_a_compress_mat
