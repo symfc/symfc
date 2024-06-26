@@ -38,7 +38,9 @@ def compr_projector(p: csr_array) -> csr_array:
             shape=(p.shape[1], size),
             dtype="int",
         )
-        p = compr.T @ p @ compr
+        """p = compr.T @ p @ compr"""
+        p = p[col_p].T
+        p = p[col_p].T
         return p, compr
     return p, None
 
