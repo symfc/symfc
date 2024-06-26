@@ -120,13 +120,9 @@ class Symfc:
     def forces(self, forces: Union[np.ndarray, list, tuple]):
         self._forces = np.array(forces, dtype="double", order="C")
 
-    def run(self, max_order: int = None, is_compact_fc=True) -> Symfc:
+    def run(self, max_order: int, is_compact_fc=True) -> Symfc:
         """Run basis set and force constants calculation."""
-        if (
-            max_order is not None
-            and self._displacements is not None
-            and self._forces is not None
-        ):
+        if self._displacements is not None and self._forces is not None:
             self.compute_basis_set(max_order)
             self.solve(max_order, is_compact_fc=is_compact_fc)
         return self
