@@ -4,7 +4,7 @@ import itertools
 
 import numpy as np
 import scipy
-from scipy.sparse import csr_array
+from scipy.sparse import csr_array, vstack
 
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.eig_tools import dot_product_sparse
@@ -13,11 +13,20 @@ from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.utils_O4 import get_atomic_lat_trans_decompr_indices_O4
 
 
-def N3N3N3N3_to_NNNNand3333(combinations_perm: np.ndarray, N: int) -> np.ndarray:
+def N3N3N3N3_to_NNNNand3333(combs: np.ndarray, N: int) -> np.ndarray:
     """Transform index order."""
-    vecNNNN, vec3333 = np.divmod(combinations_perm, 3)
-    vecNNNN = vecNNNN @ np.array([N**3, N**2, N, 1])
-    vec3333 = vec3333 @ np.array([27, 9, 3, 1])
+    vecNNNN, vec3333 = np.divmod(combs[:, 0], 3)
+    vecNNNN *= N**3
+    vec3333 *= 27
+    div, mod = np.divmod(combs[:, 1], 3)
+    vecNNNN += div * N**2
+    vec3333 += mod * 9
+    div, mod = np.divmod(combs[:, 2], 3)
+    vecNNNN += div * N
+    vec3333 += mod * 3
+    div, mod = np.divmod(combs[:, 3], 3)
+    vecNNNN += div
+    vec3333 += mod
     return vecNNNN, vec3333
 
 
@@ -25,7 +34,6 @@ def projector_permutation_lat_trans_O4(
     trans_perms: np.ndarray,
     atomic_decompr_idx: np.ndarray = None,
     fc_cutoff: FCCutoff = None,
-    n_batch: int = None,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
@@ -53,13 +61,7 @@ def projector_permutation_lat_trans_O4(
     if atomic_decompr_idx is None:
         atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
 
-    if n_batch is None:
-        n_batch3 = 1 if natom <= 36 else int(round((natom / 36) ** 2))
-        n_batch4 = 1 if natom <= 12 else int(round((natom / 12) ** 2))
-    else:
-        n_batch3 = n_batch4 = n_batch
-
-    # (1) for FC4 with single index ia
+    """(1) for FC4 with single index ia"""
     combinations = np.array([[i, i, i, i] for i in range(3 * natom)], dtype=int)
     n_perm1 = combinations.shape[0]
     combinations, combinations3333 = N3N3N3N3_to_NNNNand3333(combinations, natom)
@@ -77,7 +79,7 @@ def projector_permutation_lat_trans_O4(
     )
     proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
 
-    # (2) for FC4 with two distinguished indices (ia,ia,ia,jb)
+    """(2) for FC4 with two distinguished indices (ia,ia,ia,jb)"""
     if fc_cutoff is None:
         combinations = get_combinations(3 * natom, 2)
     else:
@@ -111,17 +113,7 @@ def projector_permutation_lat_trans_O4(
     )
     proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
 
-    # (3) for FC4 with three distinguished indices (ia,ia,jb,kc)
-    if verbose:
-        print("Find combinations of three FC elements")
-
-    if fc_cutoff is None:
-        combinations = get_combinations(3 * natom, 3)
-    else:
-        combinations = fc_cutoff.combinations3_all()
-
-    n_comb3 = combinations.shape[0]
-    """
+    """(3) for FC4 with three distinguished indices (ia,ia,jb,kc)
     [
         [a, a, b, c],
         [a, a, c, b],
@@ -137,6 +129,15 @@ def projector_permutation_lat_trans_O4(
         [c, b, a, a],
     ]
     """
+    if verbose:
+        print("Find combinations of three FC elements")
+
+    if fc_cutoff is None:
+        combinations = get_combinations(3 * natom, 3)
+    else:
+        combinations = fc_cutoff.combinations3_all()
+
+    n_comb3 = combinations.shape[0]
     perms = [
         [0, 0, 1, 2],
         [0, 0, 2, 1],
@@ -176,6 +177,8 @@ def projector_permutation_lat_trans_O4(
         [0, 1, 2, 2],
     ]
 
+    n_batch3 = (n_comb3 // 100000) + 1
+    c_pt = None
     for begin, end in zip(*get_batch_slice(n_comb3, n_comb3 // n_batch3)):
         if verbose:
             print("Proj (perm.T @ trans, 3):", str(end) + "/" + str(n_comb3))
@@ -185,8 +188,7 @@ def projector_permutation_lat_trans_O4(
         combinations_perm, combinations3333 = N3N3N3N3_to_NNNNand3333(
             combinations_perm, natom
         )
-
-        c_pt = csr_array(
+        c_pt_batch = csr_array(
             (
                 np.full(batch_size * 36, 1 / np.sqrt(12 * n_lp)),
                 (
@@ -197,9 +199,11 @@ def projector_permutation_lat_trans_O4(
             shape=(n_perm3, NNNN81 // n_lp),
             dtype="double",
         )
-        proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+        c_pt = c_pt_batch if c_pt is None else vstack([c_pt, c_pt_batch])
 
-    # (4) for FC4 with four distinguished indices (ia,jb,kc,ld)
+    proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+
+    """(4) for FC4 with four distinguished indices (ia,jb,kc,ld)"""
     if verbose:
         print("Find combinations of four FC elements")
 
@@ -211,6 +215,8 @@ def projector_permutation_lat_trans_O4(
     n_comb4 = combinations.shape[0]
     perms = np.array(list(itertools.permutations(range(4))))
 
+    n_batch4 = (n_comb4 // 100000) + 1
+    c_pt = None
     for begin, end in zip(*get_batch_slice(n_comb4, n_comb4 // n_batch4)):
         if verbose:
             print("Proj (perm.T @ trans, 4):", str(end) + "/" + str(n_comb4))
@@ -219,8 +225,7 @@ def projector_permutation_lat_trans_O4(
         combinations_perm, combinations3333 = N3N3N3N3_to_NNNNand3333(
             combinations_perm, natom
         )
-
-        c_pt = csr_array(
+        c_pt_batch = csr_array(
             (
                 np.full(batch_size * 24, 1 / np.sqrt(24 * n_lp)),
                 (
@@ -231,7 +236,9 @@ def projector_permutation_lat_trans_O4(
             shape=(n_perm4, NNNN81 // n_lp),
             dtype="double",
         )
-        proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+        c_pt = c_pt_batch if c_pt is None else vstack([c_pt, c_pt_batch])
+
+    proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
 
     return proj_pt
 
@@ -266,7 +273,7 @@ def compressed_projector_sum_rules_O4(
     proj_size = n_a_compress_mat.shape[1]
     proj_cplmt = csr_array((proj_size, proj_size), dtype="double")
 
-    n_batch = natom
+    n_batch = 1 if natom < 12 else natom // 3
     if n_batch > natom:
         raise ValueError("n_batch must be smaller than N.")
     batch_size = natom**3 * (natom // n_batch)

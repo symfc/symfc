@@ -269,7 +269,8 @@ def prepare_normal_equation_O2O3O4(
     n_basis_fc23 = n_basis_fc2 + n_basis_fc3
     n_basis = n_basis_fc2 + n_basis_fc3 + n_basis_fc4
 
-    n_batch = N // 12
+    n_batch = (n_compr_fc3 // 10000 + n_compr_fc4 // 5000 + 1) * (N // 50 + 1)
+    n_batch = min(N, n_batch)
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
 

@@ -226,7 +226,6 @@ def prepare_normal_equation_O2O3(
     N3 = disps.shape[1]
     N = N3 // 3
     NN = N * N
-    NNN333 = 27 * N**3
 
     n_basis_fc2 = compress_eigvecs_fc2.shape[1]
     n_basis_fc3 = compress_eigvecs_fc3.shape[1]
@@ -234,8 +233,8 @@ def prepare_normal_equation_O2O3(
     n_compr_fc3 = compact_compress_mat_fc3.shape[1]
     n_basis = n_basis_fc2 + n_basis_fc3
 
-    NNN333_unit = 27 * 256**3
-    n_batch = min((NNN333 // NNN333_unit + 1) * (n_compr_fc3 // 30000 + 1), N)
+    n_batch = (N // 256 + 1) * (n_compr_fc3 // 30000 + 1)
+    n_batch = min(N, n_batch)
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
 
