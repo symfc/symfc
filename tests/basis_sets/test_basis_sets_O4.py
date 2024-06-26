@@ -73,3 +73,49 @@ def test_fc_basis_set_o4_wurtzite():
     assert sbs.basis_set.shape[1] == 2
     compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
     assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(2.0)
+
+
+def test_fc_basis_set_o3_wurtzite_221():
+    """Test symmetry adapted basis sets of FCBasisSetO3."""
+    lattice = np.array(
+        [
+            [7.572372320587654, 0.0, 0.0],
+            [-3.786186160293826, 6.55786679654303, 0.0],
+            [0.0, 0.0, 6.212678269409001],
+        ]
+    )
+    positions = np.array(
+        [
+            [0.166666666666666, 0.333333333333333, 0.002126465711614],
+            [0.666666666666667, 0.333333333333333, 0.002126465711614],
+            [0.166666666666666, 0.833333333333333, 0.002126465711614],
+            [0.666666666666667, 0.833333333333333, 0.002126465711614],
+            [0.333333333333333, 0.166666666666666, 0.502126465711614],
+            [0.833333333333333, 0.166666666666666, 0.502126465711614],
+            [0.333333333333333, 0.666666666666667, 0.502126465711614],
+            [0.833333333333333, 0.666666666666667, 0.502126465711614],
+            [0.166666666666666, 0.333333333333333, 0.376316514288389],
+            [0.666666666666667, 0.333333333333333, 0.376316514288389],
+            [0.166666666666666, 0.833333333333333, 0.376316514288389],
+            [0.666666666666667, 0.833333333333333, 0.376316514288389],
+            [0.333333333333333, 0.166666666666666, 0.876316514288389],
+            [0.833333333333333, 0.166666666666666, 0.876316514288389],
+            [0.333333333333333, 0.666666666666667, 0.876316514288389],
+            [0.833333333333333, 0.666666666666667, 0.876316514288389],
+        ]
+    )
+    numbers = [1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2]
+    supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
+
+    """
+    sbs = FCBasisSetO4(supercell, cutoff=4.5, log_level=1).run()
+    assert sbs.basis_set.shape[0] == 3733
+    assert sbs.basis_set.shape[1] == 2749
+    """
+    sbs = FCBasisSetO4(supercell, cutoff=4.0, log_level=1).run()
+    assert sbs.basis_set.shape[0] == 948
+    assert sbs.basis_set.shape[1] == 515
+
+    sbs = FCBasisSetO4(supercell, cutoff=3.5, log_level=1).run()
+    assert sbs.basis_set.shape[0] == 61
+    assert sbs.basis_set.shape[1] == 4
