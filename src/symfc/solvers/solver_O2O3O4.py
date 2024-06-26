@@ -11,7 +11,7 @@ from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3, FCBasisSetO4
 from symfc.solvers.solver_O2 import reshape_nN33_nx_to_N3_n3nx
-from symfc.solvers.solver_O2O3 import reshape_nNN333_nx_to_NN33_n3nx, set_disps_NN33
+from symfc.solvers.solver_O2O3 import reshape_nNN333_nx_to_N3N3_n3nx, set_disps_N3N3
 from symfc.utils.eig_tools import dot_product_sparse
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
@@ -34,7 +34,7 @@ class FCSolverO2O3O4(FCSolverBase):
         self,
         displacements: np.ndarray,
         forces: np.ndarray,
-        batch_size: int = 100,
+        batch_size: int = 36,
     ) -> FCSolverO2O3O4:
         """Solve force constants.
 
@@ -186,7 +186,33 @@ def set_disps_NNN333(disps, sparse=True):
     return disps_3rd
 
 
-def reshape_nNNN3333_nx_to_NNN333_n3nx(mat, N, n, n_batch=18):
+def set_disps_N3N3N3(disps, sparse=True, disps_N3N3=None):
+    """Calculate Kronecker products of displacements.
+
+    Parameter
+    ---------
+    disps: shape=(n_supercell, N3)
+
+    Return
+    ------
+    disps_3rd: shape=(n_supercell, N3N3N3)
+    """
+    n_supercell = disps.shape[0]
+    if disps_N3N3 is not None:
+        disps_3rd = (disps_N3N3[:, :, None] * disps[:, None, :]).reshape(
+            (n_supercell, -1)
+        )
+    else:
+        disps_3rd = (
+            disps[:, :, None, None] * disps[:, None, :, None] * disps[:, None, None, :]
+        ).reshape((n_supercell, -1))
+
+    if sparse:
+        return csr_array(disps_3rd)
+    return disps_3rd
+
+
+def reshape_nNNN3333_nx_to_NNN333_n3nx(mat, N, n, n_batch=36):
     """Reorder and reshape a sparse matrix (nNNN3333,nx)->(NNN333,n3nx).
 
     Return reordered csr_matrix used for FC4.
@@ -218,6 +244,38 @@ def reshape_nNNN3333_nx_to_NNN333_n3nx(mat, N, n, n_batch=18):
     return mat
 
 
+def reshape_nNNN3333_nx_to_N3N3N3_n3nx(mat, N, n, n_batch=36):
+    """Reorder and reshape a sparse matrix (nNNN3333,nx)->(N3N3N3,n3nx).
+
+    Return reordered csr_matrix used for FC4.
+    """
+    _, nx = mat.shape
+    NNN333 = N**3 * 27
+    n3nx = n * 3 * nx
+    mat = mat.tocoo(copy=False)
+
+    begin_batch, end_batch = get_batch_slice(len(mat.row), len(mat.row) // n_batch)
+    for begin, end in zip(begin_batch, end_batch):
+        div, rem = np.divmod(mat.row[begin:end], 81 * N * N * N)
+        mat.col[begin:end] += div * 3 * nx
+        div, rem = np.divmod(rem, 81 * N * N)
+        mat.row[begin:end] = div * 27 * N * N
+        div, rem = np.divmod(rem, 81 * N)
+        mat.row[begin:end] += div * 9 * N
+        div, rem = np.divmod(rem, 81)
+        mat.row[begin:end] += div * 3
+        div, rem = np.divmod(rem, 27)
+        mat.col[begin:end] += div * nx
+        div, rem = np.divmod(rem, 9)
+        mat.row[begin:end] += div * 9 * N * N
+        div, rem = np.divmod(rem, 3)
+        mat.row[begin:end] += div * 3 * N + rem
+
+    mat.resize((NNN333, n3nx))
+    mat = mat.tocsr(copy=False)
+    return mat
+
+
 def prepare_normal_equation_O2O3O4(
     disps,
     forces,
@@ -230,7 +288,7 @@ def prepare_normal_equation_O2O3O4(
     atomic_decompr_idx_fc2,
     atomic_decompr_idx_fc3,
     atomic_decompr_idx_fc4,
-    batch_size=100,
+    batch_size=36,
     use_mkl=False,
     verbose=False,
 ):
@@ -311,7 +369,7 @@ def prepare_normal_equation_O2O3O4(
             atomic_decompr_idx_fc3[begin_i * NN : end_i * NN, None] * 27
             + np.arange(27)[None, :]
         ).reshape(-1)
-        compr_mat_fc3 = reshape_nNN333_nx_to_NN33_n3nx(
+        compr_mat_fc3 = reshape_nNN333_nx_to_N3N3_n3nx(
             compact_compress_mat_fc3[decompr_idx],
             N,
             n_atom_batch,
@@ -321,12 +379,11 @@ def prepare_normal_equation_O2O3O4(
             atomic_decompr_idx_fc4[begin_i * NNN : end_i * NNN, None] * 81
             + np.arange(81)[None, :]
         ).reshape(-1)
-        compr_mat_fc4 = reshape_nNNN3333_nx_to_NNN333_n3nx(
+        compr_mat_fc4 = reshape_nNNN3333_nx_to_N3N3N3_n3nx(
             compact_compress_mat_fc4[decompr_idx],
             N,
             n_atom_batch,
         )
-
         t2 = time.time()
         if verbose:
             print("Solver_compr_matrix_reshape:, t =", "{:.3f}".format(t2 - t1))
@@ -339,14 +396,15 @@ def prepare_normal_equation_O2O3O4(
                 use_mkl=use_mkl,
                 dense=True,
             ).reshape((-1, n_compr_fc2))
+            disps_N3N3 = set_disps_N3N3(disps[begin:end], sparse=False)
             X3 = dot_product_sparse(
-                set_disps_NN33(disps[begin:end], sparse=False),
+                disps_N3N3,
                 compr_mat_fc3,
                 use_mkl=use_mkl,
                 dense=True,
             ).reshape((-1, n_compr_fc3))
             X4 = dot_product_sparse(
-                set_disps_NNN333(disps[begin:end], sparse=False),
+                set_disps_N3N3N3(disps[begin:end], sparse=False, disps_N3N3=disps_N3N3),
                 compr_mat_fc4,
                 use_mkl=use_mkl,
                 dense=True,
