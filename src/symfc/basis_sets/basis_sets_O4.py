@@ -23,6 +23,7 @@ from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O4 import (
     get_atomic_lat_trans_decompr_indices_O4,
     get_compr_coset_projector_O4,
+    get_lat_trans_compr_matrix_O4,
 )
 
 from . import FCBasisSetBase
@@ -104,14 +105,11 @@ class FCBasisSetO4(FCBasisSetBase):
         This expands fc basis_sets to (N*N*N*N*3*3*3*3, n_bases).
 
         """
-        raise NotImplementedError("Full compression matrix for FC4 is not implemented.")
-        """
         trans_perms = self._spg_reps.translation_permutations
         c_trans = get_lat_trans_compr_matrix_O4(trans_perms)
         return dot_product_sparse(
             c_trans, self._n_a_compression_matrix, use_mkl=self._use_mkl
         )
-        """
 
     @property
     def compact_compression_matrix(self) -> Optional[csr_array]:

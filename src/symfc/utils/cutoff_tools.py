@@ -88,16 +88,16 @@ class FCCutoff:
         combinations_fc2 = np.array(combinations)
         return combinations_fc2
 
-    def combinations3_all(self, dtype="uint16"):
+    def combinations3_all(self):
         """Return combinations with three distinguished indices (ia,jb,kc)."""
         combinations = []
         for kc in range(3 * self.__n_atom):
             combs = self.combinations3(kc)
             combinations.extend(combs)
-        combinations_fc3 = np.array(combinations).astype(dtype, copy=False)
+        combinations_fc3 = np.array(combinations)
         return combinations_fc3
 
-    def combinations3(self, kc, dtype="uint16"):
+    def combinations3(self, kc):
         """Return combinations with three distinguished indices (ia,jb,kc).
 
         Return only combinations with kc.
@@ -112,21 +112,19 @@ class FCCutoff:
                 self.distances[(combs[:, 0] // 3, combs[:, 1] // 3)] < self.__cutoff
             )[0]
             combs = combs[indices]
-            return np.hstack([combs, np.full((combs.shape[0], 1), kc)]).astype(
-                dtype, copy=False
-            )
+            return np.hstack([combs, np.full((combs.shape[0], 1), kc)])
         return []
 
-    def combinations4_all(self, dtype="uint16"):
+    def combinations4_all(self):
         """Return combinations with three distinguished indices (ia,jb,kc,ld)."""
         combinations = []
         for ld in range(3 * self.__n_atom):
             combs = self.combinations4(ld)
             combinations.extend(combs)
-        combinations_fc4 = np.array(combinations).astype(dtype, copy=False)
+        combinations_fc4 = np.array(combinations)
         return combinations_fc4
 
-    def combinations4(self, ld, dtype="uint16"):
+    def combinations4(self, ld):
         """Return combinations with three distinguished indices (ia,jb,kc,ld).
 
         Return only combinations with kc.
@@ -143,9 +141,7 @@ class FCCutoff:
                 & (self.distances[(combs[:, 1] // 3, combs[:, 2] // 3)] < self.__cutoff)
             )[0]
             combs = combs[indices]
-            return np.hstack([combs, np.full((combs.shape[0], 1), ld)]).astype(
-                dtype, copy=False
-            )
+            return np.hstack([combs, np.full((combs.shape[0], 1), ld)])
         return []
 
     def nonzero_atomic_indices_fc2(self):

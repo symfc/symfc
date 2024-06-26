@@ -2,7 +2,7 @@
 
 import numpy as np
 import scipy
-from scipy.sparse import csr_array
+from scipy.sparse import csr_array, vstack
 
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.eig_tools import dot_product_sparse
@@ -11,11 +11,17 @@ from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.utils_O3 import get_atomic_lat_trans_decompr_indices_O3
 
 
-def N3N3N3_to_NNNand333(combinations_perm: np.ndarray, N: int) -> np.ndarray:
+def N3N3N3_to_NNNand333(combs: np.ndarray, N: int) -> np.ndarray:
     """Transform index order."""
-    vecNNN, vec333 = np.divmod(combinations_perm, 3)
-    vecNNN = vecNNN @ np.array([N**2, N, 1])
-    vec333 = vec333 @ np.array([9, 3, 1])
+    vecNNN, vec333 = np.divmod(combs[:, 0], 3)
+    vecNNN *= N**2
+    vec333 *= 9
+    div, mod = np.divmod(combs[:, 1], 3)
+    vecNNN += div * N
+    vec333 += mod * 3
+    div, mod = np.divmod(combs[:, 2], 3)
+    vecNNN += div
+    vec333 += mod
     return vecNNN, vec333
 
 
@@ -121,6 +127,8 @@ def projector_permutation_lat_trans_O3(
         [2, 0, 1],
         [2, 1, 0],
     ]
+
+    c_pt = None
     for begin, end in zip(*get_batch_slice(n_perm3, n_perm3 // n_batch)):
         if verbose:
             print("Proj (perm.T @ trans):", str(end) + "/" + str(n_perm3))
@@ -130,7 +138,7 @@ def projector_permutation_lat_trans_O3(
             combinations_perm, natom
         )
 
-        c_pt = csr_array(
+        c_pt_batch = csr_array(
             (
                 np.full(batch_size * 6, 1 / np.sqrt(6 * n_lp)),
                 (
@@ -141,8 +149,10 @@ def projector_permutation_lat_trans_O3(
             shape=(batch_size, NNN27 // n_lp),
             dtype="double",
         )
-        proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
 
+        c_pt = c_pt_batch if c_pt is None else vstack([c_pt, c_pt_batch])
+
+    proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
     return proj_pt
 
 
