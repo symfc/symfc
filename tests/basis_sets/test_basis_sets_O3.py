@@ -97,3 +97,68 @@ def test_si_111_fc3(ph3_si_111_fc3: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
     fc3_ref = np.loadtxt(cwd / ".." / "compact_fc_Si_111_fc3_3.xz").reshape(fc3.shape)
     np.testing.assert_allclose(fc2_ref, fc2, atol=1e-6)
     np.testing.assert_allclose(fc3_ref, fc3, atol=1e-6)
+
+
+def test_fc_basis_set_o3_wurtzite():
+    """Test symmetry adapted basis sets of FCBasisSetO3."""
+    lattice = np.array(
+        [
+            [3.786186160293827, 0, 0],
+            [-1.893093080146913, 3.278933398271515, 0],
+            [0, 0, 6.212678269409001],
+        ]
+    )
+    positions = np.array(
+        [
+            [0.333333333333333, 0.666666666666667, 0.002126465711614],
+            [0.666666666666667, 0.333333333333333, 0.502126465711614],
+            [0.333333333333333, 0.666666666666667, 0.376316514288389],
+            [0.666666666666667, 0.333333333333333, 0.876316514288389],
+        ]
+    )
+    numbers = [1, 1, 2, 2]
+    supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
+    sbs = FCBasisSetO3(supercell, log_level=1).run()
+
+    assert sbs.basis_set.shape[0] == 40
+    assert sbs.basis_set.shape[1] == 18
+    compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
+    assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(18.0)
+
+    sbs = FCBasisSetO3(supercell, cutoff=3.0, log_level=1).run()
+    assert sbs.basis_set.shape[0] == 22
+    assert sbs.basis_set.shape[1] == 6
+    compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
+    assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(6.0)
+
+
+def test_fc_basis_set_o3_diamond():
+    """Test symmetry adapted basis sets of FCBasisSetO4."""
+    a = 5.4335600299999998
+    lattice = np.array([[a, 0, 0], [0, a, 0], [0, 0, a]])
+    positions = np.array(
+        [
+            [0.875, 0.875, 0.875],
+            [0.875, 0.375, 0.375],
+            [0.375, 0.875, 0.375],
+            [0.375, 0.375, 0.875],
+            [0.125, 0.125, 0.125],
+            [0.125, 0.625, 0.625],
+            [0.625, 0.125, 0.625],
+            [0.625, 0.625, 0.125],
+        ]
+    )
+    numbers = [1, 1, 1, 1, 1, 1, 1, 1]
+    supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
+    sbs = FCBasisSetO3(supercell, log_level=1).run()
+
+    assert sbs.basis_set.shape[0] == 17
+    assert sbs.basis_set.shape[1] == 13
+    compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
+    assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(3.25)
+
+    sbs = FCBasisSetO3(supercell, cutoff=3.5, log_level=1).run()
+    assert sbs.basis_set.shape[0] == 5
+    assert sbs.basis_set.shape[1] == 3
+    compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
+    assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(0.75)
