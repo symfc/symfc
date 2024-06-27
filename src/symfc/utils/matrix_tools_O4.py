@@ -7,10 +7,14 @@ import scipy
 from scipy.sparse import csr_array, vstack
 
 from symfc.utils.cutoff_tools import FCCutoff
-from symfc.utils.eig_tools import dot_product_sparse
 from symfc.utils.matrix_tools import get_combinations
 from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.utils_O4 import get_atomic_lat_trans_decompr_indices_O4
+
+try:
+    from symfc.utils.eig_tools import dot_product_sparse
+except ImportError:
+    pass
 
 
 def N3N3N3N3_to_NNNNand3333(combs: np.ndarray, N: int) -> np.ndarray:

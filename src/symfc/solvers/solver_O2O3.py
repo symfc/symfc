@@ -143,27 +143,6 @@ class FCSolverO2O3(FCSolverBase):
         return fc2, fc3
 
 
-def set_disps_NN33(disps, sparse=True):
-    """Calculate Kronecker products of displacements.
-
-    Parameter
-    ---------
-    disps: shape=(n_supercell, N3)
-
-    Return
-    ------
-    disps_2nd: shape=(n_supercell, NN33)
-    """
-    n_supercell = disps.shape[0]
-    N = disps.shape[1] // 3
-    disps_2nd = (disps[:, :, None] * disps[:, None, :]).reshape((-1, N, 3, N, 3))
-    disps_2nd = disps_2nd.transpose((0, 1, 3, 2, 4)).reshape((n_supercell, -1))
-
-    if sparse:
-        return csr_array(disps_2nd)
-    return disps_2nd
-
-
 def set_disps_N3N3(disps, sparse=True):
     """Calculate Kronecker products of displacements.
 
@@ -173,7 +152,7 @@ def set_disps_N3N3(disps, sparse=True):
 
     Return
     ------
-    disps_2nd: shape=(n_supercell, N3N3N3)
+    disps_2nd: shape=(n_supercell, N3N3)
     """
     n_supercell = disps.shape[0]
     disps_2nd = (disps[:, :, None] * disps[:, None, :]).reshape((n_supercell, -1))
@@ -181,34 +160,6 @@ def set_disps_N3N3(disps, sparse=True):
     if sparse:
         return csr_array(disps_2nd)
     return disps_2nd
-
-
-def reshape_nNN333_nx_to_NN33_n3nx(mat, N, n, n_batch=9):
-    """Reorder and reshape a sparse matrix (nNN333,nx)->(NN33,n3nx).
-
-    Return reordered csr_matrix used for FC3.
-    """
-    _, nx = mat.shape
-    NN33 = N**2 * 9
-    n3nx = n * 3 * nx
-    mat = mat.tocoo(copy=False)
-
-    begin_batch, end_batch = get_batch_slice(len(mat.row), len(mat.row) // n_batch)
-    for begin, end in zip(begin_batch, end_batch):
-        div, rem = np.divmod(mat.row[begin:end], 27 * N * N)
-        mat.col[begin:end] += div * 3 * nx
-        div, rem = np.divmod(rem, 27 * N)
-        mat.row[begin:end] = div * 9 * N
-        div, rem = np.divmod(rem, 27)
-        mat.row[begin:end] += div * 9
-        div, rem = np.divmod(rem, 9)
-        mat.col[begin:end] += div * nx
-        div, rem = np.divmod(rem, 3)
-        mat.row[begin:end] += div * 3 + rem
-
-    mat.resize((NN33, n3nx))
-    mat = mat.tocsr(copy=False)
-    return mat
 
 
 def reshape_nNN333_nx_to_N3N3_n3nx(mat, N, n, n_batch=9):
@@ -298,6 +249,7 @@ def prepare_normal_equation_O2O3(
     compact_compress_mat_fc3 *= const_fc3
     for begin_i, end_i in zip(begin_batch_atom, end_batch_atom):
         if verbose:
+            print("-----")
             print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N)
         n_atom_batch = end_i - begin_i
 
@@ -316,14 +268,14 @@ def prepare_normal_equation_O2O3(
             atomic_decompr_idx_fc3[begin_i * NN : end_i * NN, None] * 27
             + np.arange(27)[None, :]
         ).reshape(-1)
-        compr_mat_fc3 = reshape_nNN333_nx_to_NN33_n3nx(
+        compr_mat_fc3 = reshape_nNN333_nx_to_N3N3_n3nx(
             compact_compress_mat_fc3[decompr_idx],
             N,
             n_atom_batch,
         )
         t2 = time.time()
         if verbose:
-            print("Solver_compr_matrix_reshape:, t =", "{:.3f}".format(t2 - t1))
+            print("Time (Solver_compr_matrix_reshape):", "{:.3f}".format(t2 - t1))
 
         for begin, end in zip(begin_batch, end_batch):
             t1 = time.time()
@@ -334,7 +286,7 @@ def prepare_normal_equation_O2O3(
                 dense=True,
             ).reshape((-1, n_compr_fc2))
             X3 = dot_product_sparse(
-                set_disps_NN33(disps[begin:end], sparse=False),
+                set_disps_N3N3(disps[begin:end], sparse=False),
                 compr_mat_fc3,
                 use_mkl=use_mkl,
                 dense=True,
@@ -348,8 +300,11 @@ def prepare_normal_equation_O2O3(
             mat3y += X3.T @ y
             t2 = time.time()
             if verbose:
-                print("Solver_block:", end, ":, t =", "{:.3f}".format(t2 - t1))
+                print("Solver_block:", end, "/", disps.shape[0])
+                print(" - Time:", "{:.3f}".format(t2 - t1))
 
+    if verbose:
+        print("Solver:", "Calculate X.T @ X and X.T @ y")
     XTX = np.zeros((n_basis, n_basis), dtype=float)
     XTy = np.zeros(n_basis, dtype=float)
     XTX[:n_basis_fc2, :n_basis_fc2] = (
@@ -370,7 +325,7 @@ def prepare_normal_equation_O2O3(
     t_all2 = time.time()
     if verbose:
         print(
-            " (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):",
+            "Time (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):",
             "{:.3f}".format(t_all2 - t_all1),
         )
     return XTX, XTy

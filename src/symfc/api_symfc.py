@@ -120,19 +120,30 @@ class Symfc:
     def forces(self, forces: Union[np.ndarray, list, tuple]):
         self._forces = np.array(forces, dtype="double", order="C")
 
-    def run(self, max_order: int, is_compact_fc=True) -> Symfc:
-        """Run basis set and force constants calculation."""
-        if self._displacements is not None and self._forces is not None:
-            self.compute_basis_set(max_order)
-            self.solve(max_order, is_compact_fc=is_compact_fc)
-        return self
+    def run(self, max_order: int, is_compact_fc=True, batch_size: int = 100) -> Symfc:
+        """Run basis set and force constants calculation.
 
-    def solve(self, max_order: int, is_compact_fc=True) -> Symfc:
-        """Calculate force constants.
-
+        Parameters
+        ----------
         max_order : int
             Maximum fc order.
+        batch_size : int, optional
+            Batch size in solvers, by default 100.
+        """
+        if self._displacements is not None and self._forces is not None:
+            self.compute_basis_set(max_order)
+            self.solve(max_order, is_compact_fc=is_compact_fc, batch_size=batch_size)
+        return self
 
+    def solve(self, max_order: int, is_compact_fc=True, batch_size: int = 100) -> Symfc:
+        """Calculate force constants.
+
+        Parameters
+        ----------
+        max_order : int
+            Maximum fc order.
+        batch_size : int, optional
+            Batch size in solvers, by default 100.
         """
         self._check_dataset()
         if max_order not in (2, 3, 4):
@@ -157,7 +168,7 @@ class Symfc:
                 [basis_set_o2, basis_set_o3],
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
-            ).solve(self._displacements, self._forces)
+            ).solve(self._displacements, self._forces, batch_size=batch_size)
             if is_compact_fc:
                 fc2, fc3 = solver_o2o3.compact_fc
             else:
@@ -172,7 +183,7 @@ class Symfc:
                 [basis_set_o2, basis_set_o3, basis_set_o4],
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
-            ).solve(self._displacements, self._forces)
+            ).solve(self._displacements, self._forces, batch_size=batch_size)
             if is_compact_fc:
                 fc2, fc3, fc4 = solver_o2o3o4.compact_fc
             else:
