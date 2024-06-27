@@ -1,6 +1,5 @@
 """Utility functions for eigenvalue solutions."""
 
-import itertools
 from collections import defaultdict
 
 import numpy as np
@@ -75,17 +74,14 @@ def eigsh_projector(
     p_data = np.ravel(p[r, c])
 
     if verbose:
-        print(" N (blocks) =", n_components)
         rank = int(round(sum(p.diagonal())))
-        print(" rank (P) =", rank)
+        print("Rank of projector:", rank)
+        print("Number of blocks in projector:", n_components)
 
     uniq_eigvecs = dict()
     row, col, data = [], [], []
     col_id = 0
     for i, (s1, s2, ids) in enumerate(zip(s_begin, s_end, group.values())):
-        if verbose and (i + 1) % log_interval == 0:
-            print(" eigsh_block:", i + 1)
-
         p_block1 = p_data[s1:s2]
         if len(ids) > 1:
             key = tuple(p_block1)
@@ -102,6 +98,7 @@ def eigsh_projector(
                     nonzero = np.isclose(eigvals, 1.0)
                     eigvecs = eigvecs[:, nonzero]
                 uniq_eigvecs[key] = eigvecs
+
             if eigvecs is not None:
                 n_row, n_col = eigvecs.shape
                 row.extend([ids[i] for i in range(n_row) for j in range(n_col)])
@@ -145,13 +142,14 @@ def eigsh_projector_sumrule(p: csr_array, verbose: bool = True) -> np.ndarray:
         group[ll].append(i)
 
     if verbose:
-        print(" n_blocks in P =", n_components)
+        print("Number of blocks in projector (Sum rule):", n_components)
 
     eigvecs_full = np.zeros(p.shape, dtype="double")
     col_id = 0
     for i, ids in enumerate(group.values()):
         if verbose:
-            print(" eigsh_block:", i, ": block_size =", len(ids))
+            print("Eigsh_solver_block:", i + 1, "/", n_components)
+            print(" - Block_size:", len(ids))
 
         p_block = p[np.ix_(ids, ids)].toarray()
         rank = int(round(np.trace(p_block)))
@@ -180,85 +178,3 @@ def eigsh_projector_sumrule(p: csr_array, verbose: bool = True) -> np.ndarray:
             col_id += eigvecs.shape[1]
 
     return eigvecs_full[:, :col_id]
-
-
-def connected_components(p: csr_array) -> np.ndarray:
-    """Find connected matrix elements.
-
-    This algorithm is simple but inefficient.
-
-    todo: A breadth-first search or depth-first search should be implemented.
-
-    """
-    labels = np.arange(p.shape[0], dtype=np.int64)
-    for i in range(p.shape[0]):
-        if labels[i] == i:
-            adj = p.getcol(i).indices
-            labels[adj] = i
-    return labels
-
-
-def eigsh_projector_memory_efficient(
-    p: csr_array, verbose: bool = True, log_interval: int = 10000
-):
-    """Eigenvalue solver for connected matrix elements.
-
-    Sparse matrix p must be projector.
-
-    """
-    if len(p.data) < 2147483647:
-        _, labels = scipy.sparse.csgraph.connected_components(p)
-    else:
-        labels = connected_components(p)
-
-    group = defaultdict(list)
-    for i, ll in enumerate(labels):
-        group[ll].append(i)
-
-    if verbose:
-        print(" N (blocks) =", len(group.keys()))
-        rank = int(round(sum(p.diagonal())))
-        print(" rank (P) =", rank)
-
-    uniq_eigvecs = dict()
-    row, col, data = [], [], []
-    col_id = 0
-    for i, (key, ids) in enumerate(group.items()):
-        if verbose and (i + 1) % log_interval == 0:
-            print(" eigsh_block:", i + 1)
-
-        if len(ids) > 1:
-            r, c = np.array(list(zip(*itertools.product(ids, ids))))
-            p_block1 = np.ravel(p[r, c])
-            key = tuple(p_block1)
-            if key in uniq_eigvecs:
-                eigvecs = uniq_eigvecs[key]
-            else:
-                size = len(ids)
-                p_numpy = p_block1.reshape((size, size))
-                rank = int(round(np.trace(p_numpy)))
-                if rank == 0:
-                    eigvals, eigvecs = None, None
-                else:
-                    eigvals, eigvecs = np.linalg.eigh(p_numpy)
-                    nonzero = np.isclose(eigvals, 1.0)
-                    eigvecs = eigvecs[:, nonzero]
-                uniq_eigvecs[key] = eigvecs
-
-            if eigvecs is not None:
-                n_row, n_col = eigvecs.shape
-                row.extend([ids[i] for i in range(n_row) for j in range(n_col)])
-                col.extend(
-                    [j for i in range(n_row) for j in range(col_id, col_id + n_col)]
-                )
-                data.extend(eigvecs.reshape(-1))
-                col_id = n_col
-        else:
-            if not np.isclose(p[ids[0], ids[0]], 0.0):
-                row.append(ids[0])
-                col.append(col_id)
-                data.append(1.0)
-                col_id += 1
-
-    n_col = col_id
-    return csr_array((data, (row, col)), shape=(p.shape[0], n_col))

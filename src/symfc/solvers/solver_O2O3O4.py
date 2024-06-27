@@ -163,29 +163,6 @@ class FCSolverO2O3O4(FCSolverBase):
         return fc2, fc3, fc4
 
 
-def set_disps_NNN333(disps, sparse=True):
-    """Calculate Kronecker products of displacements.
-
-    Parameter
-    ---------
-    disps: shape=(n_supercell, N3)
-
-    Return
-    ------
-    disps_3rd: shape=(n_supercell, NNN333)
-    """
-    n_supercell = disps.shape[0]
-    N = disps.shape[1] // 3
-    disps_3rd = (
-        disps[:, :, None, None] * disps[:, None, :, None] * disps[:, None, None, :]
-    ).reshape((-1, N, 3, N, 3, N, 3))
-    disps_3rd = disps_3rd.transpose((0, 1, 3, 5, 2, 4, 6)).reshape((n_supercell, -1))
-
-    if sparse:
-        return csr_array(disps_3rd)
-    return disps_3rd
-
-
 def set_disps_N3N3N3(disps, sparse=True, disps_N3N3=None):
     """Calculate Kronecker products of displacements.
 
@@ -210,38 +187,6 @@ def set_disps_N3N3N3(disps, sparse=True, disps_N3N3=None):
     if sparse:
         return csr_array(disps_3rd)
     return disps_3rd
-
-
-def reshape_nNNN3333_nx_to_NNN333_n3nx(mat, N, n, n_batch=36):
-    """Reorder and reshape a sparse matrix (nNNN3333,nx)->(NNN333,n3nx).
-
-    Return reordered csr_matrix used for FC4.
-    """
-    _, nx = mat.shape
-    NNN333 = N**3 * 27
-    n3nx = n * 3 * nx
-    mat = mat.tocoo(copy=False)
-
-    begin_batch, end_batch = get_batch_slice(len(mat.row), len(mat.row) // n_batch)
-    for begin, end in zip(begin_batch, end_batch):
-        div, rem = np.divmod(mat.row[begin:end], 81 * N * N * N)
-        mat.col[begin:end] += div * 3 * nx
-        div, rem = np.divmod(rem, 81 * N * N)
-        mat.row[begin:end] = div * 27 * N * N
-        div, rem = np.divmod(rem, 81 * N)
-        mat.row[begin:end] += div * 27 * N
-        div, rem = np.divmod(rem, 81)
-        mat.row[begin:end] += div * 27
-        div, rem = np.divmod(rem, 27)
-        mat.col[begin:end] += div * nx
-        div, rem = np.divmod(rem, 9)
-        mat.row[begin:end] += div * 9
-        div, rem = np.divmod(rem, 3)
-        mat.row[begin:end] += div * 3 + rem
-
-    mat.resize((NNN333, n3nx))
-    mat = mat.tocsr(copy=False)
-    return mat
 
 
 def reshape_nNNN3333_nx_to_N3N3N3_n3nx(mat, N, n, n_batch=36):
@@ -351,6 +296,7 @@ def prepare_normal_equation_O2O3O4(
     compact_compress_mat_fc4 *= const_fc4
     for begin_i, end_i in zip(begin_batch_atom, end_batch_atom):
         if verbose:
+            print("-----")
             print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N)
         n_atom_batch = end_i - begin_i
 
@@ -386,7 +332,7 @@ def prepare_normal_equation_O2O3O4(
         )
         t2 = time.time()
         if verbose:
-            print("Solver_compr_matrix_reshape:, t =", "{:.3f}".format(t2 - t1))
+            print("Time (Solver_compr_matrix_reshape):", "{:.3f}".format(t2 - t1))
 
         for begin, end in zip(begin_batch, end_batch):
             t1 = time.time()
@@ -422,8 +368,11 @@ def prepare_normal_equation_O2O3O4(
             mat4y += X4.T @ y
             t2 = time.time()
             if verbose:
-                print("Solver_block:", end, ":, t =", "{:.3f}".format(t2 - t1))
+                print("Solver_block:", end, "/", disps.shape[0])
+                print(" - Time:", "{:.3f}".format(t2 - t1))
 
+    if verbose:
+        print("Solver:", "Calculate X.T @ X and X.T @ y")
     XTX = np.zeros((n_basis, n_basis), dtype=float)
     XTy = np.zeros(n_basis, dtype=float)
     XTX[:n_basis_fc2, :n_basis_fc2] = (
@@ -458,7 +407,7 @@ def prepare_normal_equation_O2O3O4(
     t_all2 = time.time()
     if verbose:
         print(
-            " (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):",
+            "Time (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):",
             "{:.3f}".format(t_all2 - t_all1),
         )
     return XTX, XTy
