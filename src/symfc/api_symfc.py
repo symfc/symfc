@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import Optional, Union
 
 import numpy as np
 
-from symfc.basis_sets import FCBasisSetBase, FCBasisSetO2, FCBasisSetO3
-from symfc.solvers import FCSolverO2, FCSolverO2O3
+from symfc.basis_sets import FCBasisSetBase, FCBasisSetO2, FCBasisSetO3, FCBasisSetO4
+from symfc.solvers import FCSolverO2, FCSolverO2O3, FCSolverO2O3O4
 from symfc.utils.utils import SymfcAtoms
 
 
@@ -21,6 +20,7 @@ class Symfc:
         displacements: Optional[np.ndarray] = None,
         forces: Optional[np.ndarray] = None,
         spacegroup_operations: Optional[dict] = None,
+        cutoff: Optional[dict] = None,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -41,6 +41,8 @@ class Symfc:
             spglib is used. The following keys and values correspond to spglib
             symmetry dataset:
                 rotations : array_like translations : array_like
+        cutoff : dict, optional
+            Cutoff radii in angstrom for FC3 and FC4, by default None.
         use_mkl : bool, optional
             Use MKL library, by default False.
         log_level : int, optional
@@ -56,6 +58,7 @@ class Symfc:
 
         self._basis_set: dict[FCBasisSetBase] = {}
         self._force_constants: dict[np.ndarray] = {}
+        self._prepare_cutoff(cutoff)
 
     @property
     def p2s_map(self) -> Optional[np.ndarray]:
@@ -117,62 +120,91 @@ class Symfc:
     def forces(self, forces: Union[np.ndarray, list, tuple]):
         self._forces = np.array(forces, dtype="double", order="C")
 
-    def run(self, orders: Sequence[int], is_compact_fc=True) -> Symfc:
-        """Run basis set and force constants calculation."""
-        if (
-            orders is not None
-            and self._displacements is not None
-            and self._forces is not None
-        ):
-            for order in orders:
-                self._compute_basis_set(order)
-            self.solve(orders, is_compact_fc=is_compact_fc)
+    def run(self, max_order: int, is_compact_fc=True, batch_size: int = 100) -> Symfc:
+        """Run basis set and force constants calculation.
+
+        Parameters
+        ----------
+        max_order : int
+            Maximum fc order.
+        batch_size : int, optional
+            Batch size in solvers, by default 100.
+        """
+        if self._displacements is not None and self._forces is not None:
+            self.compute_basis_set(max_order)
+            self.solve(max_order, is_compact_fc=is_compact_fc, batch_size=batch_size)
         return self
 
-    def solve(self, orders: Sequence[int], is_compact_fc=True) -> Symfc:
+    def solve(self, max_order: int, is_compact_fc=True, batch_size: int = 100) -> Symfc:
         """Calculate force constants.
 
-        orders : Sequence[int]
-            Sequence of fc orders.
-
+        Parameters
+        ----------
+        max_order : int
+            Maximum fc order.
+        batch_size : int, optional
+            Batch size in solvers, by default 100.
         """
         self._check_dataset()
-        for order in orders:
-            if order not in (2, 3):
-                raise NotImplementedError("Only order-2 and order-3 are implemented.")
-            if order == 2:
-                basis_set: FCBasisSetO2 = self._basis_set[2]
-                solver_o2 = FCSolverO2(
-                    basis_set,
-                    use_mkl=self._use_mkl,
-                    log_level=self._log_level,
-                ).solve(self._displacements, self._forces)
-                if is_compact_fc:
-                    self._force_constants[2] = solver_o2.compact_fc
-                else:
-                    self._force_constants[2] = solver_o2.full_fc
-            if order == 3:
-                basis_set_o2: FCBasisSetO2 = self._basis_set[2]
-                basis_set_o3: FCBasisSetO3 = self._basis_set[3]
-                solver_o2o3 = FCSolverO2O3(
-                    [basis_set_o2, basis_set_o3],
-                    use_mkl=self._use_mkl,
-                    log_level=self._log_level,
-                ).solve(self._displacements, self._forces)
-                if is_compact_fc:
-                    fc2, fc3 = solver_o2o3.compact_fc
-                else:
-                    fc2, fc3 = solver_o2o3.full_fc
-                self._force_constants[2] = fc2
-                self._force_constants[3] = fc3
+        if max_order not in (2, 3, 4):
+            raise NotImplementedError(
+                "Only order-2, order-3 and order-4 are implemented."
+            )
+        if max_order == 2:
+            basis_set: FCBasisSetO2 = self._basis_set[2]
+            solver_o2 = FCSolverO2(
+                basis_set,
+                use_mkl=self._use_mkl,
+                log_level=self._log_level,
+            ).solve(self._displacements, self._forces)
+            if is_compact_fc:
+                self._force_constants[2] = solver_o2.compact_fc
+            else:
+                self._force_constants[2] = solver_o2.full_fc
+        elif max_order == 3:
+            basis_set_o2: FCBasisSetO2 = self._basis_set[2]
+            basis_set_o3: FCBasisSetO3 = self._basis_set[3]
+            solver_o2o3 = FCSolverO2O3(
+                [basis_set_o2, basis_set_o3],
+                use_mkl=self._use_mkl,
+                log_level=self._log_level,
+            ).solve(self._displacements, self._forces, batch_size=batch_size)
+            if is_compact_fc:
+                fc2, fc3 = solver_o2o3.compact_fc
+            else:
+                fc2, fc3 = solver_o2o3.full_fc
+            self._force_constants[2] = fc2
+            self._force_constants[3] = fc3
+        elif max_order == 4:
+            basis_set_o2: FCBasisSetO2 = self._basis_set[2]
+            basis_set_o3: FCBasisSetO3 = self._basis_set[3]
+            basis_set_o4: FCBasisSetO4 = self._basis_set[4]
+            solver_o2o3o4 = FCSolverO2O3O4(
+                [basis_set_o2, basis_set_o3, basis_set_o4],
+                use_mkl=self._use_mkl,
+                log_level=self._log_level,
+            ).solve(self._displacements, self._forces, batch_size=batch_size)
+            if is_compact_fc:
+                fc2, fc3, fc4 = solver_o2o3o4.compact_fc
+            else:
+                fc2, fc3, fc4 = solver_o2o3o4.full_fc
+            self._force_constants[2] = fc2
+            self._force_constants[3] = fc3
+            self._force_constants[4] = fc4
+
         return self
 
-    def _compute_basis_set(self, order: int):
-        """Set order of force constants."""
-        if order not in (2, 3):
-            raise NotImplementedError("Only fc2 basis set is implemented.")
+    def compute_basis_set(self, max_order: int) -> Symfc:
+        """Run basis set calculations.
 
-        if order == 2:
+        Set order of force constants.
+        """
+        if max_order not in (2, 3, 4):
+            raise NotImplementedError(
+                "Only fc2, fc3 and fc4 basis sets are implemented."
+            )
+
+        if max_order >= 2:
             basis_set_o2 = FCBasisSetO2(
                 self._supercell,
                 spacegroup_operations=self._spacegroup_operations,
@@ -180,14 +212,26 @@ class Symfc:
                 log_level=self._log_level,
             ).run()
             self._basis_set[2] = basis_set_o2
-        if order == 3:
+        if max_order >= 3:
             basis_set_o3 = FCBasisSetO3(
                 self._supercell,
                 spacegroup_operations=self._spacegroup_operations,
+                cutoff=self._cutoff[3],
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
             ).run()
             self._basis_set[3] = basis_set_o3
+        if max_order >= 4:
+            basis_set_o4 = FCBasisSetO4(
+                self._supercell,
+                spacegroup_operations=self._spacegroup_operations,
+                cutoff=self._cutoff[4],
+                use_mkl=self._use_mkl,
+                log_level=self._log_level,
+            ).run()
+            self._basis_set[4] = basis_set_o4
+
+        return self
 
     def _check_dataset(self):
         if self._displacements is None:
@@ -216,3 +260,12 @@ class Symfc:
                 f"{self._forces.shape} with respect to supercell "
                 f"{len(self._supercell)}."
             )
+
+    def _prepare_cutoff(self, cutoff):
+        if cutoff is None:
+            self._cutoff = {3: None, 4: None}
+        else:
+            self._cutoff = cutoff
+            for order in (3, 4):
+                if order not in self._cutoff:
+                    self._cutoff[order] = None

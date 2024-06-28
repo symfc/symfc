@@ -1,4 +1,4 @@
-"""This is a script to convert the phonopy.yaml to raw data in python."""
+"""A script to convert the phonopy.yaml to raw data in python."""
 
 import numpy as np
 import phono3py

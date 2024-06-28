@@ -32,8 +32,6 @@ class SpgRepsO3(SpgRepsBase):
 
         """
         self._r3_reps: list[csr_array]
-        self._col: np.ndarray
-        self._data: np.ndarray
         super().__init__(supercell, spacegroup_operations=spacegroup_operations)
 
     @property
@@ -41,8 +39,8 @@ class SpgRepsO3(SpgRepsBase):
         """Return 3rd rank tensor rotation matricies."""
         return self._r3_reps
 
-    def get_sigma3_rep(self, i: int) -> csr_array:
-        """Compute and return i-th atomic pair permutation matrix.
+    def get_sigma3_rep(self, i: int, nonzero: np.ndarray = None) -> np.ndarray:
+        """Compute vector representation of i-th atomic pair permutation matrix.
 
         Parameters
         ----------
@@ -50,17 +48,16 @@ class SpgRepsO3(SpgRepsBase):
             Index of coset presentations of space group operations.
 
         """
-        data, row, col, shape = self._get_sigma3_rep_data(i)
-        return csr_array((data, (row, col)), shape=shape)
+        return self._get_sigma3_rep_data(i, nonzero=nonzero)
 
     def _prepare(self, spacegroup_operations):
         super()._prepare(spacegroup_operations)
         N = len(self._numbers)
-        a = np.arange(N)
-        self._atom_triplets = np.stack(np.meshgrid(a, a, a), axis=-1).reshape(-1, 3)
-        self._coeff = np.array([1, N, N**2], dtype=int)
-        self._col = self._atom_triplets @ self._coeff
-        self._data = np.ones(N * N * N, dtype=int)
+        """Bottleneck part in memory allocation"""
+        self._atom_triplets = (np.mgrid[0:N, 0:N, 0:N].reshape((3, -1)).T).astype(
+            "uint16", copy=False
+        )
+        self._coeff = np.array([N**2, N, 1], dtype=int)
         self._compute_r3_reps()
 
     def _compute_r3_reps(self, tol: float = 1e-10):
@@ -74,9 +71,19 @@ class SpgRepsO3(SpgRepsBase):
             r3_reps.append(csr_array((data, (row, col)), shape=r3_rep.shape))
         self._r3_reps = r3_reps
 
-    def _get_sigma3_rep_data(self, i: int) -> csr_array:
+    def _get_sigma3_rep_data(self, i: int, nonzero: np.ndarray = None) -> np.ndarray:
+        """Compute vector representation of i-th atomic pair permutation matrix.
+
+        Operation permutation[self._atom_triplets] @ self._coeff is divided
+        to reduce memory allocation.
+        """
         uri = self._unique_rotation_indices
         permutation = self._permutations[uri[i]]
-        NNN = len(self._numbers) ** 3
-        row = permutation[self._atom_triplets] @ self._coeff
-        return self._data, row, self._col, (NNN, NNN)
+        if nonzero is not None:
+            triplets = self._atom_triplets[nonzero]
+        else:
+            triplets = self._atom_triplets
+        permutation_triplets = permutation[triplets[:, 0]] * self._coeff[0]
+        permutation_triplets += permutation[triplets[:, 1]] * self._coeff[1]
+        permutation_triplets += permutation[triplets[:, 2]]
+        return permutation_triplets
