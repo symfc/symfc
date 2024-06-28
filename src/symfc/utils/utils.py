@@ -71,7 +71,7 @@ def compute_sg_permutations(
     """
     trans_perms = []
     pure_trans = []
-    for i, (r, t) in enumerate(zip(rotations, translations)):
+    for r, t in zip(rotations, translations):
         if (r != np.eye(3, dtype=int)).any():
             continue
         trans_positions = positions + t
@@ -89,7 +89,7 @@ def compute_sg_permutations(
     unique_t = []
     r2ur = []
     unique_rotated_positions = []
-    for i, (r, t) in enumerate(zip(rotations, translations)):
+    for r, t in zip(rotations, translations):
         is_found = False
         for j, ur in enumerate(unique_r):
             if (r == ur).all():
@@ -103,7 +103,7 @@ def compute_sg_permutations(
             unique_rotated_positions.append(positions @ r.T + t)
 
     unique_rotation_perms = []
-    for i, rotated_positions in enumerate(unique_rotated_positions):
+    for rotated_positions in unique_rotated_positions:
         diffs = positions[None, :, :] - rotated_positions[:, None, :]
         diffs -= np.rint(diffs)
         dists = np.linalg.norm(diffs @ lattice.T, axis=2)

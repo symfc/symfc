@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-
 from symfc.basis_sets import FCBasisSetBase
 from symfc.utils.utils import SymfcAtoms
 

@@ -1,7 +1,6 @@
 """Tests of SpgRepsO1 class."""
 
 import numpy as np
-
 from symfc.spg_reps import SpgRepsO1
 from symfc.utils.utils import SymfcAtoms
 

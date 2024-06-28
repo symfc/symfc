@@ -6,7 +6,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
 from symfc import Symfc
 from symfc.utils.utils import SymfcAtoms
 
@@ -17,23 +16,19 @@ def test_api_NaCl_222(ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
     """Test Symfc class."""
     supercell, displacements, forces = ph_nacl_222
     symfc = Symfc(supercell)
-    symfc._compute_basis_set(2)
+    symfc.compute_basis_set(2)
     symfc.displacements = displacements
     np.testing.assert_array_almost_equal(symfc.displacements, displacements)
     symfc.forces = forces
     np.testing.assert_array_almost_equal(symfc.forces, forces)
-    symfc.solve(
-        [
-            2,
-        ]
-    )
+    symfc.solve(2)
     fc = symfc.force_constants[2]
     fc_ref = np.loadtxt(cwd / "compact_fc_NaCl_222.xz").reshape(fc.shape)
     np.testing.assert_allclose(fc, fc_ref)
 
 
 def test_api_NaCl_222_with_dataset(
-    ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]
+    ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray],
 ):
     """Test Symfc class with displacements and forces as input."""
     supercell, displacements, forces = ph_nacl_222
@@ -41,7 +36,7 @@ def test_api_NaCl_222_with_dataset(
         supercell,
         displacements=displacements,
         forces=forces,
-    ).run(orders=[2])
+    ).run(max_order=2)
     fc = symfc.force_constants[2]
     fc_ref = np.loadtxt(cwd / "compact_fc_NaCl_222.xz").reshape(fc.shape)
     np.testing.assert_allclose(fc, fc_ref)
@@ -51,13 +46,9 @@ def test_api_NaCl_222_exception(ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.nd
     """Test Symfc class with displacements and forces as input."""
     supercell, _, _ = ph_nacl_222
     symfc = Symfc(supercell)
-    symfc._compute_basis_set(2)
+    symfc.compute_basis_set(2)
     with pytest.raises(RuntimeError):
-        symfc.solve(
-            orders=[
-                2,
-            ]
-        )
+        symfc.solve(2)
 
 
 @pytest.mark.parametrize("is_compact_fc", [True, False])
@@ -67,7 +58,7 @@ def test_api_si_111_fc3(
     """Test Symfc class with displacements and forces as input."""
     supercell, displacements, forces = ph3_si_111_fc3
     symfc = Symfc(supercell, displacements=displacements, forces=forces).run(
-        orders=[2, 3], is_compact_fc=is_compact_fc
+        max_order=3, is_compact_fc=is_compact_fc
     )
     fc2 = symfc.force_constants[2]
     fc3 = symfc.force_constants[3]
