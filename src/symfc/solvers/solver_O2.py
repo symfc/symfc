@@ -156,7 +156,7 @@ def _get_training(
     compress_mat = _csr_NN33_to_N3N3(compress_mat, N).reshape((N3, -1)).tocsr()
     t2 = time.time()
     if verbose:
-        print(" reshape(compr):   ", t2 - t1)
+        print(" reshape(compr):   ", t2 - t1, flush=True)
 
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
     XTX = np.zeros((n_basis, n_basis), dtype=float)
@@ -173,10 +173,14 @@ def _get_training(
         XTy += X.T @ y
         t02 = time.time()
         if verbose:
-            print(" solver_block:", end, ":, t =", t02 - t01)
+            print(" solver_block:", end, ":, t =", t02 - t01, flush=True)
     t3 = time.time()
     if verbose:
-        print(" (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):", t3 - t2)
+        print(
+            " (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):",
+            t3 - t2,
+            flush=True,
+        )
     return XTX, XTy
 
 
@@ -272,7 +276,7 @@ def prepare_normal_equation_O2(
     const_fc2 = -1.0 / np.sqrt(n_lp)
     compact_compress_mat_fc2 *= const_fc2
     for begin_i, end_i in zip(begin_batch_atom, end_batch_atom):
-        print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N)
+        print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
         n_atom_batch = end_i - begin_i
 
         t1 = time.time()
@@ -286,7 +290,7 @@ def prepare_normal_equation_O2(
             n_atom_batch,
         )
         t2 = time.time()
-        print("Solver_compr_matrix_reshape:, t =", "{:.3f}".format(t2 - t1))
+        print("Solver_compr_matrix_reshape:, t =", "{:.3f}".format(t2 - t1), flush=True)
 
         for begin, end in zip(begin_batch, end_batch):
             t1 = time.time()
@@ -300,7 +304,7 @@ def prepare_normal_equation_O2(
             mat22 += X2.T @ X2
             mat2y += X2.T @ y
             t2 = time.time()
-            print("Solver_block:", end, ":, t =", "{:.3f}".format(t2 - t1))
+            print("Solver_block:", end, ":, t =", "{:.3f}".format(t2 - t1), flush=True)
 
     XTX = compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2
     XTy = compress_eigvecs_fc2.T @ mat2y
@@ -310,6 +314,7 @@ def prepare_normal_equation_O2(
     print(
         " (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):",
         "{:.3f}".format(t_all2 - t_all1),
+        flush=True,
     )
     return XTX, XTy
 
