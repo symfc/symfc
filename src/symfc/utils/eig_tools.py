@@ -75,8 +75,8 @@ def eigsh_projector(
 
     if verbose:
         rank = int(round(sum(p.diagonal())))
-        print("Rank of projector:", rank)
-        print("Number of blocks in projector:", n_components)
+        print("Rank of projector:", rank, flush=True)
+        print("Number of blocks in projector:", n_components, flush=True)
 
     uniq_eigvecs = dict()
     row, col, data = [], [], []
@@ -142,14 +142,14 @@ def eigsh_projector_sumrule(p: csr_array, verbose: bool = True) -> np.ndarray:
         group[ll].append(i)
 
     if verbose:
-        print("Number of blocks in projector (Sum rule):", n_components)
+        print("Number of blocks in projector (Sum rule):", n_components, flush=True)
 
     eigvecs_full = np.zeros(p.shape, dtype="double")
     col_id = 0
     for i, ids in enumerate(group.values()):
         if verbose:
-            print("Eigsh_solver_block:", i + 1, "/", n_components)
-            print(" - Block_size:", len(ids))
+            print("Eigsh_solver_block:", i + 1, "/", n_components, flush=True)
+            print(" - Block_size:", len(ids), flush=True)
 
         p_block = p[np.ix_(ids, ids)].toarray()
         rank = int(round(np.trace(p_block)))
@@ -157,7 +157,7 @@ def eigsh_projector_sumrule(p: csr_array, verbose: bool = True) -> np.ndarray:
             if rank < 30000:
                 eigvals, eigvecs = np.linalg.eigh(p_block)
             else:
-                print("eigh: solver dsyevr is used.")
+                print("eigh: solver dsyevr is used.", flush=True)
                 (syevr,) = get_lapack_funcs(("syevr",), ilp64=False)
                 eigvals, eigvecs, _, _, _ = syevr(p_block, compute_v=True)
 

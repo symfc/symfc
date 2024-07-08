@@ -31,7 +31,7 @@ from . import FCBasisSetBase
 
 def print_sp_matrix_size(c: Union[csr_array, coo_array], header: str):
     """Show sparse matrix size."""
-    print(header, c.shape, len(c.data))
+    print(header, c.shape, len(c.data), flush=True)
 
 
 class FCBasisSetO3(FCBasisSetBase):
@@ -150,7 +150,7 @@ class FCBasisSetO3(FCBasisSetBase):
 
         c_pt = eigsh_projector(proj_pt, verbose=self._log_level > 0)
         if self._log_level:
-            print(" c_pt (size) :", c_pt.shape)
+            print(" c_pt (size) :", c_pt.shape, flush=True)
         tt2 = time.time()
 
         proj_rpt = get_compr_coset_projector_O3(
@@ -164,7 +164,7 @@ class FCBasisSetO3(FCBasisSetBase):
 
         c_rpt = eigsh_projector(proj_rpt, verbose=self._log_level > 0)
         if self._log_level:
-            print(" c_rpt (size) :", c_rpt.shape)
+            print(" c_rpt (size) :", c_rpt.shape, flush=True)
         tt4 = time.time()
 
         n_a_compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
@@ -182,19 +182,51 @@ class FCBasisSetO3(FCBasisSetBase):
         eigvecs = eigsh_projector_sumrule(proj, verbose=self._log_level > 0)
 
         if self._log_level:
-            print("Final size of basis set:", eigvecs.shape)
+            print("Final size of basis set:", eigvecs.shape, flush=True)
         tt7 = time.time()
 
         if self._log_level:
-            print("Time (proj(perm @ lattice trans.)  :", "{:.3f}".format(tt1 - tt0))
-            print("Time (eigh(perm @ ltrans))         :", "{:.3f}".format(tt2 - tt1))
-            print("Time (coset)                       :", "{:.3f}".format(tt3 - tt2))
-            print("Time (eigh(coset @ perm @ ltrans)) :", "{:.3f}".format(tt4 - tt3))
-            print("Time (c_pt @ c_rpt)                :", "{:.3f}".format(tt5 - tt4))
-            print("Time (proj(sum))                   :", "{:.3f}".format(tt6 - tt5))
-            print("Time (eigh(sum))                   :", "{:.3f}".format(tt7 - tt6))
-            print("---")
-            print("Time (Basis FC3)                   :", "{:.3f}".format(tt7 - tt0))
+            print(
+                "Time (proj(perm @ lattice trans.)  :",
+                "{:.3f}".format(tt1 - tt0),
+                flush=True,
+            )
+            print(
+                "Time (eigh(perm @ ltrans))         :",
+                "{:.3f}".format(tt2 - tt1),
+                flush=True,
+            )
+            print(
+                "Time (coset)                       :",
+                "{:.3f}".format(tt3 - tt2),
+                flush=True,
+            )
+            print(
+                "Time (eigh(coset @ perm @ ltrans)) :",
+                "{:.3f}".format(tt4 - tt3),
+                flush=True,
+            )
+            print(
+                "Time (c_pt @ c_rpt)                :",
+                "{:.3f}".format(tt5 - tt4),
+                flush=True,
+            )
+            print(
+                "Time (proj(sum))                   :",
+                "{:.3f}".format(tt6 - tt5),
+                flush=True,
+            )
+            print(
+                "Time (eigh(sum))                   :",
+                "{:.3f}".format(tt7 - tt6),
+                flush=True,
+            )
+            print("---", flush=True)
+            print(
+                "Time (Basis FC3)                   :",
+                "{:.3f}".format(tt7 - tt0),
+                flush=True,
+            )
 
         self._basis_set = eigvecs
         self._n_a_compression_matrix = n_a_compress_mat
