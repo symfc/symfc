@@ -150,7 +150,7 @@ class FCBasisSetO2(FCBasisSetBase):
         eigvecs = eigsh_projector_sumrule(proj, verbose=self._log_level > 0)
 
         if self._log_level:
-            print(f"Final size of basis set: {eigvecs.shape}")
+            print(f"Final size of basis set: {eigvecs.shape}", flush=True)
 
         self._basis_set = eigvecs
         self._n_a_compression_matrix = n_a_compress_mat

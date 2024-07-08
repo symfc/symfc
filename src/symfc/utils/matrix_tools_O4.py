@@ -134,7 +134,7 @@ def projector_permutation_lat_trans_O4(
     ]
     """
     if verbose:
-        print("Find combinations of three FC elements")
+        print("Find combinations of three FC elements", flush=True)
 
     if fc_cutoff is None:
         combinations = get_combinations(3 * natom, 3)
@@ -185,7 +185,9 @@ def projector_permutation_lat_trans_O4(
     c_pt = None
     for begin, end in zip(*get_batch_slice(n_comb3, n_comb3 // n_batch3)):
         if verbose:
-            print("Proj (perm.T @ trans, 3):", str(end) + "/" + str(n_comb3))
+            print(
+                "Proj (perm.T @ trans, 3):", str(end) + "/" + str(n_comb3), flush=True
+            )
         batch_size = end - begin
         n_perm3 = batch_size * 3
         combinations_perm = combinations[begin:end][:, perms].reshape((-1, 4))
@@ -209,7 +211,7 @@ def projector_permutation_lat_trans_O4(
 
     """(4) for FC4 with four distinguished indices (ia,jb,kc,ld)"""
     if verbose:
-        print("Find combinations of four FC elements")
+        print("Find combinations of four FC elements", flush=True)
 
     if fc_cutoff is None:
         combinations = get_combinations(3 * natom, 4)
@@ -223,7 +225,9 @@ def projector_permutation_lat_trans_O4(
     c_pt = None
     for begin, end in zip(*get_batch_slice(n_comb4, n_comb4 // n_batch4)):
         if verbose:
-            print("Proj (perm.T @ trans, 4):", str(end) + "/" + str(n_comb4))
+            print(
+                "Proj (perm.T @ trans, 4):", str(end) + "/" + str(n_comb4), flush=True
+            )
         batch_size = n_perm4 = end - begin
         combinations_perm = combinations[begin:end][:, perms].reshape((-1, 4))
         combinations_perm, combinations3333 = N3N3N3N3_to_NNNNand3333(
@@ -293,7 +297,7 @@ def compressed_projector_sum_rules_O4(
     abc = np.arange(81)
     for begin, end in zip(*get_batch_slice(NNNN, batch_size)):
         if verbose:
-            print("Complementary P (Sum rule):", str(end) + "/" + str(NNNN))
+            print("Complementary P (Sum rule):", str(end) + "/" + str(NNNN), flush=True)
         size = end - begin
         size_vector = size * 81
         size_row = size_vector // natom

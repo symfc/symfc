@@ -131,7 +131,7 @@ def projector_permutation_lat_trans_O3(
     c_pt = None
     for begin, end in zip(*get_batch_slice(n_perm3, n_perm3 // n_batch)):
         if verbose:
-            print("Proj (perm.T @ trans):", str(end) + "/" + str(n_perm3))
+            print("Proj (perm.T @ trans):", str(end) + "/" + str(n_perm3), flush=True)
         batch_size = end - begin
         combinations_perm = combinations[begin:end][:, perms].reshape((-1, 3))
         combinations_perm, combinations333 = N3N3N3_to_NNNand333(
@@ -207,7 +207,7 @@ def compressed_projector_sum_rules_O3(
     abc = np.arange(27)
     for begin, end in zip(*get_batch_slice(NNN, batch_size)):
         if verbose:
-            print("Complementary P (Sum rule):", str(end) + "/" + str(NNN))
+            print("Complementary P (Sum rule):", str(end) + "/" + str(NNN), flush=True)
         size = end - begin
         size_vector = size * 27
         size_row = size_vector // natom
