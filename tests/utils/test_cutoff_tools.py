@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.utils import SymfcAtoms
 

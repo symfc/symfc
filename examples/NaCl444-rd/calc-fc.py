@@ -1,6 +1,7 @@
 """Calculate force constants using symfc."""
 
 import phonopy
+
 from symfc import Symfc
 
 ph = phonopy.load("phonopy_NaCl444_rd.yaml.xz", produce_fc=False)

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.utils import (
     SymfcAtoms,
