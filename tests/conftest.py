@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from symfc.utils.utils import SymfcAtoms
 
 cwd = Path(__file__).parent

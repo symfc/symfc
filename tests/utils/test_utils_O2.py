@@ -1,6 +1,7 @@
 """Tests of matrix manipulating functions for 2nd order force constants."""
 
 import numpy as np
+
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O2 import (
