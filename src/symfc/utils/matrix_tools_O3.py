@@ -151,8 +151,14 @@ def projector_permutation_lat_trans_O3(
         )
 
         c_pt = c_pt_batch if c_pt is None else vstack([c_pt, c_pt_batch])
+        if len(c_pt.data) > 2147483647 / 4:
+            if verbose:
+                print("Executed: proj_pt += c_pt.T @ c_pt", flush=True)
+            proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+            c_pt = None
 
-    proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+    if c_pt is not None:
+        proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
     return proj_pt
 
 
