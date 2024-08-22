@@ -1,5 +1,7 @@
 """Utility functions for 3rd order force constants."""
 
+from typing import Optional
+
 import numpy as np
 from scipy.sparse import csr_array, kron
 
@@ -97,11 +99,45 @@ def get_lat_trans_decompr_indices_O3(trans_perms: np.ndarray) -> np.ndarray:
     return indices
 
 
+def get_lat_trans_compr_matrix_O3(trans_perms):
+    """Return lat trans compression matrix."""
+    n_lp, N = trans_perms.shape
+    decompr_idx = get_lat_trans_decompr_indices_O3(trans_perms)
+    c_trans = _get_lat_trans_compr_matrix_O3(decompr_idx, N, n_lp)
+    return c_trans
+
+
+def _get_lat_trans_compr_matrix_O3(
+    decompr_idx: np.ndarray, N: int, n_lp: int
+) -> csr_array:
+    """Return compression matrix by lattice translation symmetry.
+
+    `decompr_idx` is obtained by `get_lat_trans_decompr_indices`.
+
+    Matrix shape is (NNN333, n_a*NN333), where n_a is the number of independent
+    atoms by lattice translation symmetry.
+
+    Data order is (N, N, N, 3, 3, 3, n_a, N, N, 3, 3, 3)
+    if it is in dense array.
+
+    """
+    NNN27 = N**3 * 27
+    compression_mat = csr_array(
+        (
+            np.full(NNN27, 1 / np.sqrt(n_lp), dtype="double"),
+            (np.arange(NNN27, dtype=int), decompr_idx),
+        ),
+        shape=(NNN27, NNN27 // n_lp),
+        dtype="double",
+    )
+    return compression_mat
+
+
 def get_compr_coset_projector_O3(
     spg_reps: SpgRepsO3,
-    fc_cutoff: FCCutoff = None,
-    atomic_decompr_idx: np.ndarray = None,
-    c_pt: csr_array = None,
+    atomic_decompr_idx: Optional[np.ndarray] = None,
+    fc_cutoff: Optional[FCCutoff] = None,
+    c_pt: Optional[csr_array] = None,
     verbose: bool = False,
 ) -> csr_array:
     """Return compr matrix of sum of coset reps."""
@@ -159,37 +195,3 @@ def get_compr_coset_projector_O3(
         coset_reps_sum += mat
 
     return coset_reps_sum
-
-
-def get_lat_trans_compr_matrix_O3(trans_perms):
-    """Return lat trans compression matrix."""
-    n_lp, N = trans_perms.shape
-    decompr_idx = get_lat_trans_decompr_indices_O3(trans_perms)
-    c_trans = _get_lat_trans_compr_matrix_O3(decompr_idx, N, n_lp)
-    return c_trans
-
-
-def _get_lat_trans_compr_matrix_O3(
-    decompr_idx: np.ndarray, N: int, n_lp: int
-) -> csr_array:
-    """Return compression matrix by lattice translation symmetry.
-
-    `decompr_idx` is obtained by `get_lat_trans_decompr_indices`.
-
-    Matrix shape is (NNN333, n_a*NN333), where n_a is the number of independent
-    atoms by lattice translation symmetry.
-
-    Data order is (N, N, N, 3, 3, 3, n_a, N, N, 3, 3, 3)
-    if it is in dense array.
-
-    """
-    NNN27 = N**3 * 27
-    compression_mat = csr_array(
-        (
-            np.full(NNN27, 1 / np.sqrt(n_lp), dtype="double"),
-            (np.arange(NNN27, dtype=int), decompr_idx),
-        ),
-        shape=(NNN27, NNN27 // n_lp),
-        dtype="double",
-    )
-    return compression_mat
