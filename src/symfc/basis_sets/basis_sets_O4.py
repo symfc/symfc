@@ -30,29 +30,29 @@ from . import FCBasisSetBase
 
 
 class FCBasisSetO4(FCBasisSetBase):
-    """Symmetry adapted basis set for 4th order force constants.
+    r"""Symmetry adapted basis set for 4th order force constants.
 
     Attributes
     ----------
     basis_set : ndarray
-        Compressed force constants basis set.
-        shape=(n_a * N * N * N * 81, n_bases), dtype='double'
-    full_basis_set : ndarray
-        Full (decompressed) force constants basis set.
-        shape=(N * N * N * N * 81, n_bases), dtype='double'
-    atomic_decompression_indices : ndarray
-        Decompression indices in (N,N,N,N) order.
-        shape=(N**4,), dtype='int_'.
+        Compressed force constants basis set. The first dimension n_compr
+        (<< 81 * N ** 4, \sim n_bases) is given as a result of compression,
+        which depends on the system.  shape=(n_compr, n_bases), dtype='double'
+    n_a_compression_matrix : csr_array
+        Compression matrix compressed by lattice translation. The basis set
+        compressed only by lattice translation is obtained by
+        n_a_compression_matrix @ basis_set.
+        shape=(n_a * N * N * N * 81, n_compr), dtype='double'
     translation_permutations : ndarray
-        Atom indices after lattice translations.
-        shape=(lattice_translations, supercell_atoms), dtype=int.
+        Atom indices after lattice translations. shape=(lattice_translations,
+        supercell_atoms), dtype=int.
 
     """
 
     def __init__(
         self,
         supercell: SymfcAtoms,
-        cutoff: float = None,
+        cutoff: Optional[float] = None,
         spacegroup_operations: Optional[dict] = None,
         use_mkl: bool = False,
         log_level: int = 0,
@@ -63,12 +63,16 @@ class FCBasisSetO4(FCBasisSetBase):
         ----------
         supercell : SymfcAtoms
             Supercell.
+        cutoff: float
+            Cutoff distance in angstroms. Default is None.
         spacegroup_operations : dict, optional
             Space group operations in supercell, by default None. When None,
             spglib is used. The following keys and values correspond to spglib
             symmetry dataset:
                 rotations : array_like
                 translations : array_like
+        use_mkl : bool
+            Use MKL or not. Default is False.
         log_level : int, optional
             Log level. Default is 0.
 
@@ -85,15 +89,14 @@ class FCBasisSetO4(FCBasisSetBase):
         trans_perms = self._spg_reps.translation_permutations
         self._atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
 
+        self._n_a_compression_matrix: Optional[csr_array] = None
+        self._basis_set: Optional[np.ndarray] = None
+
     @property
-    def basis_set(self) -> Optional[csr_array]:
+    def basis_set(self) -> Optional[np.ndarray]:
         """Return compressed basis set.
 
-        n_c = len(compressed_indices).
-
-        shape=(n_c*N*N*N*3*3*3*3, n_bases), dtype='double'.
-
-        Data in first dimension is ordered by (n_c,N,N,N,3,3,3,3).
+        shape=(n_c, n_bases), dtype='double'.
 
         """
         return self._basis_set
@@ -115,7 +118,7 @@ class FCBasisSetO4(FCBasisSetBase):
     def compact_compression_matrix(self) -> Optional[csr_array]:
         """Return compact compression matrix.
 
-        This expands basis_sets to (n_a*N*N*N*3*3*3*3, n_bases).
+        This expands fc basis_sets to (n_a*N*N*N*3*3*3*3, n_bases).
 
         """
         n_lp = self.translation_permutations.shape[0]
@@ -123,7 +126,7 @@ class FCBasisSetO4(FCBasisSetBase):
 
     @property
     def atomic_decompr_idx(self) -> np.ndarray:
-        """Return atomic permutation."""
+        """Return atomic permutations by lattice translations."""
         return self._atomic_decompr_idx
 
     def run(self) -> FCBasisSetO4:

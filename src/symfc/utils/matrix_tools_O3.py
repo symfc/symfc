@@ -1,14 +1,20 @@
 """Matrix utility functions for 3rd order force constants."""
 
+from typing import Optional
+
 import numpy as np
 import scipy
 from scipy.sparse import csr_array, vstack
 
 from symfc.utils.cutoff_tools import FCCutoff
-from symfc.utils.eig_tools import dot_product_sparse
 from symfc.utils.matrix_tools import get_combinations
 from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.utils_O3 import get_atomic_lat_trans_decompr_indices_O3
+
+try:
+    from symfc.utils.eig_tools import dot_product_sparse
+except ImportError:
+    pass
 
 
 def N3N3N3_to_NNNand333(combs: np.ndarray, N: int) -> np.ndarray:
@@ -27,9 +33,9 @@ def N3N3N3_to_NNNand333(combs: np.ndarray, N: int) -> np.ndarray:
 
 def projector_permutation_lat_trans_O3(
     trans_perms: np.ndarray,
-    atomic_decompr_idx: np.ndarray = None,
-    fc_cutoff: FCCutoff = None,
-    n_batch: int = None,
+    atomic_decompr_idx: Optional[np.ndarray] = None,
+    fc_cutoff: Optional[FCCutoff] = None,
+    n_batch: Optional[int] = None,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
@@ -45,7 +51,7 @@ def projector_permutation_lat_trans_O3(
         dtype='intc'.
         shape=(n_l, N), where n_l and N are the numbers of lattce points and
         atoms in supercell.
-    fc_cutoff : FCCutoff
+    fc_cutoff : FCCutoff class object. Default is None.
 
     Return
     ------
@@ -151,18 +157,25 @@ def projector_permutation_lat_trans_O3(
         )
 
         c_pt = c_pt_batch if c_pt is None else vstack([c_pt, c_pt_batch])
+        if len(c_pt.data) > 2147483647 // 4:
+            if verbose:
+                print("Executed: proj_pt += c_pt.T @ c_pt", flush=True)
+            proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+            c_pt = None
 
-    proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+    if c_pt is not None:
+        proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+
     return proj_pt
 
 
 def compressed_projector_sum_rules_O3(
-    trans_perms,
+    trans_perms: np.ndarray,
     n_a_compress_mat: csr_array,
-    fc_cutoff: FCCutoff = None,
-    atomic_decompr_idx: np.ndarray = None,
+    atomic_decompr_idx: Optional[np.ndarray] = None,
+    fc_cutoff: Optional[FCCutoff] = None,
+    n_batch: Optional[int] = None,
     use_mkl: bool = False,
-    n_batch: int = None,
     verbose: bool = False,
 ) -> csr_array:
     """Return projection matrix for sum rule.

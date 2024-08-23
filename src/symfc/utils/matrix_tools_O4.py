@@ -1,6 +1,7 @@
 """Matrix utility functions for 4th order force constants."""
 
 import itertools
+from typing import Optional
 
 import numpy as np
 import scipy
@@ -36,8 +37,8 @@ def N3N3N3N3_to_NNNNand3333(combs: np.ndarray, N: int) -> np.ndarray:
 
 def projector_permutation_lat_trans_O4(
     trans_perms: np.ndarray,
-    atomic_decompr_idx: np.ndarray = None,
-    fc_cutoff: FCCutoff = None,
+    atomic_decompr_idx: Optional[np.ndarray] = None,
+    fc_cutoff: Optional[FCCutoff] = None,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
@@ -53,7 +54,7 @@ def projector_permutation_lat_trans_O4(
         dtype='intc'.
         shape=(n_l, N), where n_l and N are the numbers of lattce points and
         atoms in supercell.
-    fc_cutoff : FCCutoff
+    fc_cutoff : FCCutoff class object. Default is None.
 
     Return
     ------
@@ -207,7 +208,14 @@ def projector_permutation_lat_trans_O4(
         )
         c_pt = c_pt_batch if c_pt is None else vstack([c_pt, c_pt_batch])
 
-    proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+        if len(c_pt.data) > 2147483647 / 4:
+            if verbose:
+                print("Executed: proj_pt += c_pt.T @ c_pt", flush=True)
+            proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+            c_pt = None
+
+    if c_pt is not None:
+        proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
 
     """(4) for FC4 with four distinguished indices (ia,jb,kc,ld)"""
     if verbose:
@@ -246,18 +254,25 @@ def projector_permutation_lat_trans_O4(
         )
         c_pt = c_pt_batch if c_pt is None else vstack([c_pt, c_pt_batch])
 
-    proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+        if len(c_pt.data) > 2147483647 / 4:
+            if verbose:
+                print("Executed: proj_pt += c_pt.T @ c_pt", flush=True)
+            proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+            c_pt = None
+
+    if c_pt is not None:
+        proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
 
     return proj_pt
 
 
 def compressed_projector_sum_rules_O4(
-    trans_perms,
+    trans_perms: np.ndarray,
     n_a_compress_mat: csr_array,
-    fc_cutoff: FCCutoff = None,
-    atomic_decompr_idx: np.ndarray = None,
+    atomic_decompr_idx: Optional[np.ndarray] = None,
+    fc_cutoff: Optional[FCCutoff] = None,
+    n_batch: Optional[int] = None,
     use_mkl: bool = False,
-    n_batch: int = None,
     verbose: bool = False,
 ) -> csr_array:
     """Return projection matrix for sum rule.
