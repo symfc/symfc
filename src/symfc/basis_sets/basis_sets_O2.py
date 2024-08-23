@@ -22,7 +22,7 @@ from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O2 import (
     _get_atomic_lat_trans_decompr_indices,
     get_compr_coset_projector_O2,
-    get_lat_trans_compr_matrix,
+    get_lat_trans_compr_matrix_O2,
 )
 
 from .basis_sets_base import FCBasisSetBase
@@ -108,7 +108,7 @@ class FCBasisSetO2(FCBasisSetBase):
 
         """
         trans_perms = self._spg_reps.translation_permutations
-        c_trans = get_lat_trans_compr_matrix(trans_perms)
+        c_trans = get_lat_trans_compr_matrix_O2(trans_perms)
         return dot_product_sparse(
             c_trans, self._n_a_compression_matrix, use_mkl=self._use_mkl
         )

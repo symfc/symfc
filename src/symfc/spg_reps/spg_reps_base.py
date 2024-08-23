@@ -72,14 +72,9 @@ class SpgRepsBase:
             self._unique_rotation_indices,
             self._unique_rotations,
         ) = self._get_unique_rotation_indices(rotations)
-        import time
-
-        t1 = time.time()
         self._permutations = compute_sg_permutations(
             self._positions, rotations, translations, self._lattice.T, 1e-5
         )
-        t2 = time.time()
-        print("SG_Permutations:", t2 - t1, "(s)")
         self._translation_permutations = self._get_translation_permutations(rotations)
         self._p2s_map = get_indep_atoms_by_lat_trans(self._translation_permutations)
 

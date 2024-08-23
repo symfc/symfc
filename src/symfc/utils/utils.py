@@ -34,12 +34,23 @@ def get_indep_atoms_by_lat_trans(trans_perms: np.ndarray) -> np.ndarray:
     return np.array(unique_atoms, dtype=int)
 
 
-def round_positions(positions, tol=1e-13, decimals=10):
-    """Round fractional coordinates of positions (-0.5 < p <= 0.5)."""
+def round_positions(positions, tol=1e-13, decimals=8):
+    """Round fractional coordinates of positions (-0.5 <= p < 0.5)."""
     positions_rint = positions - np.rint(positions)
-    positions_rint[np.abs(positions_rint + 0.5) < tol] = 0.5
+    positions_rint[np.abs(positions_rint - 0.5) < tol] = -0.5
     positions_rint = np.round(positions_rint, decimals)
     return positions_rint
+
+
+def argsort_positions(positions, tol=1e-13, decimals=8):
+    """Round and sort fractional coordinates of positions (-0.5 <= p < 0.5)."""
+    positions_rint = round_positions(positions, tol=tol, decimals=decimals)
+    """Not needed part?"""
+    positions_rint *= 10**decimals
+    positions_rint = [tuple(p) for p in positions_rint.astype(int)]
+    """Not needed part? (end)"""
+    sorted_ids = sorted(range(positions.shape[0]), key=positions_rint.__getitem__)
+    return sorted_ids
 
 
 def compute_sg_permutations(
@@ -80,15 +91,12 @@ def compute_sg_permutations(
     trans_perms = []
     pure_trans = []
     n_atom = positions.shape[0]
-    positions_rint = [tuple(p) for p in round_positions(positions)]
-    sorted_ids = sorted(range(n_atom), key=positions_rint.__getitem__)
+    sorted_ids = argsort_positions(positions)
     for r, t in zip(rotations, translations):
         if (r != np.eye(3, dtype=int)).any():
             continue
-        trans_positions = [tuple(p) for p in round_positions(positions + t)]
-        sorted_ids_trans = sorted(range(n_atom), key=trans_positions.__getitem__)
         tp = np.zeros(n_atom, dtype=int)
-        tp[sorted_ids] = sorted_ids_trans
+        tp[sorted_ids] = argsort_positions(positions + t)
         trans_perms.append(tp)
         pure_trans.append(t)
     trans_perms = np.array(trans_perms, dtype=int)

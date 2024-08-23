@@ -119,6 +119,14 @@ def get_lat_trans_compr_matrix(decompr_idx: np.ndarray, N: int, n_lp: int) -> cs
     return compression_mat
 
 
+def get_lat_trans_compr_matrix_O2(trans_perms: np.ndarray):
+    """Return lat trans compression matrix."""
+    n_lp, N = trans_perms.shape
+    decompr_idx = get_lat_trans_decompr_indices(trans_perms)
+    c_trans = get_lat_trans_compr_matrix(decompr_idx, N, n_lp)
+    return c_trans
+
+
 def get_perm_compr_matrix(natom: int) -> csr_array:
     """Return compression matrix by permutation symmetry.
 

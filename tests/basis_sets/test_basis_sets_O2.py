@@ -26,6 +26,7 @@ def test_fc_basis_set_o2():
     )
 
     comp_mat = sbs.compression_matrix
+    print(comp_mat)
     np.testing.assert_allclose(comp_mat.data, [0.40824829046386313] * comp_mat.size)
     ref_col = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0]
     ref_row = [0, 4, 8, 9, 13, 17, 18, 22, 26, 27, 31, 35]
