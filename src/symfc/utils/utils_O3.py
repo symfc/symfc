@@ -152,9 +152,11 @@ def get_compr_coset_projector_O3(
     if fc_cutoff is None:
         nonzero = None
         size_data = N**3
+        col = atomic_decompr_idx
     else:
         nonzero = fc_cutoff.nonzero_atomic_indices_fc3()
         size_data = np.count_nonzero(nonzero)
+        col = atomic_decompr_idx[nonzero]
 
     factor = 1 / n_lp / len(spg_reps.unique_rotation_indices)
     for i, _ in enumerate(spg_reps.unique_rotation_indices):
@@ -167,27 +169,17 @@ def get_compr_coset_projector_O3(
                 flush=True,
             )
         permutation = spg_reps.get_sigma3_rep(i, nonzero=nonzero)
-        if nonzero is None:
-            """Equivalent to mat = C.T @ spg_reps.get_sigma3_rep(i) @ C
-            C: atomic_lat_trans_compr_mat, shape=(NNN, NNN/n_lp)"""
-            mat = csr_array(
-                (
-                    np.ones(size_data, dtype="int_"),
-                    (atomic_decompr_idx[permutation], atomic_decompr_idx),
-                ),
-                shape=(N**3 // n_lp, N**3 // n_lp),
-                dtype="int_",
-            )
-        else:
-            mat = csr_array(
-                (
-                    np.ones(size_data, dtype="int_"),
-                    (atomic_decompr_idx[permutation], atomic_decompr_idx[nonzero]),
-                ),
-                shape=(N**3 // n_lp, N**3 // n_lp),
-                dtype="int_",
-            )
 
+        """Equivalent to mat = C.T @ spg_reps.get_sigma3_rep(i) @ C
+           C: atomic_lat_trans_compr_mat, shape=(NNN, NNN/n_lp)"""
+        mat = csr_array(
+            (
+                np.ones(size_data, dtype="int_"),
+                (atomic_decompr_idx[permutation], col),
+            ),
+            shape=(N**3 // n_lp, N**3 // n_lp),
+            dtype="int_",
+        )
         mat = kron(mat, spg_reps.r_reps[i] * factor)
         if c_pt is not None:
             mat = c_pt.T @ mat @ c_pt
