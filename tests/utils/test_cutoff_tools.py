@@ -168,9 +168,9 @@ def test_FCCutoff_gan_443():
         (cell_gan_111.cell, cell_gan_111.scaled_positions, cell_gan_111.numbers)
     )
     phonopy_cell = PhonopyAtoms(
-        cell=dataset["std_lattice"],
-        scaled_positions=dataset["std_positions"],
-        numbers=dataset["std_types"],
+        cell=dataset.std_lattice,
+        scaled_positions=dataset.std_positions,
+        numbers=dataset.std_types,
     )
     scell = get_supercell(phonopy_cell, [[4, 0, 0], [0, 4, 0], [0, 0, 3]])
     for v in scell.cell:
