@@ -8,7 +8,7 @@ from scipy.sparse import csr_array
 
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.eig_tools import dot_product_sparse
-from symfc.utils.matrix_tools import get_combinations
+from symfc.utils.matrix_tools import get_combinations, permutation_dot_lat_trans
 from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.utils_O2 import _get_atomic_lat_trans_decompr_indices
 
@@ -53,52 +53,38 @@ def projector_permutation_lat_trans_O2(
     P_pt = C_trans.T @ C_perm @ C_perm.T @ C_trans
     """
     n_lp, natom = trans_perms.shape
-    NN9 = natom**2 * 9
     if atomic_decompr_idx is None:
         atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
 
-    # (1) for FC2 with single index ia
+    # FC2 with single distinct index (ia, ia)
     combinations = np.array([[i, i] for i in range(3 * natom)], dtype=int)
-    n_perm1 = combinations.shape[0]
     combinations, combinations33 = N3N3_to_NNand33(combinations, natom)
-
-    c_pt = csr_array(
-        (
-            np.full(n_perm1, 1.0 / np.sqrt(n_lp)),
-            (
-                np.arange(n_perm1),
-                atomic_decompr_idx[combinations] * 9 + combinations33,
-            ),
-        ),
-        shape=(n_perm1, NN9 // n_lp),
-        dtype="double",
+    c_pt = permutation_dot_lat_trans(
+        combinations,
+        combinations33,
+        atomic_decompr_idx,
+        n_perms=1,
+        n_perms_group=1,
+        n_lp=n_lp,
+        order=2,
+        natom=natom,
     )
     proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
 
-    # (2) for FC2 with two distinguished indices (ia,jb)
-    if fc_cutoff is None:
-        combinations = get_combinations(3 * natom, 2)
-    else:
-        combinations = fc_cutoff.combinations2()
-
-    n_perm2 = combinations.shape[0]
-    perms = [
-        [0, 1],
-        [1, 0],
-    ]
+    # FC2 with two distinct indices (ia, jb)
+    combinations = get_combinations(natom, order=2, fc_cutoff=fc_cutoff)
+    perms = [[0, 1], [1, 0]]
     combinations = combinations[:, perms].reshape((-1, 2))
     combinations, combinations33 = N3N3_to_NNand33(combinations, natom)
-
-    c_pt = csr_array(
-        (
-            np.full(n_perm2 * 2, 1 / np.sqrt(2 * n_lp)),
-            (
-                np.repeat(range(n_perm2), 2),
-                atomic_decompr_idx[combinations] * 9 + combinations33,
-            ),
-        ),
-        shape=(n_perm2, NN9 // n_lp),
-        dtype="double",
+    c_pt = permutation_dot_lat_trans(
+        combinations,
+        combinations33,
+        atomic_decompr_idx,
+        n_perms=2,
+        n_perms_group=1,
+        n_lp=n_lp,
+        order=2,
+        natom=natom,
     )
     proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
 
