@@ -37,7 +37,7 @@ def _projector_permutation_lat_trans_unique_index1(
     n_lp: int,
     fc_cutoff: Optional[FCCutoff] = None,
     use_mkl: bool = False,
-):
+) -> csr_array:
     """FC3 with single distinct index (ia, ia, ia)."""
     combinations = np.array([[i, i, i] for i in range(3 * natom)], dtype=int)
     combinations, combinations333 = N3N3N3_to_NNNand333(combinations, natom)
@@ -60,7 +60,7 @@ def _projector_permutation_lat_trans_unique_index2(
     n_lp: int,
     fc_cutoff: Optional[FCCutoff] = None,
     use_mkl: bool = False,
-):
+) -> csr_array:
     """FC3 with two distinct indices (ia,ia,jb)."""
     combinations = get_combinations(natom, order=2, fc_cutoff=fc_cutoff)
     perms = [
@@ -83,6 +83,7 @@ def _projector_permutation_lat_trans_unique_index2(
         order=3,
         natom=natom,
     )
+
     return dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
 
 
@@ -94,10 +95,10 @@ def _projector_permutation_lat_trans_unique_index3(
     use_mkl: bool = False,
     n_batch: int = 1,
     verbose: bool = False,
-):
+) -> csr_array:
     """FC3 with three distinct indices (ia,jb,kc)."""
     combinations = get_combinations(natom, order=3, fc_cutoff=fc_cutoff)
-    n_perm3 = combinations.shape[0]
+    n_comb3 = combinations.shape[0]
     perms = [
         [0, 1, 2],
         [0, 2, 1],
@@ -109,9 +110,9 @@ def _projector_permutation_lat_trans_unique_index3(
 
     c_pt = None
     proj_pt = None
-    for begin, end in zip(*get_batch_slice(n_perm3, n_perm3 // n_batch)):
+    for begin, end in zip(*get_batch_slice(n_comb3, n_comb3 // n_batch)):
         if verbose:
-            print("Proj (perm.T @ trans):", str(end) + "/" + str(n_perm3), flush=True)
+            print("Proj (perm.T @ trans):", str(end) + "/" + str(n_comb3), flush=True)
         combinations_perm = combinations[begin:end][:, perms].reshape((-1, 3))
         combinations_perm, combinations333 = N3N3N3_to_NNNand333(
             combinations_perm, natom
@@ -151,7 +152,7 @@ def projector_permutation_lat_trans_O3(
     n_batch: Optional[int] = None,
     use_mkl: bool = False,
     verbose: bool = False,
-):
+) -> csr_array:
     """Calculate a projector for permutation rules compressed by C_trans.
 
     This is calculated without allocating C_trans and C_perm.
