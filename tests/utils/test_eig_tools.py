@@ -64,7 +64,3 @@ def test_compr_projector():
     for icol, irow in enumerate(row):
         compr_ref[irow, icol] = 1
     np.testing.assert_allclose(compr.toarray(), compr_ref)
-
-
-test_eigsh_projector()
-test_compr_projector()
