@@ -80,14 +80,13 @@ def projector_permutation_lat_trans_O2(
         combinations,
         combinations33,
         atomic_decompr_idx,
-        n_perms=2,
+        n_perms=len(perms),
         n_perms_group=1,
         n_lp=n_lp,
         order=2,
         natom=natom,
     )
     proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
-
     return proj_pt
 
 
