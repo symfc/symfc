@@ -16,8 +16,8 @@ from symfc.utils.utils_O3 import (
 )
 
 
-def structure_CsCl():
-    """Get CsCl structure."""
+def structure_bcc():
+    """Get bcc structure."""
     lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
     positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
     numbers = [1, 1]
@@ -28,7 +28,7 @@ def structure_CsCl():
     return supercell, trans_perms
 
 
-supercell, trans_perms = structure_CsCl()
+supercell, trans_perms = structure_bcc()
 
 
 def test_N3N3N3_to_NNNand333():

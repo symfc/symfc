@@ -11,8 +11,8 @@ from symfc.utils.utils_O4 import (
 )
 
 
-def structure_CsCl():
-    """Get CsCl structure."""
+def structure_bcc():
+    """Get bcc structure."""
     lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
     positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
     numbers = [1, 1]
@@ -23,7 +23,7 @@ def structure_CsCl():
     return supercell, trans_perms
 
 
-supercell, trans_perms = structure_CsCl()
+supercell, trans_perms = structure_bcc()
 
 
 def test_lat_trans():
@@ -43,6 +43,3 @@ def test_lat_trans():
     row, col = c_trans.nonzero()
     np.testing.assert_array_equal(decompr_idx, col)
     np.testing.assert_allclose(c_trans.data, [0.7071067811865475] * len(decompr_idx))
-
-
-test_lat_trans()
