@@ -1,9 +1,18 @@
 """Tests of functions in matrix_tools_O3."""
 
 import numpy as np
+import scipy
 
+from symfc.spg_reps import SpgRepsBase
+from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.matrix_tools_O3 import (
     N3N3N3_to_NNNand333,
+    compressed_projector_sum_rules_O3,
+    projector_permutation_lat_trans_O3,
+)
+from symfc.utils.utils import SymfcAtoms
+from symfc.utils.utils_O3 import (
+    get_atomic_lat_trans_decompr_indices_O3,
 )
 
 
@@ -16,4 +25,71 @@ def test_N3N3N3_to_NNNand333():
     np.testing.assert_allclose(vec333, [5, 21, 8])
 
 
-test_N3N3N3_to_NNNand333()
+def test_projector_permutation_lat_trans_O3():
+    """Test projector_permutation_lat_trans_O3."""
+    lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
+    positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
+    numbers = [1, 1]
+    supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
+
+    spg_reps = SpgRepsBase(supercell)
+    trans_perms = spg_reps.translation_permutations
+    atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
+    proj = projector_permutation_lat_trans_O3(
+        trans_perms,
+        atomic_decompr_idx,
+        fc_cutoff=None,
+    )
+    assert proj.shape == (108, 108)
+    assert len(proj.data) == 498
+    assert np.count_nonzero(np.isclose(proj.data, 1)) == 3
+    assert np.count_nonzero(np.isclose(proj.data, 1.0 / 3.0)) == 135
+    assert np.count_nonzero(np.isclose(proj.data, 1.0 / 6.0)) == 360
+
+    proj = projector_permutation_lat_trans_O3(
+        trans_perms,
+        atomic_decompr_idx,
+        fc_cutoff=FCCutoff(supercell, cutoff=1),
+    )
+    assert len(proj.data) == 93
+    assert np.count_nonzero(np.isclose(proj.data, 1)) == 3
+    assert np.count_nonzero(np.isclose(proj.data, 1.0 / 3.0)) == 54
+    assert np.count_nonzero(np.isclose(proj.data, 1.0 / 6.0)) == 36
+
+
+def test_compressed_projector_sum_rules_O3():
+    """Test compressed_projector_sum_rules_O3."""
+    lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
+    positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
+    numbers = [1, 1]
+    supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
+
+    spg_reps = SpgRepsBase(supercell)
+    trans_perms = spg_reps.translation_permutations
+    atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
+
+    n_a_compress_mat = scipy.sparse.identity(108)
+    proj = compressed_projector_sum_rules_O3(
+        trans_perms,
+        n_a_compress_mat,
+        atomic_decompr_idx,
+        fc_cutoff=None,
+    )
+    assert proj.shape == (108, 108)
+    assert len(proj.data) == 216
+
+    row, col = proj.nonzero()
+    match1 = row == col
+    match2 = row != col
+    np.testing.assert_allclose(proj[(row[match1], col[match1])], 0.5)
+    np.testing.assert_allclose(proj[(row[match2], col[match2])], -0.5)
+
+    proj = compressed_projector_sum_rules_O3(
+        trans_perms,
+        n_a_compress_mat,
+        atomic_decompr_idx,
+        fc_cutoff=FCCutoff(supercell, cutoff=1),
+    )
+    assert len(proj.data) == 108
+    assert np.count_nonzero(np.isclose(proj.data, 1)) == 81
+    assert np.count_nonzero(np.isclose(proj.data, 0.5)) == 27
