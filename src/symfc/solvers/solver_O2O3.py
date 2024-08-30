@@ -143,7 +143,7 @@ class FCSolverO2O3(FCSolverBase):
         return fc2, fc3
 
 
-def set_disps_N3N3(disps, sparse=True):
+def set_disps_N3N3(disps, sparse=False):
     """Calculate Kronecker products of displacements.
 
     Parameter
@@ -172,7 +172,9 @@ def reshape_nNN333_nx_to_N3N3_n3nx(mat, N, n, n_batch=9):
     n3nx = n * 3 * nx
     mat = mat.tocoo(copy=False)
 
-    begin_batch, end_batch = get_batch_slice(len(mat.row), len(mat.row) // n_batch)
+    batch_size = len(mat.row) if len(mat.row) < n_batch else len(mat.row) // n_batch
+
+    begin_batch, end_batch = get_batch_slice(len(mat.row), batch_size)
     for begin, end in zip(begin_batch, end_batch):
         div, rem = np.divmod(mat.row[begin:end], 27 * N * N)
         mat.col[begin:end] += div * 3 * nx
