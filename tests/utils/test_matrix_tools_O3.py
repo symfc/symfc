@@ -1,6 +1,7 @@
 """Tests of functions in matrix_tools_O3."""
 
 import numpy as np
+import pytest
 import scipy
 
 from symfc.spg_reps import SpgRepsBase
@@ -48,6 +49,7 @@ def test_projector_permutation_lat_trans_O3():
         atomic_decompr_idx,
         fc_cutoff=None,
     )
+    assert proj.trace() == pytest.approx(28.0)
     assert proj.shape == (108, 108)
     assert len(proj.data) == 498
     assert np.count_nonzero(np.isclose(proj.data, 1)) == 3
@@ -59,6 +61,7 @@ def test_projector_permutation_lat_trans_O3():
         atomic_decompr_idx,
         fc_cutoff=FCCutoff(supercell, cutoff=1),
     )
+    assert proj.trace() == pytest.approx(10.0)
     assert len(proj.data) == 93
     assert np.count_nonzero(np.isclose(proj.data, 1)) == 3
     assert np.count_nonzero(np.isclose(proj.data, 1.0 / 3.0)) == 54
@@ -75,6 +78,7 @@ def test_compressed_projector_sum_rules_O3():
         atomic_decompr_idx,
         fc_cutoff=None,
     )
+    assert proj.trace() == pytest.approx(54.0)
     assert proj.shape == (108, 108)
     assert len(proj.data) == 216
 
@@ -90,6 +94,8 @@ def test_compressed_projector_sum_rules_O3():
         atomic_decompr_idx,
         fc_cutoff=FCCutoff(supercell, cutoff=1),
     )
+    """If the cutoff implementation is changed, the trace value may also change."""
+    assert proj.trace() == pytest.approx(94.5)
     assert len(proj.data) == 108
     assert np.count_nonzero(np.isclose(proj.data, 1)) == 81
     assert np.count_nonzero(np.isclose(proj.data, 0.5)) == 27

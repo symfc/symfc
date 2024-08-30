@@ -1,6 +1,7 @@
 """Tests of functions in matrix_tools_O2."""
 
 import numpy as np
+import pytest
 import scipy
 
 from symfc.spg_reps import SpgRepsBase
@@ -47,6 +48,7 @@ def test_projector_permutation_lat_trans_O2():
         atomic_decompr_idx,
         fc_cutoff=None,
     )
+    assert proj.trace() == pytest.approx(12.0)
     assert proj.shape == (18, 18)
     proj_ref = np.zeros(proj.shape)
     proj_ref[([0, 4, 8, 9, 13, 17], [0, 4, 8, 9, 13, 17])] = 1.0
@@ -68,6 +70,7 @@ def test_compressed_projector_sum_rules_O2():
         atomic_decompr_idx,
         fc_cutoff=None,
     )
+    assert proj.trace() == pytest.approx(9.0)
     assert proj.shape == (18, 18)
     proj_ref = np.diag(np.full(proj.shape[0], 0.5))
     row = np.arange(18)

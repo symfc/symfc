@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from symfc.spg_reps import SpgRepsO3
+from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O3 import (
     get_atomic_lat_trans_decompr_indices_O3,
@@ -68,4 +69,12 @@ def test_coset_projector_O3():
     atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms_rev)
     coset = get_compr_coset_projector_O3(spg_reps_rev, atomic_decompr_idx)
     assert coset.trace() == pytest.approx(16.0)
+    assert np.sum(coset.data) == pytest.approx(0.0)
+
+    coset = get_compr_coset_projector_O3(
+        spg_reps_rev,
+        atomic_decompr_idx,
+        fc_cutoff=FCCutoff(supercell_rev, cutoff=1),
+    )
+    assert coset.trace() == pytest.approx(4.0)
     assert np.sum(coset.data) == pytest.approx(0.0)
