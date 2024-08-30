@@ -15,6 +15,21 @@ from symfc.utils.utils_O2 import (
 )
 
 
+def structure_CsCl():
+    """Get CsCl structure."""
+    lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
+    positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
+    numbers = [1, 1]
+    supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
+
+    spg_reps = SpgRepsBase(supercell)
+    trans_perms = spg_reps.translation_permutations
+    return supercell, trans_perms
+
+
+supercell, trans_perms = structure_CsCl()
+
+
 def test_N3N3_to_NNand33():
     """Test N3N3_to_NNand33."""
     N = 3
@@ -26,13 +41,6 @@ def test_N3N3_to_NNand33():
 
 def test_projector_permutation_lat_trans_O2():
     """Test projector_permutation_lat_trans_O2."""
-    lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
-    positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
-    numbers = [1, 1]
-    supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
-
-    spg_reps = SpgRepsBase(supercell)
-    trans_perms = spg_reps.translation_permutations
     atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
     proj = projector_permutation_lat_trans_O2(
         trans_perms,
@@ -52,15 +60,7 @@ def test_projector_permutation_lat_trans_O2():
 
 def test_compressed_projector_sum_rules_O2():
     """Test compressed_projector_sum_rules_O2."""
-    lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
-    positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
-    numbers = [1, 1]
-    supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
-
-    spg_reps = SpgRepsBase(supercell)
-    trans_perms = spg_reps.translation_permutations
     atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
-
     n_a_compress_mat = scipy.sparse.identity(18)
     proj = compressed_projector_sum_rules_O2(
         trans_perms,
