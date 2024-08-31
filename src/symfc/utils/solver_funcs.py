@@ -31,7 +31,7 @@ def fit(X: np.ndarray, y: np.ndarray):
     return coefs
 
 
-def get_batch_slice(n_data, batch_size):
+def get_batch_slice(n_data: int, batch_size: int):
     """Calculate slice indices for a given batch size."""
     begin_batch = list(range(0, n_data, batch_size))
     if len(begin_batch) > 1:

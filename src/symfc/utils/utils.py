@@ -34,6 +34,25 @@ def get_indep_atoms_by_lat_trans(trans_perms: np.ndarray) -> np.ndarray:
     return np.array(unique_atoms, dtype=int)
 
 
+def round_positions(positions, tol=1e-13, decimals=8):
+    """Round fractional coordinates of positions (-0.5 <= p < 0.5)."""
+    positions_rint = positions - np.rint(positions)
+    positions_rint[np.abs(positions_rint - 0.5) < tol] = -0.5
+    positions_rint = np.round(positions_rint, decimals)
+    return positions_rint
+
+
+def argsort_positions(positions, tol=1e-13, decimals=8):
+    """Round and sort fractional coordinates of positions (-0.5 <= p < 0.5)."""
+    positions_rint = round_positions(positions, tol=tol, decimals=decimals)
+    """Not needed part?"""
+    positions_rint *= 10**decimals
+    positions_rint = [tuple(p) for p in positions_rint.astype(int)]
+    """Not needed part? (end)"""
+    sorted_ids = sorted(range(positions.shape[0]), key=positions_rint.__getitem__)
+    return sorted_ids
+
+
 def compute_sg_permutations(
     positions: np.ndarray,
     rotations: np.ndarray,
@@ -71,6 +90,97 @@ def compute_sg_permutations(
     """
     trans_perms = []
     pure_trans = []
+    n_atom = positions.shape[0]
+    sorted_ids = argsort_positions(positions)
+    for r, t in zip(rotations, translations):
+        if (r != np.eye(3, dtype=int)).any():
+            continue
+        tp = np.zeros(n_atom, dtype=int)
+        tp[sorted_ids] = argsort_positions(positions + t)
+        trans_perms.append(tp)
+        pure_trans.append(t)
+    trans_perms = np.array(trans_perms, dtype=int)
+    pure_trans = np.array(pure_trans)
+
+    unique_r = []
+    unique_t = []
+    r2ur = []
+    unique_rotated_positions = []
+    for r, t in zip(rotations, translations):
+        is_found = False
+        for j, ur in enumerate(unique_r):
+            if (r == ur).all():
+                is_found = True
+                r2ur.append(j)
+                break
+        if not is_found:
+            r2ur.append(len(unique_r))
+            unique_r.append(r)
+            unique_t.append(t)
+            unique_rotated_positions.append(positions @ r.T + t)
+
+    unique_rotation_perms = []
+    for rotated_positions in unique_rotated_positions:
+        diffs = positions[None, :, :] - rotated_positions[:, None, :]
+        diffs -= np.rint(diffs)
+        dists = np.linalg.norm(diffs @ lattice.T, axis=2)
+        rows, cols = np.where(dists < symprec)
+        assert len(positions) == len(np.unique(rows)) == len(np.unique(cols))
+        unique_rotation_perms.append(cols[np.argsort(rows)])
+    unique_rotation_perms = np.array(unique_rotation_perms, dtype=int)
+
+    out = []
+    for i, t in enumerate(translations):
+        perms = unique_rotation_perms[r2ur[i]]
+        lattice_trans = t - unique_t[r2ur[i]]
+        diffs = pure_trans - lattice_trans
+        diffs -= np.rint(diffs)
+        dists = np.linalg.norm(diffs @ lattice.T, axis=1)
+        lat_trans_idx = np.where(dists < symprec)
+        assert len(lat_trans_idx) == 1
+        out.append(trans_perms[lat_trans_idx[0], perms])
+    out = np.array(out, dtype="intc", order="C")
+    return out
+
+
+def compute_sg_permutations_stable(
+    positions: np.ndarray,
+    rotations: np.ndarray,
+    translations: np.ndarray,
+    lattice: np.ndarray,
+    symprec: float = 1e-5,
+) -> np.ndarray:
+    """Compute permutations of atoms by space group operations in supercell.
+
+    Permutations of atoms of pure translations and coset representatives are
+    first computed. Then permutations of atoms of all the given space group
+    operations are made as the combitation of these two permutations.
+
+    Parameters
+    ----------
+    positions : ndarray
+        Fractional positions (like SymfcAtoms.scaled_positions) before applying
+        the space group operation.
+    rotations : ndarray
+        Matrix (rotation) parts of space group operations.
+        shape=(len(operations), 3, 3), dtype='intc'
+    translations : ndarray
+        Vector (translation) parts of space group operations.
+        shape=(len(operations), 3), dtype='double'
+    lattice : ndarray
+        Basis vectors in column vectors (like SymfcAtoms.cell.T).
+    symprec : float
+        Symmetry tolerance of the distance unit.
+
+    Returns
+    -------
+    perms : ndarray
+        shape=(len(translations), len(positions)), dtype='intc', order='C'
+
+    """
+    trans_perms = []
+    pure_trans = []
+    """Bottleneck part"""
     for r, t in zip(rotations, translations):
         if (r != np.eye(3, dtype=int)).any():
             continue

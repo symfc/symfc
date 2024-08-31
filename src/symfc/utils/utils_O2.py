@@ -1,30 +1,15 @@
 """Utility functions for 2nd order force constants."""
 
 import itertools
+from typing import Optional
 
 import numpy as np
 from scipy.sparse import csr_array, kron
 
 from symfc.spg_reps import SpgRepsO2
+from symfc.utils.cutoff_tools import FCCutoff
 
 from .utils import get_indep_atoms_by_lat_trans
-
-
-def get_spg_perm_projector(spg_reps: SpgRepsO2, decompr_idx: np.ndarray) -> csr_array:
-    """Compute compact spg+perm projector matrix using kron.
-
-    This computes C.T @ spg_proj @ perm_proj @ C, where C is
-    ``compression_mat``.
-
-    """
-    trans_perms = spg_reps.translation_permutations
-    n_lp, N = trans_perms.shape
-    compression_mat = get_lat_trans_compr_matrix(decompr_idx, N, n_lp)
-    coset_reps_sum = get_compr_coset_reps_sum(spg_reps)
-    C_perm = get_perm_compr_matrix(N)
-    perm = C_perm.T @ compression_mat
-    perm = perm.T @ perm
-    return coset_reps_sum @ perm
 
 
 def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
@@ -132,6 +117,14 @@ def get_lat_trans_compr_matrix(decompr_idx: np.ndarray, N: int, n_lp: int) -> cs
         dtype="double",
     )
     return compression_mat
+
+
+def get_lat_trans_compr_matrix_O2(trans_perms: np.ndarray):
+    """Return lat trans compression matrix."""
+    n_lp, N = trans_perms.shape
+    decompr_idx = get_lat_trans_decompr_indices(trans_perms)
+    c_trans = get_lat_trans_compr_matrix(decompr_idx, N, n_lp)
+    return c_trans
 
 
 def get_perm_compr_matrix(natom: int) -> csr_array:
@@ -279,3 +272,47 @@ def _get_perm_compr_matrix_reference(natom: int) -> csr_array:
     else:
         assert ((natom * 3) // 2) * (natom * 3 + 1) == n, f"{natom}, {n}"
     return csr_array((data, (row, col)), shape=(size_row, n), dtype="double")
+
+
+def get_compr_coset_projector_O2(
+    spg_reps: SpgRepsO2,
+    atomic_decompr_idx: Optional[np.ndarray] = None,
+    fc_cutoff: Optional[FCCutoff] = None,
+    c_pt: Optional[csr_array] = None,
+) -> csr_array:
+    """Return compr matrix of sum of coset reps."""
+    trans_perms = spg_reps.translation_permutations
+    n_lp, N = trans_perms.shape
+    size = N**2 * 9 // n_lp if c_pt is None else c_pt.shape[1]
+    coset_reps_sum = csr_array((size, size), dtype="double")
+
+    if atomic_decompr_idx is None:
+        atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
+
+    if fc_cutoff is None:
+        nonzero = None
+        size_data = N**2
+        col = atomic_decompr_idx
+    else:
+        nonzero = fc_cutoff.nonzero_atomic_indices_fc2()
+        size_data = np.count_nonzero(nonzero)
+        col = atomic_decompr_idx[nonzero]
+
+    factor = 1 / n_lp / len(spg_reps.unique_rotation_indices)
+    for i, _ in enumerate(spg_reps.unique_rotation_indices):
+        permutation = spg_reps.get_sigma2_rep(i, nonzero=nonzero)
+        mat = csr_array(
+            (
+                np.ones(size_data, dtype="int_"),
+                (atomic_decompr_idx[permutation], col),
+            ),
+            shape=(N**2 // n_lp, N**2 // n_lp),
+            dtype="int_",
+        )
+        mat = kron(mat, spg_reps.r_reps[i] * factor)
+        if c_pt is not None:
+            mat = c_pt.T @ mat @ c_pt
+
+        coset_reps_sum += mat
+
+    return coset_reps_sum

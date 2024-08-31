@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.utils import SymfcAtoms
 

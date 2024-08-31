@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from symfc import Symfc
 from symfc.utils.utils import SymfcAtoms
 
