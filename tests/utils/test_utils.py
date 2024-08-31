@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.utils import (
     SymfcAtoms,
@@ -32,7 +33,7 @@ def test_compute_sg_permutations(
     ph_gan_222: tuple[SymfcAtoms, np.ndarray, np.ndarray], cell_gan_111: SymfcAtoms
 ):
     """Test compute_sg_permutations."""
-    pytest.importorskip("spglib")
+    pytest.importorskip("spglib", minversion="2.5")
     from spglib import spglib
 
     supercell, _, _ = ph_gan_222
@@ -41,8 +42,8 @@ def test_compute_sg_permutations(
     primitive_dataset = spglib.get_symmetry_dataset(primitive.totuple())
     perms = compute_sg_permutations(
         primitive.scaled_positions,
-        primitive_dataset["rotations"],
-        primitive_dataset["translations"],
+        primitive_dataset.rotations,
+        primitive_dataset.translations,
         primitive.cell,
     )
     ref_perms = [

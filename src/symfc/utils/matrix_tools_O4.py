@@ -1,13 +1,14 @@
 """Matrix utility functions for 4th order force constants."""
 
 import itertools
+from typing import Optional
 
 import numpy as np
 import scipy
 from scipy.sparse import csr_array, vstack
 
 from symfc.utils.cutoff_tools import FCCutoff
-from symfc.utils.matrix_tools import get_combinations
+from symfc.utils.matrix_tools import get_combinations, permutation_dot_lat_trans
 from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.utils_O4 import get_atomic_lat_trans_decompr_indices_O4
 
@@ -36,8 +37,8 @@ def N3N3N3N3_to_NNNNand3333(combs: np.ndarray, N: int) -> np.ndarray:
 
 def projector_permutation_lat_trans_O4(
     trans_perms: np.ndarray,
-    atomic_decompr_idx: np.ndarray = None,
-    fc_cutoff: FCCutoff = None,
+    atomic_decompr_idx: Optional[np.ndarray] = None,
+    fc_cutoff: Optional[FCCutoff] = None,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
@@ -53,7 +54,7 @@ def projector_permutation_lat_trans_O4(
         dtype='intc'.
         shape=(n_l, N), where n_l and N are the numbers of lattce points and
         atoms in supercell.
-    fc_cutoff : FCCutoff
+    fc_cutoff : FCCutoff class object. Default is None.
 
     Return
     ------
@@ -61,36 +62,26 @@ def projector_permutation_lat_trans_O4(
     P_pt = C_trans.T @ C_perm @ C_perm.T @ C_trans
     """
     n_lp, natom = trans_perms.shape
-    NNNN81 = natom**4 * 81
     if atomic_decompr_idx is None:
         atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
 
-    """(1) for FC4 with single index ia"""
+    """FC4 with single distinct index (ia, ia, ia, ia)"""
     combinations = np.array([[i, i, i, i] for i in range(3 * natom)], dtype=int)
-    n_perm1 = combinations.shape[0]
     combinations, combinations3333 = N3N3N3N3_to_NNNNand3333(combinations, natom)
-
-    c_pt = csr_array(
-        (
-            np.full(n_perm1, 1.0 / np.sqrt(n_lp)),
-            (
-                np.arange(n_perm1),
-                atomic_decompr_idx[combinations] * 81 + combinations3333,
-            ),
-        ),
-        shape=(n_perm1, NNNN81 // n_lp),
-        dtype="double",
+    c_pt = permutation_dot_lat_trans(
+        combinations,
+        combinations3333,
+        atomic_decompr_idx,
+        n_perms=1,
+        n_perms_group=1,
+        n_lp=n_lp,
+        order=4,
+        natom=natom,
     )
     proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
 
-    """(2) for FC4 with two distinguished indices (ia,ia,ia,jb)"""
-    if fc_cutoff is None:
-        combinations = get_combinations(3 * natom, 2)
-    else:
-        combinations = fc_cutoff.combinations2()
-
-    n_comb2 = combinations.shape[0]
-    n_perm2 = n_comb2 * 2
+    """FC4 with two distinct indices (ia,ia,ia,jb)"""
+    combinations = get_combinations(natom, order=2, fc_cutoff=fc_cutoff)
     perms = [
         [0, 0, 0, 1],
         [0, 0, 1, 0],
@@ -104,20 +95,19 @@ def projector_permutation_lat_trans_O4(
     combinations = combinations[:, perms].reshape((-1, 4))
     combinations, combinations3333 = N3N3N3N3_to_NNNNand3333(combinations, natom)
 
-    c_pt = csr_array(
-        (
-            np.full(n_perm2 * 4, 1 / np.sqrt(4 * n_lp)),
-            (
-                np.repeat(range(n_perm2), 4),
-                atomic_decompr_idx[combinations] * 81 + combinations3333,
-            ),
-        ),
-        shape=(n_perm2, NNNN81 // n_lp),
-        dtype="double",
+    c_pt = permutation_dot_lat_trans(
+        combinations,
+        combinations3333,
+        atomic_decompr_idx,
+        n_perms=len(perms),
+        n_perms_group=2,
+        n_lp=n_lp,
+        order=4,
+        natom=natom,
     )
     proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
 
-    """(3) for FC4 with three distinguished indices (ia,ia,jb,kc)
+    """FC4 with three distinct indices (ia,ia,jb,kc)
     [
         [a, a, b, c],
         [a, a, c, b],
@@ -136,11 +126,7 @@ def projector_permutation_lat_trans_O4(
     if verbose:
         print("Find combinations of three FC elements", flush=True)
 
-    if fc_cutoff is None:
-        combinations = get_combinations(3 * natom, 3)
-    else:
-        combinations = fc_cutoff.combinations3_all()
-
+    combinations = get_combinations(natom, order=3, fc_cutoff=fc_cutoff)
     n_comb3 = combinations.shape[0]
     perms = [
         [0, 0, 1, 2],
@@ -188,36 +174,35 @@ def projector_permutation_lat_trans_O4(
             print(
                 "Proj (perm.T @ trans, 3):", str(end) + "/" + str(n_comb3), flush=True
             )
-        batch_size = end - begin
-        n_perm3 = batch_size * 3
         combinations_perm = combinations[begin:end][:, perms].reshape((-1, 4))
         combinations_perm, combinations3333 = N3N3N3N3_to_NNNNand3333(
             combinations_perm, natom
         )
-        c_pt_batch = csr_array(
-            (
-                np.full(batch_size * 36, 1 / np.sqrt(12 * n_lp)),
-                (
-                    np.repeat(np.arange(n_perm3), 12),
-                    atomic_decompr_idx[combinations_perm] * 81 + combinations3333,
-                ),
-            ),
-            shape=(n_perm3, NNNN81 // n_lp),
-            dtype="double",
+        c_pt_batch = permutation_dot_lat_trans(
+            combinations_perm,
+            combinations3333,
+            atomic_decompr_idx,
+            n_perms=len(perms),
+            n_perms_group=3,
+            n_lp=n_lp,
+            order=4,
+            natom=natom,
         )
         c_pt = c_pt_batch if c_pt is None else vstack([c_pt, c_pt_batch])
+        if len(c_pt.data) > 2147483647 / 4:
+            if verbose:
+                print("Executed: proj_pt += c_pt.T @ c_pt", flush=True)
+            proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+            c_pt = None
 
-    proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+    if c_pt is not None:
+        proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
 
-    """(4) for FC4 with four distinguished indices (ia,jb,kc,ld)"""
+    """FC4 with four distinct indices (ia,jb,kc,ld)"""
     if verbose:
         print("Find combinations of four FC elements", flush=True)
 
-    if fc_cutoff is None:
-        combinations = get_combinations(3 * natom, 4)
-    else:
-        combinations = fc_cutoff.combinations4_all()
-
+    combinations = get_combinations(natom, order=4, fc_cutoff=fc_cutoff)
     n_comb4 = combinations.shape[0]
     perms = np.array(list(itertools.permutations(range(4))))
 
@@ -228,36 +213,40 @@ def projector_permutation_lat_trans_O4(
             print(
                 "Proj (perm.T @ trans, 4):", str(end) + "/" + str(n_comb4), flush=True
             )
-        batch_size = n_perm4 = end - begin
         combinations_perm = combinations[begin:end][:, perms].reshape((-1, 4))
         combinations_perm, combinations3333 = N3N3N3N3_to_NNNNand3333(
             combinations_perm, natom
         )
-        c_pt_batch = csr_array(
-            (
-                np.full(batch_size * 24, 1 / np.sqrt(24 * n_lp)),
-                (
-                    np.repeat(np.arange(n_perm4), 24),
-                    atomic_decompr_idx[combinations_perm] * 81 + combinations3333,
-                ),
-            ),
-            shape=(n_perm4, NNNN81 // n_lp),
-            dtype="double",
+        c_pt_batch = permutation_dot_lat_trans(
+            combinations_perm,
+            combinations3333,
+            atomic_decompr_idx,
+            n_perms=len(perms),
+            n_perms_group=1,
+            n_lp=n_lp,
+            order=4,
+            natom=natom,
         )
         c_pt = c_pt_batch if c_pt is None else vstack([c_pt, c_pt_batch])
 
-    proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+        if len(c_pt.data) > 2147483647 / 4:
+            if verbose:
+                print("Executed: proj_pt += c_pt.T @ c_pt", flush=True)
+            proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+            c_pt = None
 
+    if c_pt is not None:
+        proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
     return proj_pt
 
 
 def compressed_projector_sum_rules_O4(
-    trans_perms,
+    trans_perms: np.ndarray,
     n_a_compress_mat: csr_array,
-    fc_cutoff: FCCutoff = None,
-    atomic_decompr_idx: np.ndarray = None,
+    atomic_decompr_idx: Optional[np.ndarray] = None,
+    fc_cutoff: Optional[FCCutoff] = None,
+    n_batch: Optional[int] = None,
     use_mkl: bool = False,
-    n_batch: int = None,
     verbose: bool = False,
 ) -> csr_array:
     """Return projection matrix for sum rule.

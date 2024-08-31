@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from symfc.basis_sets import FCBasisSetO4
 from symfc.utils.utils import SymfcAtoms
 

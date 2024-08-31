@@ -76,6 +76,10 @@ class SpgRepsO3(SpgRepsBase):
 
         Operation permutation[self._atom_triplets] @ self._coeff is divided
         to reduce memory allocation.
+
+        permutation_triplets represents row indices of nonzero elements
+        in permutation matrix. Column indices of nonzero elements in permutation
+        matrix are array indices of permutation_triplets.
         """
         uri = self._unique_rotation_indices
         permutation = self._permutations[uri[i]]
