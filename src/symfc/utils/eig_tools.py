@@ -121,7 +121,189 @@ def eigsh_projector(
     return c_p
 
 
+def eigh_projector(p: np.ndarray):
+    """Solve eigenvalue problem using numpy and eliminate eigenvectors with e < 1.0."""
+    eigvals, eigvecs = np.linalg.eigh(p)
+    nonzero = np.isclose(eigvals, 1.0)
+    eigvecs = eigvecs[:, nonzero]
+    return eigvecs
+
+
+def find_smaller_block(p1: np.ndarray, n_max=5000):
+    """Find a reasonable block in matrix p1."""
+    n_data = np.count_nonzero(np.abs(np.array(p1)) > 1e-15, axis=1)
+    rep_id = np.abs(n_data - n_max).argmin()
+    col = np.where(np.abs(p1[rep_id]) > 1e-15)[0]
+    return col
+
+
+def eigsh_projector_partial(
+    p_block: np.ndarray,
+    max_iter: int = 50,
+    size_terminate: int = 2000,
+    verbose: bool = False,
+):
+    """Solve eigenvalue problem partially for matrix p."""
+    if p_block.shape[0] < size_terminate:
+        return None, p_block, None
+
+    import time
+
+    eigvecs_block = np.zeros(p_block.shape, dtype="double")
+    compr = None
+    col_id = 0
+    if verbose:
+        print(" - Use partial solver.", flush=True)
+
+    for j in range(max_iter):
+        if verbose:
+            print(" * iteration:", j + 1, flush=True)
+        if p_block.shape[0] < size_terminate:
+            if verbose:
+                print(" iteration stopped. p.shape <", size_terminate, flush=True)
+            break
+
+        ids_small = find_smaller_block(p_block)
+        ids_const = np.array(list(set(range(p_block.shape[0])) - set(ids_small)))
+        if len(ids_small) / p_block.shape[0] > 0.7:
+            if verbose:
+                print(" iteration stopped (> 0.7).", flush=True)
+            break
+
+        if verbose:
+            print("   Solving projector of size", len(ids_small), flush=True)
+        p_small = np.array(p_block[np.ix_(ids_small, ids_small)])
+        rank = int(round(sum(p_small.diagonal())))
+        if rank > 0:
+            t1 = time.time()
+            eigvecs = eigh_projector(p_small)
+            if eigvecs.shape[1] == 0:
+                break
+            t2 = time.time()
+            compr_block_small = np.eye(eigvecs.shape[0]) - eigvecs @ eigvecs.T
+            compr_block_small = eigh_projector(compr_block_small)
+
+            t3 = time.time()
+            sep = len(ids_const)
+            compr_size = len(ids_const) + compr_block_small.shape[1]
+            if verbose:
+                print(
+                    "   Compressing matrix:",
+                    p_block.shape[0],
+                    "->",
+                    compr_size,
+                    flush=True,
+                )
+
+            col_ids = np.arange(col_id, col_id + eigvecs.shape[1])
+            col_id += eigvecs.shape[1]
+            if compr is not None:
+                eigvecs_block[:, col_ids] = compr[:, ids_small] @ eigvecs
+                compr = np.hstack(
+                    [compr[:, ids_const], compr[:, ids_small] @ compr_block_small]
+                )
+            else:
+                compr = np.zeros((p_block.shape[0], compr_size))
+                for i, j in enumerate(ids_small):
+                    eigvecs_block[j, col_ids] = eigvecs[i]
+                    compr[j, sep:] = compr_block_small[i]
+                for i, j in enumerate(ids_const):
+                    compr[j, i] = 1.0
+            t4 = time.time()
+
+            p_block_update = np.zeros((compr_size, compr_size))
+            p_slice = p_block[ids_const]
+            p_block_update[:sep, :sep] = p_slice[:, ids_const]
+            p_block_update[:sep, sep:] = p_slice[:, ids_small] @ compr_block_small
+            p_block_update[sep:, :sep] = p_block_update[:sep, sep:].T
+            p_block_update[sep:, sep:] = (
+                compr_block_small.T
+                @ p_block[ids_small][:, ids_small]
+                @ compr_block_small
+            )
+
+            p_block = p_block_update
+
+            if p_block.shape[0] == 0:
+                break
+            t5 = time.time()
+            print(t2 - t1, t3 - t2, t4 - t3, t5 - t4)
+
+    if col_id == 0:
+        return None, p_block, None
+    return eigvecs_block[:, :col_id], p_block, compr
+
+
 def eigsh_projector_sumrule(p: csr_array, verbose: bool = True) -> np.ndarray:
+    """Solve eigenvalue problem for matrix p.
+
+    Return dense matrix for eigenvectors of matrix p.
+    """
+    if p.shape[0] > 5000:
+        return eigsh_projector_sumrule_large(p, verbose=verbose)
+    return eigsh_projector_sumrule_stable(p, verbose=verbose)
+
+
+def eigsh_projector_sumrule_large(p: csr_array, verbose: bool = True) -> np.ndarray:
+    """Solve eigenvalue problem for matrix p.
+
+    Return dense matrix for eigenvectors of matrix p.
+
+    This algorithm begins with finding block diagonal structures in matrix p.
+    For each block submatrix, eigenvectors are solved.
+    When p = diag(A,B), Av = v, and Bw = w, p[v,0] = [v,0] and p[0,w] = [0,w]
+    are solutions.
+
+    This function solves numpy.eigh for all block matrices.
+    This function is efficient for matrix p composed of nonequivalent
+    block matrices.
+
+    """
+    tol = 1e-16
+    p.data[np.abs(p.data) < tol] = 0.0
+    row, col = p.nonzero()
+    data = p.data[np.abs(p.data) >= tol]
+    p = csr_array((data, (row, col)), shape=p.shape)
+
+    n_components, labels = scipy.sparse.csgraph.connected_components(p)
+    group = defaultdict(list)
+    for i, ll in enumerate(labels):
+        group[ll].append(i)
+
+    if verbose:
+        print("Number of blocks in projector (Sum rule):", n_components, flush=True)
+
+    eigvecs_full = np.zeros(p.shape, dtype="double")
+    col_id = 0
+    for i, ids in enumerate(group.values()):
+        if verbose and len(ids) > 2:
+            print("Eigsh_solver_block:", i + 1, "/", n_components, flush=True)
+            print(" - Block_size:", len(ids), flush=True)
+        ids = np.array(ids)
+        p_block = p[np.ix_(ids, ids)].toarray()
+        rank = int(round(np.trace(p_block)))
+        if rank > 0:
+            eigvecs, p_block, compr_mat = eigsh_projector_partial(
+                p_block, verbose=verbose
+            )
+            if eigvecs is not None:
+                col_ids = np.arange(col_id, col_id + eigvecs.shape[1])
+                eigvecs_full[np.ix_(ids, col_ids)] = eigvecs
+                col_id += eigvecs.shape[1]
+
+            if p_block.shape[0] > 0:
+                eigvecs = eigh_projector(p_block)
+                col_ids = np.arange(col_id, col_id + eigvecs.shape[1])
+                if compr_mat is not None:
+                    eigvecs_full[np.ix_(ids, col_ids)] = compr_mat @ eigvecs
+                else:
+                    eigvecs_full[np.ix_(ids, col_ids)] = eigvecs
+                col_id += eigvecs.shape[1]
+
+    return eigvecs_full[:, :col_id]
+
+
+def eigsh_projector_sumrule_stable(p: csr_array, verbose: bool = True) -> np.ndarray:
     """Solve eigenvalue problem for matrix p.
 
     Return dense matrix for eigenvectors of matrix p.
