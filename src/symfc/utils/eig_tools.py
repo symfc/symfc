@@ -129,7 +129,7 @@ def eigh_projector(p: np.ndarray):
     return eigvecs
 
 
-def find_smaller_block(p1: np.ndarray, n_max=5000):
+def find_smaller_block(p1: np.ndarray, n_max: int = 5000):
     """Find a reasonable block in matrix p1."""
     n_data = np.count_nonzero(np.abs(np.array(p1)) > 1e-15, axis=1)
     rep_id = np.abs(n_data - n_max).argmin()
@@ -140,14 +140,12 @@ def find_smaller_block(p1: np.ndarray, n_max=5000):
 def eigsh_projector_partial(
     p_block: np.ndarray,
     max_iter: int = 50,
-    size_terminate: int = 2000,
+    size_terminate: int = 500,
     verbose: bool = False,
 ):
     """Solve eigenvalue problem partially for matrix p."""
     if p_block.shape[0] < size_terminate:
         return None, p_block, None
-
-    import time
 
     eigvecs_block = np.zeros(p_block.shape, dtype="double")
     compr = None
@@ -171,24 +169,24 @@ def eigsh_projector_partial(
             break
 
         if verbose:
-            print("   Solving projector of size", len(ids_small), flush=True)
+            print("   - Solving projector of size", len(ids_small), flush=True)
         p_small = np.array(p_block[np.ix_(ids_small, ids_small)])
         rank = int(round(sum(p_small.diagonal())))
         if rank > 0:
-            t1 = time.time()
+            # t1 = time.time()
             eigvecs = eigh_projector(p_small)
             if eigvecs.shape[1] == 0:
                 break
-            t2 = time.time()
+            # t2 = time.time()
             compr_block_small = np.eye(eigvecs.shape[0]) - eigvecs @ eigvecs.T
             compr_block_small = eigh_projector(compr_block_small)
 
-            t3 = time.time()
+            # t3 = time.time()
             sep = len(ids_const)
             compr_size = len(ids_const) + compr_block_small.shape[1]
             if verbose:
                 print(
-                    "   Compressing matrix:",
+                    "   - Compressing matrix:",
                     p_block.shape[0],
                     "->",
                     compr_size,
@@ -198,36 +196,32 @@ def eigsh_projector_partial(
             col_ids = np.arange(col_id, col_id + eigvecs.shape[1])
             col_id += eigvecs.shape[1]
             if compr is not None:
-                eigvecs_block[:, col_ids] = compr[:, ids_small] @ eigvecs
+                compr_small = compr[:, ids_small]
+                eigvecs_block[:, col_ids] = compr_small @ eigvecs
                 compr = np.hstack(
-                    [compr[:, ids_const], compr[:, ids_small] @ compr_block_small]
+                    [compr[:, ids_const], compr_small @ compr_block_small]
                 )
             else:
                 compr = np.zeros((p_block.shape[0], compr_size))
-                for i, j in enumerate(ids_small):
-                    eigvecs_block[j, col_ids] = eigvecs[i]
-                    compr[j, sep:] = compr_block_small[i]
                 for i, j in enumerate(ids_const):
                     compr[j, i] = 1.0
-            t4 = time.time()
+                for i, j in enumerate(ids_small):
+                    compr[j, sep:] = compr_block_small[i]
+                    eigvecs_block[j, col_ids] = eigvecs[i]
+            # t4 = time.time()
 
             p_block_update = np.zeros((compr_size, compr_size))
-            p_slice = p_block[ids_const]
-            p_block_update[:sep, :sep] = p_slice[:, ids_const]
-            p_block_update[:sep, sep:] = p_slice[:, ids_small] @ compr_block_small
+            p_block_update[:sep, :sep] = p_block[np.ix_(ids_const, ids_const)]
+            p_block_update[:sep, sep:] = (
+                p_block[np.ix_(ids_const, ids_small)] @ compr_block_small
+            )
             p_block_update[sep:, :sep] = p_block_update[:sep, sep:].T
             p_block_update[sep:, sep:] = (
-                compr_block_small.T
-                @ p_block[ids_small][:, ids_small]
-                @ compr_block_small
+                compr_block_small.T @ p_small @ compr_block_small
             )
-
             p_block = p_block_update
-
-            if p_block.shape[0] == 0:
-                break
-            t5 = time.time()
-            print(t2 - t1, t3 - t2, t4 - t3, t5 - t4)
+            # t5 = time.time()
+            # print(t2 - t1, t3 - t2, t4 - t3, t5 - t4)
 
     if col_id == 0:
         return None, p_block, None
