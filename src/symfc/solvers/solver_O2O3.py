@@ -227,11 +227,8 @@ def prepare_normal_equation_O2O3(
     N = N3 // 3
     NN = N * N
 
-    n_basis_fc2 = compress_eigvecs_fc2.shape[1]
-    n_basis_fc3 = compress_eigvecs_fc3.shape[1]
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]
     n_compr_fc3 = compact_compress_mat_fc3.shape[1]
-    n_basis = n_basis_fc2 + n_basis_fc3
 
     n_batch = (N // 256 + 1) * (n_compr_fc3 // 30000 + 1)
     n_batch = min(N, n_batch)
@@ -311,20 +308,15 @@ def prepare_normal_equation_O2O3(
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
-    XTX = np.zeros((n_basis, n_basis), dtype=float)
-    XTy = np.zeros(n_basis, dtype=float)
-    XTX[:n_basis_fc2, :n_basis_fc2] = (
-        compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2
+
+    mat23 = compress_eigvecs_fc2.T @ mat23 @ compress_eigvecs_fc3
+    XTX = np.block(
+        [
+            [compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2, mat23],
+            [mat23.T, compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3],
+        ]
     )
-    XTX[:n_basis_fc2, n_basis_fc2:] = (
-        compress_eigvecs_fc2.T @ mat23 @ compress_eigvecs_fc3
-    )
-    XTX[n_basis_fc2:, :n_basis_fc2] = XTX[:n_basis_fc2, n_basis_fc2:].T
-    XTX[n_basis_fc2:, n_basis_fc2:] = (
-        compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
-    )
-    XTy[:n_basis_fc2] = compress_eigvecs_fc2.T @ mat2y
-    XTy[n_basis_fc2:] = compress_eigvecs_fc3.T @ mat3y
+    XTy = np.hstack([compress_eigvecs_fc2.T @ mat2y, compress_eigvecs_fc3.T @ mat3y])
 
     compact_compress_mat_fc2 /= const_fc2
     compact_compress_mat_fc3 /= const_fc3
