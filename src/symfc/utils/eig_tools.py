@@ -121,12 +121,13 @@ def eigsh_projector(
     return c_p
 
 
-def eigh_projector(p: np.ndarray):
+def eigh_projector(p: np.ndarray, return_complement=False):
     """Solve eigenvalue problem using numpy and eliminate eigenvectors with e < 1.0."""
     eigvals, eigvecs = np.linalg.eigh(p)
     nonzero = np.isclose(eigvals, 1.0)
-    eigvecs = eigvecs[:, nonzero]
-    return eigvecs
+    if return_complement:
+        return eigvecs[:, nonzero], eigvecs[:, np.logical_not(nonzero)]
+    return eigvecs[:, nonzero]
 
 
 def find_smaller_block(p1: np.ndarray, n_max: int = 5000):
@@ -140,7 +141,7 @@ def find_smaller_block(p1: np.ndarray, n_max: int = 5000):
 def eigsh_projector_partial(
     p_block: np.ndarray,
     max_iter: int = 50,
-    size_terminate: int = 500,
+    size_terminate: int = 1000,
     verbose: bool = False,
 ):
     """Solve eigenvalue problem partially for matrix p."""
@@ -163,9 +164,9 @@ def eigsh_projector_partial(
 
         ids_small = find_smaller_block(p_block)
         ids_const = np.array(list(set(range(p_block.shape[0])) - set(ids_small)))
-        if len(ids_small) / p_block.shape[0] > 0.7:
+        if len(ids_small) / p_block.shape[0] > 0.8:
             if verbose:
-                print(" iteration stopped (> 0.7).", flush=True)
+                print(" iteration stopped (> 0.8).", flush=True)
             break
 
         if verbose:
@@ -174,54 +175,41 @@ def eigsh_projector_partial(
         rank = int(round(sum(p_small.diagonal())))
         if rank > 0:
             # t1 = time.time()
-            eigvecs = eigh_projector(p_small)
+            eigvecs, compr_small = eigh_projector(p_small, return_complement=True)
             if eigvecs.shape[1] == 0:
                 break
-            # t2 = time.time()
-            compr_block_small = np.eye(eigvecs.shape[0]) - eigvecs @ eigvecs.T
-            compr_block_small = eigh_projector(compr_block_small)
-
-            # t3 = time.time()
             sep = len(ids_const)
-            compr_size = len(ids_const) + compr_block_small.shape[1]
+            compr_size = len(ids_const) + compr_small.shape[1]
             if verbose:
-                print(
-                    "   - Compressing matrix:",
-                    p_block.shape[0],
-                    "->",
-                    compr_size,
-                    flush=True,
-                )
+                print("   - Compressing matrix:", flush=True)
+                print("  ", p_block.shape[0], "->", compr_size, flush=True)
+            # t2 = time.time()
 
             col_ids = np.arange(col_id, col_id + eigvecs.shape[1])
             col_id += eigvecs.shape[1]
             if compr is not None:
-                compr_small = compr[:, ids_small]
-                eigvecs_block[:, col_ids] = compr_small @ eigvecs
-                compr = np.hstack(
-                    [compr[:, ids_const], compr_small @ compr_block_small]
-                )
+                compr_slice = compr[:, ids_small]
+                """Time consuming part."""
+                compr = np.hstack([compr[:, ids_const], compr_slice @ compr_small])
+                eigvecs_block[:, col_ids] = compr_slice @ eigvecs
             else:
                 compr = np.zeros((p_block.shape[0], compr_size))
                 for i, j in enumerate(ids_const):
                     compr[j, i] = 1.0
                 for i, j in enumerate(ids_small):
-                    compr[j, sep:] = compr_block_small[i]
+                    compr[j, sep:] = compr_small[i]
                     eigvecs_block[j, col_ids] = eigvecs[i]
-            # t4 = time.time()
+            # t3 = time.time()
 
-            p_block_update = np.zeros((compr_size, compr_size))
-            p_block_update[:sep, :sep] = p_block[np.ix_(ids_const, ids_const)]
-            p_block_update[:sep, sep:] = (
-                p_block[np.ix_(ids_const, ids_small)] @ compr_block_small
+            mat12 = p_block[np.ix_(ids_const, ids_small)] @ compr_small
+            p_block = np.block(
+                [
+                    [p_block[np.ix_(ids_const, ids_const)], mat12],
+                    [mat12.T, compr_small.T @ p_small @ compr_small],
+                ]
             )
-            p_block_update[sep:, :sep] = p_block_update[:sep, sep:].T
-            p_block_update[sep:, sep:] = (
-                compr_block_small.T @ p_small @ compr_block_small
-            )
-            p_block = p_block_update
-            # t5 = time.time()
-            # print(t2 - t1, t3 - t2, t4 - t3, t5 - t4)
+            # t4 = time.time()
+            # print(t2 - t1, t3 - t2, t4 - t3)
 
     if col_id == 0:
         return None, p_block, None
