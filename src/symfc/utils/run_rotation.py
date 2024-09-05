@@ -5,6 +5,7 @@
 import itertools
 
 import numpy as np
+import scipy
 
 #
 # from symfc.utils.cutoff_tools import FCCutoff
@@ -13,12 +14,13 @@ import numpy as np
 # from symfc.utils.utils_O3 import get_atomic_lat_trans_decompr_indices_O3
 from pypolymlp.core.interface_vasp import Poscar
 from pypolymlp.utils.structure_utils import supercell_diagonal
+from scipy.sparse import csr_array, vstack
 
-# import scipy
-from scipy.sparse import csr_array
-
+from symfc.spg_reps import SpgRepsBase
 from symfc.utils.eig_tools import eigsh_projector
 from symfc.utils.utils import SymfcAtoms
+from symfc.utils.utils_O2 import get_lat_trans_compr_matrix_O2
+from symfc.utils.utils_O3 import get_lat_trans_compr_matrix_O3
 
 try:
     from symfc.utils.eig_tools import dot_product_sparse
@@ -33,8 +35,8 @@ def delta(a: int, b: int):
     return 0
 
 
-def constraint_orthogonalization(positions_cartesian: np.ndarray):
-    """Constraint."""
+def orthogonalize_constraints(positions_cartesian: np.ndarray):
+    """Orthogonalize constraints derived from rotational invariance."""
     natom = positions_cartesian.shape[0]
     N3 = 3 * natom
 
@@ -47,7 +49,6 @@ def constraint_orthogonalization(positions_cartesian: np.ndarray):
     C[1::3, 1] = positions_cartesian[:, 2]
 
     C23 = np.zeros((9 + N3 * 9, 27))
-
     col_begin = 0
     for alpha, beta in itertools.product(range(3), range(3)):
         col_end = col_begin + 3
@@ -71,19 +72,121 @@ def constraint_orthogonalization(positions_cartesian: np.ndarray):
         C23[row, col_begin:col_end] += add
         col_begin = col_end
 
-    print(np.linalg.matrix_rank(C23))
+    k_ids = np.repeat(np.arange(natom), 3) * 27
+    gamma_ids = np.tile(np.arange(3), natom)
+    row_const = k_ids + gamma_ids + 9
 
-    row_begin = 9
     col_begin = 0
-    for _ in range(9):
-        row_end = row_begin + N3
+    for alpha, beta in itertools.product(range(3), range(3)):
+        row = row_const + (alpha * 9 + beta * 3)
         col_end = col_begin + 3
-        C23[row_begin:row_end, col_begin:col_end] = C
+        C23[row, col_begin:col_end] = C
+        col_begin = col_end
+
     C23, _ = np.linalg.qr(C23)
+
+    assert np.linalg.matrix_rank(C23) == 27
+    assert np.allclose(C23.T @ C23, np.eye(27))
+    return C23
+
+
+def get_complement_matrix(mat, natom, order):
+    """Get complementary matrix."""
+    NN = natom**2
+    NN33 = 9 * NN
+    N333 = 27 * natom
+    NN333 = N333 * natom
+    NNN333 = NN333 * natom
+    if order == 2:
+        n_row = 9
+        size1 = NN33
+    elif order == 3:
+        n_row = N333
+        size1 = NNN333
+
+    data = np.tile(mat.T.reshape(-1), NN)
+    col = np.repeat(np.arange(NN333), n_row)
+    row = []
+    for i, j in itertools.product(range(natom), range(natom)):
+        begin = i * n_row * natom + j * n_row
+        end = begin + n_row
+        row.extend(np.tile(np.arange(begin, end), 27))
+
+    nonzero = np.abs(data) > 1e-15
+    row = np.array(row)[nonzero]
+    col = np.array(col)[nonzero]
+    data = data[nonzero]
+    return csr_array((data, (row, col)), shape=(size1, NN333), dtype="double")
+
+
+def set_rotational_invariants(supercell: SymfcAtoms):
+    """Test function for setting rotational invariants."""
+    natom = len(supercell.numbers)
+    positions_cartesian = (supercell.scaled_positions) @ supercell.cell
+    C23 = orthogonalize_constraints(positions_cartesian)
     print(C23.shape)
 
-    for _ii in range(9):
-        print(C23[:9, 3 * _ii : 3 * _ii + 3])
+    c_rot_fc2 = get_complement_matrix(C23[:9], natom, order=2)
+    c_rot_fc3 = get_complement_matrix(C23[9:], natom, order=3)
+    c_rot = vstack([c_rot_fc2, c_rot_fc3])
+
+    correlation = c_rot.T @ c_rot
+    diff = correlation - scipy.sparse.identity(c_rot.shape[1])
+    assert np.allclose(diff.data, 0.0)
+    print("Finished setting csr_array")
+
+    compress = True
+    if compress:
+        spg_reps = SpgRepsBase(supercell)
+        trans_perms = spg_reps.translation_permutations
+
+        c_trans_fc2 = get_lat_trans_compr_matrix_O2(trans_perms)
+        c_trans_fc3 = get_lat_trans_compr_matrix_O3(trans_perms)
+        print(c_trans_fc2.shape)
+        print(c_trans_fc3.shape)
+
+        c_rot = vstack([c_trans_fc2.T @ c_rot_fc2, c_trans_fc3.T @ c_rot_fc3])
+        print("C_rot:", c_rot.shape)
+
+    proj = dot_product_sparse(c_rot, c_rot.T, use_mkl=True)
+    print(proj.shape)
+    eigvecs = eigsh_projector(proj, verbose=True)
+    print(eigvecs.shape)
+    return proj
+
+
+if __name__ == "__main__":
+    import argparse
+    import signal
+
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--poscar", type=str, default=None, help="poscar")
+    parser.add_argument(
+        "--supercell",
+        nargs=3,
+        type=int,
+        default=None,
+        help="Supercell size (diagonal components)",
+    )
+    parser.add_argument(
+        "--order",
+        type=int,
+        default=3,
+        help="FC order.",
+    )
+    args = parser.parse_args()
+
+    unitcell = Poscar(args.poscar).structure
+    supercell = supercell_diagonal(unitcell, args.supercell)
+    supercell = SymfcAtoms(
+        numbers=supercell.types,
+        cell=supercell.axis.T,
+        scaled_positions=supercell.positions.T,
+    )
+
+    set_rotational_invariants(supercell)
 
 
 # def constraint_orthogonalization(positions_cartesian: np.ndarray):
@@ -131,78 +234,23 @@ def constraint_orthogonalization(positions_cartesian: np.ndarray):
 #    return C23_dict, id_fc2_dict
 
 
-def set_rotational_invariants(supercell: SymfcAtoms):
-    """Test function for setting rotational invariants."""
-    natom = len(supercell.numbers)
-    N3 = 3 * natom
-    NN = natom**2
-    NN33 = 9 * natom**2
-    NNN333 = 27 * natom**3
-
-    positions_cartesian = (supercell.scaled_positions) @ supercell.cell
-    C23_dict, id_fc2_dict = constraint_orthogonalization(positions_cartesian)
-
-    id_fc3 = np.array([k * 27 + gamma for k in range(natom) for gamma in range(3)])
-
-    col = np.repeat(np.arange(NN33 * 3), N3 + 6)
-    row, data = [], []
-    for alpha, beta in itertools.product(range(3), range(3)):
-        id_fc2 = id_fc2_dict[(alpha, beta)]
-        C23 = C23_dict[(alpha, beta)]
-        data.extend(np.tile(C23.T.reshape(-1), NN))
-        seq_id_fc3_prefix = 9 * alpha + 3 * beta + NN33
-        for i, j in itertools.product(range(natom), range(natom)):
-            seq_id_fc2 = i * 9 * natom + j * 9
-            seq_id_fc3 = i * 27 * natom**2 + j * 27 * natom + seq_id_fc3_prefix
-
-            id2 = id_fc2 + seq_id_fc2
-            id3 = id_fc3 + seq_id_fc3
-            row.extend(np.hstack([id2, id3, id2, id3, id2, id3]))
-
-    c_rot = csr_array(
-        (data, (row, col)),
-        shape=(NN33 + NNN333, NN33 * 3),
-        dtype="double",
-    )
-    print(c_rot.T @ c_rot)
-    print(c_rot.shape)
-    proj = dot_product_sparse(c_rot, c_rot.T, use_mkl=True)
-    print(proj.shape)
-    eigvecs = eigsh_projector(proj)
-    print(eigvecs.shape)
-
-    return proj
-
-
-if __name__ == "__main__":
-    import argparse
-    import signal
-
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--poscar", type=str, default=None, help="poscar")
-    parser.add_argument(
-        "--supercell",
-        nargs=3,
-        type=int,
-        default=None,
-        help="Supercell size (diagonal components)",
-    )
-    parser.add_argument(
-        "--order",
-        type=int,
-        default=3,
-        help="FC order.",
-    )
-    args = parser.parse_args()
-
-    unitcell = Poscar(args.poscar).structure
-    supercell = supercell_diagonal(unitcell, args.supercell)
-    supercell = SymfcAtoms(
-        numbers=supercell.types,
-        cell=supercell.axis.T,
-        scaled_positions=supercell.positions.T,
-    )
-
-    set_rotational_invariants(supercell)
+#    data = np.tile(C23[:9].reshape(-1), NN)
+#    row, col = [], []
+#    for i, j in itertools.product(range(natom), range(natom)):
+#        begin = i * N33 + j * 9
+#        end = begin + 9
+#        row.extend(np.repeat(np.arange(begin, end), 27))
+#        begin = i * NN333 + j * N333 + NN33
+#        end = begin + N333
+#        row.extend(np.repeat(np.arange(begin, end), 27))
+#
+#        begin = i * N333 + j * 27
+#        end = begin + 27
+#        col.extend(np.tile(np.arange(begin, end), N333 + 9))
+#
+#    nonzero = (np.abs(data) > 1e-15)
+#    row = np.array(row)[nonzero]
+#    col = np.array(col)[nonzero]
+#    data = data[nonzero]
+#
+#
