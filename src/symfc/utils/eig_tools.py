@@ -45,7 +45,9 @@ def compr_projector(p: csr_array) -> csr_array:
 
 
 def eigsh_projector(
-    p: csr_array, verbose: bool = True, log_interval: int = 10000
+    p: csr_array,
+    verbose: bool = True,
+    log_interval: int = 10000,
 ) -> csr_array:
     """Solve eigenvalue problem for matrix p.
 
@@ -144,7 +146,7 @@ def find_smaller_block(p1: np.ndarray, target_size: int = 5000):
 def eigsh_projector_partial(
     p_block: np.ndarray,
     max_iter: int = 50,
-    size_terminate: int = 1000,
+    size_terminate: int = 2500,
     verbose: bool = False,
 ):
     """Solve eigenvalue problem partially for matrix p."""
@@ -167,17 +169,18 @@ def eigsh_projector_partial(
 
         bool_small = find_smaller_block(p_block)
         bool_const = np.logical_not(bool_small)
-        if np.count_nonzero(bool_small) / p_block.shape[0] > 0.8:
-            if verbose:
-                print(" iteration stopped (> 0.8).", flush=True)
-            break
-
         if verbose:
             print(
                 "   - Solving projector of size",
                 np.count_nonzero(bool_small),
                 flush=True,
             )
+
+        if np.count_nonzero(bool_small) / p_block.shape[0] > 0.9:
+            if verbose:
+                print(" iteration stopped (> 0.9).", flush=True)
+            break
+
         p_small = np.array(p_block[np.ix_(bool_small, bool_small)])
         rank = int(round(sum(p_small.diagonal())))
         if rank > 0:
