@@ -45,7 +45,9 @@ def compr_projector(p: csr_array) -> csr_array:
 
 
 def eigsh_projector(
-    p: csr_array, verbose: bool = True, log_interval: int = 10000
+    p: csr_array,
+    verbose: bool = True,
+    log_interval: int = 10000,
 ) -> csr_array:
     """Solve eigenvalue problem for matrix p.
 
@@ -98,7 +100,6 @@ def eigsh_projector(
                     nonzero = np.isclose(eigvals, 1.0)
                     eigvecs = eigvecs[:, nonzero]
                 uniq_eigvecs[key] = eigvecs
-                print(eigvals)
 
             if eigvecs is not None:
                 n_row, n_col = eigvecs.shape

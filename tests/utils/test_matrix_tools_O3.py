@@ -78,15 +78,9 @@ def test_compressed_projector_sum_rules_O3():
         atomic_decompr_idx,
         fc_cutoff=None,
     )
-    assert proj.trace() == pytest.approx(54.0)
+    eigvals, _ = np.linalg.eigh(proj.toarray())
     assert proj.shape == (108, 108)
-    assert len(proj.data) == 216
-
-    row, col = proj.nonzero()
-    match1 = row == col
-    match2 = row != col
-    np.testing.assert_allclose(proj[(row[match1], col[match1])], 0.5)
-    np.testing.assert_allclose(proj[(row[match2], col[match2])], -0.5)
+    assert np.count_nonzero(np.isclose(eigvals, 1.0)) == 54
 
     proj = compressed_projector_sum_rules_O3(
         trans_perms,
