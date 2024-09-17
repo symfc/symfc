@@ -131,15 +131,14 @@ def compressed_projector_sum_rules_O2(
         atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
 
     decompr_idx = atomic_decompr_idx.reshape((natom, natom)).T.reshape(-1) * 9
-    if fc_cutoff is None:
-        nonzero = np.zeros((natom, natom), dtype=bool)
-        indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
-        nonzero[indep_atoms, :] = True
-        nonzero = nonzero.reshape(-1)
-    else:
-        """TODO: Reduction by indep_atoms can be applied."""
-        nonzero = fc_cutoff.nonzero_atomic_indices_fc2()
-        nonzero = nonzero.reshape((natom, natom)).T.reshape(-1)
+    nonzero = np.zeros((natom, natom), dtype=bool)
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+    nonzero[indep_atoms, :] = True
+    nonzero = nonzero.reshape(-1)
+    if fc_cutoff is not None:
+        nonzero_cutoff = fc_cutoff.nonzero_atomic_indices_fc2()
+        nonzero_cutoff = nonzero_cutoff.reshape((natom, natom)).T.reshape(-1)
+        nonzero = nonzero & nonzero_cutoff
 
     ab = np.arange(9)
     for begin, end in zip(*get_batch_slice(NN, batch_size)):
@@ -149,22 +148,25 @@ def compressed_projector_sum_rules_O2(
 
         nonzero_b = nonzero[begin:end]
         size_data = np.count_nonzero(nonzero_b) * 9
-        c_sum_cplmt = csr_array(
-            (
-                np.ones(size_data, dtype="double"),
+        if size_data > 0:
+            decompr_idx_b = decompr_idx[begin:end]
+            c_sum_cplmt = csr_array(
                 (
-                    np.repeat(np.arange(size_row), natom)[np.tile(nonzero_b, 9)],
-                    (decompr_idx[begin:end][nonzero_b][None, :] + ab[:, None]).reshape(
-                        -1
+                    np.ones(size_data, dtype="double"),
+                    (
+                        np.repeat(np.arange(size_row), natom)[np.tile(nonzero_b, 9)],
+                        (decompr_idx_b[nonzero_b][None, :] + ab[:, None]).reshape(-1),
                     ),
                 ),
-            ),
-            shape=(size_row, NN9 // n_lp),
-            dtype="double",
-        )
-
-        c_sum_cplmt = dot_product_sparse(c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl)
-        proj_cplmt += dot_product_sparse(c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl)
+                shape=(size_row, NN9 // n_lp),
+                dtype="double",
+            )
+            c_sum_cplmt = dot_product_sparse(
+                c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl
+            )
+            proj_cplmt += dot_product_sparse(
+                c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl
+            )
 
     proj_cplmt /= n_lp * natom
     return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt

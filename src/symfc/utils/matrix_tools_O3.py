@@ -249,43 +249,53 @@ def compressed_projector_sum_rules_O3(
     if atomic_decompr_idx is None:
         atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
 
+    """Bottleneck part when using cutoff distance"""
     decompr_idx = atomic_decompr_idx.reshape((natom, NN)).T.reshape(-1) * 27
-    if fc_cutoff is None:
-        nonzero = np.zeros((natom, natom, natom), dtype=bool)
-        indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
-        nonzero[indep_atoms, :, :] = True
-        nonzero = nonzero.reshape(-1)
-    else:
-        """TODO: Reduction by indep_atoms can be applied."""
-        nonzero = fc_cutoff.nonzero_atomic_indices_fc3()
-        nonzero = nonzero.reshape((natom, NN)).T.reshape(-1)
+
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+    nonzero = np.zeros((natom, natom, natom), dtype=bool)
+    nonzero[indep_atoms, :, :] = True
+    nonzero = nonzero.reshape(-1)
+    if fc_cutoff is not None:
+        nonzero_cutoff = fc_cutoff.nonzero_atomic_indices_fc3()
+        nonzero_cutoff = nonzero_cutoff.reshape((natom, NN)).T.reshape(-1)
+        nonzero = nonzero & nonzero_cutoff
 
     abc = np.arange(27)
     for begin, end in zip(*get_batch_slice(NNN, batch_size)):
-        if verbose:
-            print("Complementary P (Sum rule):", str(end) + "/" + str(NNN), flush=True)
         size = end - begin
         size_vector = size * 27
         size_row = size_vector // natom
 
         nonzero_b = nonzero[begin:end]
         size_data = np.count_nonzero(nonzero_b) * 27
-        c_sum_cplmt = csr_array(
-            (
-                np.ones(size_data, dtype="double"),
+        if verbose:
+            print(
+                "Complementary P (Sum rule):",
+                str(end) + "/" + str(NNN) + ",",
+                "Non-zero:",
+                size_data,
+                flush=True,
+            )
+        if size_data > 0:
+            decompr_idx_b = decompr_idx[begin:end]
+            c_sum_cplmt = csr_array(
                 (
-                    np.repeat(np.arange(size_row), natom)[np.tile(nonzero_b, 27)],
-                    (decompr_idx[begin:end][nonzero_b][None, :] + abc[:, None]).reshape(
-                        -1
+                    np.ones(size_data, dtype="double"),
+                    (
+                        np.repeat(np.arange(size_row), natom)[np.tile(nonzero_b, 27)],
+                        (decompr_idx_b[nonzero_b][None, :] + abc[:, None]).reshape(-1),
                     ),
                 ),
-            ),
-            shape=(size_row, NNN27 // n_lp),
-            dtype="double",
-        )
-
-        c_sum_cplmt = dot_product_sparse(c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl)
-        proj_cplmt += dot_product_sparse(c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl)
+                shape=(size_row, NNN27 // n_lp),
+                dtype="double",
+            )
+            c_sum_cplmt = dot_product_sparse(
+                c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl
+            )
+            proj_cplmt += dot_product_sparse(
+                c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl
+            )
 
     proj_cplmt /= n_lp * natom
     return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt
