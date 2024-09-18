@@ -9,6 +9,7 @@ from scipy.sparse import csr_array, vstack
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.matrix_tools import get_combinations, permutation_dot_lat_trans
 from symfc.utils.solver_funcs import get_batch_slice
+from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O3 import get_atomic_lat_trans_decompr_indices_O3
 
 try:
@@ -206,6 +207,101 @@ def projector_permutation_lat_trans_O3(
 
 
 def compressed_projector_sum_rules_O3(
+    trans_perms: np.ndarray,
+    n_a_compress_mat: csr_array,
+    atomic_decompr_idx: Optional[np.ndarray] = None,
+    fc_cutoff: Optional[FCCutoff] = None,
+    n_batch: Optional[int] = None,
+    use_mkl: bool = False,
+    verbose: bool = False,
+) -> csr_array:
+    """Return projection matrix for sum rule.
+
+    Calculate a complementary projector for sum rules.
+    This is compressed by C_trans and n_a_compress_mat without
+    allocating C_trans.
+    Memory efficient version using get_atomic_lat_trans_decompr_indices_O3.
+
+    Return
+    ------
+    Compressed projector I - P^(c)
+    P^(c) = n_a_compress_mat.T @ C_trans.T @ C_sum^(c)
+            @ C_sum^(c).T @ C_trans @ n_a_compress_mat
+    """
+    n_lp, natom = trans_perms.shape
+    NNN27 = natom**3 * 27
+    NNN = natom**3
+    NN = natom**2
+
+    proj_size = n_a_compress_mat.shape[1]
+    proj_cplmt = csr_array((proj_size, proj_size), dtype="double")
+
+    if n_batch is None:
+        if natom < 256:
+            n_batch = natom // min(natom, 64)
+        else:
+            n_batch = natom // 4
+
+    if n_batch > natom:
+        raise ValueError("n_batch must be smaller than N.")
+    batch_size = natom**2 * (natom // n_batch)
+
+    if atomic_decompr_idx is None:
+        atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
+
+    """Bottleneck part when using cutoff distance"""
+    decompr_idx = atomic_decompr_idx.reshape((natom, NN)).T.reshape(-1) * 27
+
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+    nonzero = np.zeros((natom, natom, natom), dtype=bool)
+    nonzero[indep_atoms, :, :] = True
+    nonzero = nonzero.reshape(-1)
+    if fc_cutoff is not None:
+        nonzero_cutoff = fc_cutoff.nonzero_atomic_indices_fc3()
+        nonzero_cutoff = nonzero_cutoff.reshape((natom, NN)).T.reshape(-1)
+        nonzero = nonzero & nonzero_cutoff
+
+    abc = np.arange(27)
+    for begin, end in zip(*get_batch_slice(NNN, batch_size)):
+        size = end - begin
+        size_vector = size * 27
+        size_row = size_vector // natom
+
+        nonzero_b = nonzero[begin:end]
+        size_data = np.count_nonzero(nonzero_b) * 27
+        if verbose:
+            print(
+                "Complementary P (Sum rule):",
+                str(end) + "/" + str(NNN) + ",",
+                "Non-zero:",
+                size_data,
+                flush=True,
+            )
+        if size_data > 0:
+            decompr_idx_b = decompr_idx[begin:end]
+            c_sum_cplmt = csr_array(
+                (
+                    np.ones(size_data, dtype="double"),
+                    (
+                        np.repeat(np.arange(size_row), natom)[np.tile(nonzero_b, 27)],
+                        (decompr_idx_b[nonzero_b][None, :] + abc[:, None]).reshape(-1),
+                    ),
+                ),
+                shape=(size_row, NNN27 // n_lp),
+                dtype="double",
+            )
+            c_sum_cplmt = dot_product_sparse(
+                c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl
+            )
+            proj_cplmt += dot_product_sparse(
+                c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl
+            )
+
+    proj_cplmt /= n_lp * natom
+    return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt
+
+
+def compressed_projector_sum_rules_O3_stable(
     trans_perms: np.ndarray,
     n_a_compress_mat: csr_array,
     atomic_decompr_idx: Optional[np.ndarray] = None,

@@ -7,10 +7,15 @@ import scipy
 from scipy.sparse import csr_array
 
 from symfc.utils.cutoff_tools import FCCutoff
-from symfc.utils.eig_tools import dot_product_sparse
 from symfc.utils.matrix_tools import get_combinations, permutation_dot_lat_trans
 from symfc.utils.solver_funcs import get_batch_slice
+from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O2 import _get_atomic_lat_trans_decompr_indices
+
+try:
+    from symfc.utils.eig_tools import dot_product_sparse
+except ImportError:
+    pass
 
 
 def N3N3_to_NNand33(combs: np.ndarray, N: int) -> np.ndarray:
@@ -91,6 +96,83 @@ def projector_permutation_lat_trans_O2(
 
 
 def compressed_projector_sum_rules_O2(
+    trans_perms: np.ndarray,
+    n_a_compress_mat: csr_array,
+    atomic_decompr_idx: Optional[np.ndarray] = None,
+    fc_cutoff: Optional[FCCutoff] = None,
+    n_batch: int = 1,
+    use_mkl: bool = False,
+) -> csr_array:
+    """Return projection matrix for sum rule.
+
+    Calculate a complementary projector for sum rules.
+    This is compressed by C_trans and n_a_compress_mat without
+    allocating C_trans.
+    Memory efficient version using get_atomic_lat_trans_decompr_indices_O3.
+
+    Return
+    ------
+    Compressed projector I - P^(c)
+    P^(c) = n_a_compress_mat.T @ C_trans.T @ C_sum^(c)
+            @ C_sum^(c).T @ C_trans @ n_a_compress_mat
+    """
+    n_lp, natom = trans_perms.shape
+    NN9 = natom**2 * 9
+    NN = natom**2
+
+    proj_size = n_a_compress_mat.shape[1]
+    proj_cplmt = csr_array((proj_size, proj_size), dtype="double")
+
+    if n_batch > natom:
+        raise ValueError("n_batch must be smaller than N.")
+    batch_size = natom * (natom // n_batch)
+
+    if atomic_decompr_idx is None:
+        atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
+
+    decompr_idx = atomic_decompr_idx.reshape((natom, natom)).T.reshape(-1) * 9
+    nonzero = np.zeros((natom, natom), dtype=bool)
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+    nonzero[indep_atoms, :] = True
+    nonzero = nonzero.reshape(-1)
+    if fc_cutoff is not None:
+        nonzero_cutoff = fc_cutoff.nonzero_atomic_indices_fc2()
+        nonzero_cutoff = nonzero_cutoff.reshape((natom, natom)).T.reshape(-1)
+        nonzero = nonzero & nonzero_cutoff
+
+    ab = np.arange(9)
+    for begin, end in zip(*get_batch_slice(NN, batch_size)):
+        size = end - begin
+        size_vector = size * 9
+        size_row = size_vector // natom
+
+        nonzero_b = nonzero[begin:end]
+        size_data = np.count_nonzero(nonzero_b) * 9
+        if size_data > 0:
+            decompr_idx_b = decompr_idx[begin:end]
+            c_sum_cplmt = csr_array(
+                (
+                    np.ones(size_data, dtype="double"),
+                    (
+                        np.repeat(np.arange(size_row), natom)[np.tile(nonzero_b, 9)],
+                        (decompr_idx_b[nonzero_b][None, :] + ab[:, None]).reshape(-1),
+                    ),
+                ),
+                shape=(size_row, NN9 // n_lp),
+                dtype="double",
+            )
+            c_sum_cplmt = dot_product_sparse(
+                c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl
+            )
+            proj_cplmt += dot_product_sparse(
+                c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl
+            )
+
+    proj_cplmt /= n_lp * natom
+    return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt
+
+
+def compressed_projector_sum_rules_O2_stable(
     trans_perms: np.ndarray,
     n_a_compress_mat: csr_array,
     atomic_decompr_idx: Optional[np.ndarray] = None,
