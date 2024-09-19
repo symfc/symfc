@@ -232,7 +232,7 @@ def _approx_projector_permutation_lat_trans_unique_index3(
     combinations_cmplt = np.where(included_indices)[0]
     combinations_cmplt, combinations333 = np.divmod(combinations_cmplt, 27)
     col = atomic_decompr_idx[combinations_cmplt] * 27 + combinations333
-    c_pt = csr_array(
+    c_cmplt = csr_array(
         (
             np.full(len(col), 1 / np.sqrt(n_lp)),
             (
@@ -243,9 +243,8 @@ def _approx_projector_permutation_lat_trans_unique_index3(
         shape=(len(col), NNN333 // n_lp),
         dtype="double",
     )
-    proj_pt += scipy.sparse.identity(NNN333 // n_lp) - dot_product_sparse(
-        c_pt.T, c_pt, use_mkl=use_mkl
-    )
+    proj_cmplt = dot_product_sparse(c_cmplt.T, c_cmplt, use_mkl=use_mkl)
+    proj_pt += scipy.sparse.identity(NNN333 // n_lp) - proj_cmplt
 
     return proj_pt
 
@@ -278,7 +277,7 @@ def projector_permutation_lat_trans_O3(
     Compressed projector for permutation
     P_pt = C_trans.T @ C_perm @ C_perm.T @ C_trans
     """
-    if complete:
+    if complete or fc_cutoff is not None:
         proj_pt = complete_projector_permutation_lat_trans_O3(
             trans_perms=trans_perms,
             atomic_decompr_idx=atomic_decompr_idx,
