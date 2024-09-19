@@ -48,6 +48,7 @@ def test_projector_permutation_lat_trans_O3():
         trans_perms,
         atomic_decompr_idx,
         fc_cutoff=None,
+        complete=True,
     )
     assert proj.trace() == pytest.approx(28.0)
     assert proj.shape == (108, 108)
@@ -55,6 +56,14 @@ def test_projector_permutation_lat_trans_O3():
     assert np.count_nonzero(np.isclose(proj.data, 1)) == 3
     assert np.count_nonzero(np.isclose(proj.data, 1.0 / 3.0)) == 135
     assert np.count_nonzero(np.isclose(proj.data, 1.0 / 6.0)) == 360
+
+    proj = projector_permutation_lat_trans_O3(
+        trans_perms,
+        atomic_decompr_idx,
+        fc_cutoff=None,
+        complete=False,
+    )
+    assert proj.trace() == pytest.approx(30.5)
 
     proj = projector_permutation_lat_trans_O3(
         trans_perms,
