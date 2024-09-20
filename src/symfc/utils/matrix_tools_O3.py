@@ -229,7 +229,7 @@ def _approx_projector_permutation_lat_trans_unique_index3(
         else:
             proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
 
-    """Applicable when cutoff distance is not used."""
+    # Applicable when cutoff distance is not used.
     combinations_cmplt = np.where(included_indices)[0]
     combinations_cmplt, combinations333 = np.divmod(combinations_cmplt, 27)
     col = atomic_decompr_idx[combinations_cmplt] * 27 + combinations333
