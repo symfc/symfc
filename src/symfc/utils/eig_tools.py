@@ -100,6 +100,8 @@ def eigsh_projector(
                     eigvals, eigvecs = np.linalg.eigh(p_numpy)
                     eigvecs = eigvecs[:, np.isclose(eigvals, 1.0)]
                     uniq_eigvecs[key] = [eigvecs, [label]]
+                else:
+                    uniq_eigvecs[key] = [None, [label]]
         else:
             if not np.isclose(p_block1[0], 0.0):
                 if "one" in uniq_eigvecs:
@@ -108,7 +110,9 @@ def eigsh_projector(
                     uniq_eigvecs["one"] = [np.array([[1.0]]), [label]]
 
     total_length = sum(
-        len(labels) * v.shape[0] * v.shape[1] for v, labels in uniq_eigvecs.values()
+        len(labels) * v.shape[0] * v.shape[1]
+        for v, labels in uniq_eigvecs.values()
+        if v is not None
     )
     row = np.zeros(total_length, dtype=int)
     col = np.zeros(total_length, dtype=int)
@@ -116,23 +120,24 @@ def eigsh_projector(
 
     current_id, col_id = 0, 0
     for eigvecs, labels in uniq_eigvecs.values():
-        n_row, n_col = eigvecs.shape
-        num_labels = len(labels)
-        end_id = current_id + n_row * n_col * num_labels
+        if eigvecs is not None:
+            n_row, n_col = eigvecs.shape
+            num_labels = len(labels)
+            end_id = current_id + n_row * n_col * num_labels
 
-        row[current_id:end_id] = np.repeat(
-            [i for ll in labels for i in group[ll]], n_col
-        )
-        col[current_id:end_id] = [
-            j
-            for seq, _ in enumerate(labels)
-            for i in range(n_row)
-            for j in range(col_id + seq * n_col, col_id + (seq + 1) * n_col)
-        ]
-        data[current_id:end_id] = np.tile(eigvecs.flatten(), num_labels)
+            row[current_id:end_id] = np.repeat(
+                [i for ll in labels for i in group[ll]], n_col
+            )
+            col[current_id:end_id] = [
+                j
+                for seq, _ in enumerate(labels)
+                for i in range(n_row)
+                for j in range(col_id + seq * n_col, col_id + (seq + 1) * n_col)
+            ]
+            data[current_id:end_id] = np.tile(eigvecs.flatten(), num_labels)
 
-        col_id += n_col * num_labels
-        current_id = end_id
+            col_id += n_col * num_labels
+            current_id = end_id
 
     n_col = col_id
     c_p = csr_array((data, (row, col)), shape=(p.shape[0], n_col))
