@@ -14,7 +14,7 @@ from symfc import Symfc
 from symfc.basis_sets.basis_sets_O2 import FCBasisSetO2
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.eig_tools import eigsh_projector, eigsh_projector_sumrule
-from symfc.utils.utils import SymfcAtoms, get_indep_atoms_by_lat_trans
+from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O2 import (
     get_lat_trans_compr_matrix,
     get_lat_trans_decompr_indices,
@@ -24,6 +24,8 @@ try:
     from symfc.utils.eig_tools import dot_product_sparse
 except ImportError:
     pass
+
+import copy
 
 
 def _orthogonalize_constraints(positions_cartesian: np.ndarray):
@@ -91,9 +93,7 @@ def complementary_compr_projector_rot_sum_rules_O2(
 
     # TODO: decompr_idx -> atomic_decompr_idx
     decompr_idx = get_lat_trans_decompr_indices(trans_perms)
-    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
-    # indep_atoms = [indep_atoms[0]]
-    # indep_atoms = list(range(natom))
+    indep_atoms = list(range(natom))
 
     positions_cartesian = (supercell.scaled_positions) @ supercell.cell
     positions_cartesian[:, 0] -= np.average(positions_cartesian[:, 0])
@@ -116,37 +116,29 @@ def complementary_compr_projector_rot_sum_rules_O2(
         row.extend(np.tile(ids, 3))
 
     data /= np.sqrt(n_lp)
-    c_rot = csr_array(
+    c_rot_cmplt = csr_array(
         (data, (decompr_idx[row], col)),
         shape=(NN33 // n_lp, n_expand * 3),
         dtype="double",
     )
+
+    proj = scipy.sparse.identity(NN33 // n_lp) - c_rot_cmplt @ c_rot_cmplt.T
+    c_rot = eigsh_projector(proj, verbose=True)
 
     c_cmplt = n_a_compress_mat.T @ c_rot
     proj = c_cmplt @ c_cmplt.T
     return proj
 
 
-def complementary_compr_projector_rot_O2_test(
-    supercell: SymfcAtoms,
-    trans_perms: np.ndarray,
-    basis_set_fc2: FCBasisSetO2,
-    use_mkl: bool = False,
-) -> csr_array:
-    """Test function for setting rotational invariants."""
-    n_lp, natom = trans_perms.shape
-    decompr_idx = get_lat_trans_decompr_indices(trans_perms)
-    c_trans = get_lat_trans_compr_matrix(decompr_idx, natom, n_lp)
-    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
-    # indep_atoms = [indep_atoms[0]]
-    # indep_atoms = list(range(natom))
-
+def complement_rotational_sum_rule(supercell, indep_atoms, decompr_idx=None, n_lp=None):
+    """Get complement_rotational_sum_rule."""
     positions_cartesian = (supercell.scaled_positions) @ supercell.cell
     positions_cartesian[:, 0] -= np.average(positions_cartesian[:, 0])
     positions_cartesian[:, 1] -= np.average(positions_cartesian[:, 1])
     positions_cartesian[:, 2] -= np.average(positions_cartesian[:, 2])
     C2 = _orthogonalize_constraints(positions_cartesian)
 
+    natom = positions_cartesian.shape[0]
     N3 = natom * 3
     N33 = N3 * 3
     NN33 = N3 * N3
@@ -161,11 +153,44 @@ def complementary_compr_projector_rot_O2_test(
         ids = ids_ialpha + (j * 9 + beta)
         row.extend(np.tile(ids, 3))
 
-    c_rot = csr_array(
-        (data, (row, col)),
-        shape=(NN33, n_expand * 3),
-        dtype="double",
-    )
+    if decompr_idx is None:
+        c_rot = csr_array(
+            (data, (row, col)),
+            shape=(NN33, n_expand * 3),
+            dtype="double",
+        )
+    else:
+        data /= np.sqrt(n_lp)
+        c_rot = csr_array(
+            (data, (decompr_idx[row], col)),
+            shape=(NN33 // n_lp, n_expand * 3),
+            dtype="double",
+        )
+    return c_rot
+
+
+def complementary_compr_projector_rot_O2_test(
+    supercell: SymfcAtoms,
+    trans_perms: np.ndarray,
+    basis_set_fc2: FCBasisSetO2,
+    indep_atoms=None,
+    use_mkl: bool = False,
+) -> csr_array:
+    """Test function for setting rotational invariants."""
+    n_lp, natom = trans_perms.shape
+    N3 = natom * 3
+    NN33 = N3 * N3
+
+    decompr_idx = get_lat_trans_decompr_indices(trans_perms)
+    c_trans = get_lat_trans_compr_matrix(decompr_idx, natom, n_lp)
+    # indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+    # indep_atoms = [indep_atoms[0]]
+    if indep_atoms is None:
+        indep_atoms = list(range(natom))
+    # indep_atoms = [2]
+    # indep_atoms = [0,1,2,3,4,5,6,7]
+
+    c_rot = complement_rotational_sum_rule(supercell, indep_atoms)
     proj_rot = c_rot @ c_rot.T
 
     c_sum = complement_sum_rule(natom)
@@ -195,16 +220,24 @@ def complementary_compr_projector_rot_O2_test(
     c = eigsh_projector(proj, verbose=True)
     print(c.shape)
 
+    #    print("--------------")
+    #    print("Only rotational sum rules (indep_atoms)")
+    #
+    #    c_rot1 = complement_rotational_sum_rule(
+    #        supercell, [0], decompr_idx=decompr_idx, n_lp=n_lp
+    #    )
+    #
+    #    c_rot2 = complement_rotational_sum_rule(
+    #        supercell, [2], decompr_idx=decompr_idx, n_lp=n_lp
+    #    )
+    #    #print(c_rot1 - c_rot2)
+
     print("--------------")
     print("Only rotational sum rules")
 
-    data /= np.sqrt(n_lp)
-    c_rot = csr_array(
-        (data, (decompr_idx[row], col)),
-        shape=(NN33 // n_lp, n_expand * 3),
-        dtype="double",
+    c_rot = complement_rotational_sum_rule(
+        supercell, indep_atoms, decompr_idx=decompr_idx, n_lp=n_lp
     )
-
     proj = scipy.sparse.identity(NN33) - proj_rot
     c = eigsh_projector(proj, verbose=True)
     print(c.shape)
@@ -215,7 +248,16 @@ def complementary_compr_projector_rot_O2_test(
     print(c.shape)
 
     proj = scipy.sparse.identity(NN33 // n_lp) - c_rot @ c_rot.T
+    proj_return = copy.copy(proj)
     c = eigsh_projector(proj, verbose=True)
+    print(c.shape)
+    vals, vecs = np.linalg.eigh(proj.toarray())
+    print(vals)
+
+    print("--------------")
+    print("Only rotational sum rules (cmplt)")
+
+    c = eigsh_projector(proj_rot, verbose=True)
     print(c.shape)
 
     print("--------------")
@@ -233,6 +275,7 @@ def complementary_compr_projector_rot_O2_test(
     c = eigsh_projector(proj, verbose=True)
     print(c.shape)
 
+    print("--------------")
     """
     Compressed projector I - P^(c)
     P^(c) = n_a_compress_mat.T @ C_trans.T @ C_sum^(c)
@@ -245,16 +288,19 @@ def complementary_compr_projector_rot_O2_test(
 
     n_a_compress_mat = np.sqrt(n_lp) * basis_set_fc2.compact_compression_matrix
     print(n_a_compress_mat.shape)
-    compress_mat = n_a_compress_mat @ basis_set_fc2.basis_set
+    # compress_mat = n_a_compress_mat @ basis_set_fc2.basis_set
+    compress_mat = n_a_compress_mat
     print(compress_mat.shape)
 
     c = compress_mat.T @ c
     print(c.shape)
-    proj = c @ c.T
+    proj = csr_array(c @ c.T)
     eigvecs = eigsh_projector(proj)
     print(eigvecs.shape)
 
-    return proj
+    vals, vecs = np.linalg.eigh(proj.toarray())
+    print(vals)
+    return proj_return
 
 
 if __name__ == "__main__":
@@ -298,14 +344,22 @@ if __name__ == "__main__":
         n_a_compress_mat,
         use_mkl=True,
     )
-    proj = scipy.sparse.identity(proj.shape[0]) - proj
-    t2 = time.time()
+    # proj = scipy.sparse.identity(proj.shape[0]) - proj
     eigvecs = eigsh_projector_sumrule(proj, verbose=True)
+    t2 = time.time()
     print("Elapsed time:", t2 - t1)
     print("Number of eigenvectors:", eigvecs.shape[1])
 
-    complementary_compr_projector_rot_O2_test(
+    proj1 = complementary_compr_projector_rot_O2_test(
         supercell,
         trans_perms,
         basis_set_fc2,
+        indep_atoms=[2],
     )
+    proj2 = complementary_compr_projector_rot_O2_test(
+        supercell,
+        trans_perms,
+        basis_set_fc2,
+        indep_atoms=[1, 6],
+    )
+    # print(proj2 - proj1)
