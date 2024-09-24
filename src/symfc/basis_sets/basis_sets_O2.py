@@ -129,7 +129,7 @@ class FCBasisSetO2(FCBasisSetBase):
         """Return atomic permutations by lattice translations."""
         return self._atomic_decompr_idx
 
-    def run(self, rotational_sum_rules: bool = True) -> FCBasisSetO2:
+    def run(self, rotational_sum_rules: bool = False) -> FCBasisSetO2:
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
         proj_pt = projector_permutation_lat_trans_O2(
