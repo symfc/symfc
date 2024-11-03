@@ -1,6 +1,5 @@
 """Permutation utility functions for 3rd order force constants."""
 
-from collections import defaultdict
 from typing import Optional
 
 import numpy as np
@@ -182,13 +181,11 @@ def _orbits_to_basis(orbits: np.ndarray):
     )
 
     n_col, cols = scipy.sparse.csgraph.connected_components(orbits)
-    group = defaultdict(list)
-    for i, c in enumerate(cols):
-        group[c].append(i)
-    values = np.reciprocal(np.sqrt([len(group[c]) for c in range(n_col)]))
+    key, cnt = np.unique(cols, return_counts=True)
+    values = np.reciprocal(np.sqrt(cnt))
 
     c_pt = csr_array(
-        (values[cols], (np.arange(size1, dtype="int"), cols)),
+        (values[cols], (np.arange(size1), cols)),
         shape=(size1, n_col),
         dtype="double",
     )

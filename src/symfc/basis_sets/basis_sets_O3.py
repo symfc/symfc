@@ -139,8 +139,11 @@ class FCBasisSetO3(FCBasisSetBase):
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
 
-        # direct_permutation = False
-        direct_permutation = True
+        if self._fc_cutoff is not None:
+            direct_permutation = False
+        else:
+            direct_permutation = True
+
         if direct_permutation:
             tt0 = time.time()
             tt1 = time.time()
