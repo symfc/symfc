@@ -7,7 +7,7 @@ import scipy
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.matrix_tools_O3 import (
-    N3N3N3_to_NNNand333,
+    _N3N3N3_to_NNNand333,
     compressed_projector_sum_rules_O3,
     projector_permutation_lat_trans_O3,
 )
@@ -36,7 +36,7 @@ def test_N3N3N3_to_NNNand333():
     """Test N3N33_to_NNNand333."""
     N = 3
     combs = np.array([[0, 1, 2], [2, 4, 6], [3, 5, 8]])
-    vecNNN, vec333 = N3N3N3_to_NNNand333(combs, N)
+    vecNNN, vec333 = _N3N3N3_to_NNNand333(combs, N)
     np.testing.assert_allclose(vecNNN, [0, 5, 14])
     np.testing.assert_allclose(vec333, [5, 21, 8])
 
