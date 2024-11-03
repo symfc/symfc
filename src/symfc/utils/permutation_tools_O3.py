@@ -33,7 +33,6 @@ def compr_permutation_lat_trans_O3(
     atomic_decompr_idx: Optional[np.ndarray] = None,
     fc_cutoff: Optional[FCCutoff] = None,
     n_batch: Optional[int] = None,
-    use_mkl: bool = False,
     verbose: bool = False,
 ) -> csr_array:
     """Build a compression matrix for permutation rules compressed by C_trans.
@@ -64,6 +63,7 @@ def compr_permutation_lat_trans_O3(
         n_batch = 1 if natom <= 128 else int(round((natom / 128) ** 2))
 
     orbits = np.arange(NNN27 // n_lp)
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
 
     # order = 1
     combinations = np.array([[i, i, i] for i in range(3 * natom)], dtype=int)
@@ -75,13 +75,19 @@ def compr_permutation_lat_trans_O3(
         trans_perms,
         orbits,
         n_perms_group=1,
-        use_mkl=use_mkl,
         n_batch=1,
         verbose=verbose,
     )
 
     # order = 2
     combinations = get_combinations(natom, order=2, fc_cutoff=fc_cutoff)
+
+    nonzero = np.zeros(combinations.shape[0], dtype=bool)
+    atom_indices = combinations[:, 0] // 3
+    for i in indep_atoms:
+        nonzero[atom_indices == i] = True
+    combinations = combinations[nonzero]
+
     perms = [
         [0, 0, 1],
         [0, 1, 0],
@@ -97,7 +103,6 @@ def compr_permutation_lat_trans_O3(
         trans_perms,
         orbits,
         n_perms_group=2,
-        use_mkl=use_mkl,
         n_batch=1,
         verbose=verbose,
     )
@@ -105,7 +110,6 @@ def compr_permutation_lat_trans_O3(
     # order = 3
     combinations = get_combinations(natom, order=3, fc_cutoff=fc_cutoff)
 
-    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
     nonzero = np.zeros(combinations.shape[0], dtype=bool)
     atom_indices = combinations[:, 0] // 3
     for i in indep_atoms:
@@ -127,37 +131,13 @@ def compr_permutation_lat_trans_O3(
         trans_perms,
         orbits,
         n_perms_group=1,
-        use_mkl=use_mkl,
         n_batch=n_batch,
         verbose=verbose,
     )
 
-    orbits = csr_array(
-        (
-            np.ones(len(orbits), dtype=bool),
-            (
-                np.arange(len(orbits)),
-                orbits,
-            ),
-        ),
-        shape=(len(orbits), len(orbits)),
-        dtype=bool,
-    )
-
-    n_components, labels = scipy.sparse.csgraph.connected_components(orbits)
-    group = defaultdict(list)
-    for i, ll in enumerate(labels):
-        group[ll].append(i)
-
-    cols = [c for c, r1 in enumerate(group.values()) for r2 in r1]
-    rows = [r2 for c, r1 in enumerate(group.values()) for r2 in r1]
-    data = [1.0 / np.sqrt(len(r1)) for c, r1 in enumerate(group.values()) for r2 in r1]
-
-    c_pt = csr_array(
-        (data, (rows, cols)),
-        shape=(NNN27 // n_lp, len(data)),
-        dtype="double",
-    )
+    if verbose:
+        print("Construct basis matrix for permutations", flush=True)
+    c_pt = _orbits_to_basis(orbits)
     return c_pt
 
 
@@ -168,7 +148,6 @@ def _update_orbits_from_combinations(
     trans_perms: np.ndarray,
     orbits: np.ndarray,
     n_perms_group: int = 1,
-    use_mkl: bool = False,
     n_batch: int = 1,
     verbose: bool = False,
 ) -> csr_array:
@@ -180,7 +159,7 @@ def _update_orbits_from_combinations(
     n_perms_sym = n_perms // n_perms_group
     for begin, end in zip(*get_batch_slice(n_comb, n_comb // n_batch)):
         if verbose:
-            print("Proj (perm.T @ trans):", str(end) + "/" + str(n_comb), flush=True)
+            print("Permutation basis:", str(end) + "/" + str(n_comb), flush=True)
         combs_perm = combinations[begin:end][:, permutations].reshape((-1, 3))
         combs_perm, combs333 = _N3N3N3_to_NNNand333(combs_perm, natom)
 
@@ -193,6 +172,24 @@ def _update_orbits_from_combinations(
     return orbits
 
 
-def _correct_orbits(orbits: np.ndarray):
-    """Correct orbits."""
-    return orbits
+def _orbits_to_basis(orbits: np.ndarray):
+    """Transform orbits into basis matrix."""
+    size1 = len(orbits)
+    orbits = csr_array(
+        (np.ones(size1, dtype=bool), (np.arange(size1), orbits)),
+        shape=(size1, size1),
+        dtype=bool,
+    )
+
+    n_col, cols = scipy.sparse.csgraph.connected_components(orbits)
+    group = defaultdict(list)
+    for i, c in enumerate(cols):
+        group[c].append(i)
+    values = np.reciprocal(np.sqrt([len(group[c]) for c in range(n_col)]))
+
+    c_pt = csr_array(
+        (values[cols], (np.arange(size1, dtype="int"), cols)),
+        shape=(size1, n_col),
+        dtype="double",
+    )
+    return c_pt

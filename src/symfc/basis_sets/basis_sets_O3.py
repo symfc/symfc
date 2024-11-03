@@ -148,7 +148,6 @@ class FCBasisSetO3(FCBasisSetBase):
                 trans_perms,
                 atomic_decompr_idx=self._atomic_decompr_idx,
                 fc_cutoff=self._fc_cutoff,
-                use_mkl=self._use_mkl,
                 verbose=self._log_level > 0,
             )
         else:
