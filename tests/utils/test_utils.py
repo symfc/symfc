@@ -64,8 +64,8 @@ def test_compute_sg_permutations(
 
     perms_super = compute_sg_permutations(
         supercell.scaled_positions,
-        dataset["rotations"],
-        dataset["translations"],
+        dataset.rotations,
+        dataset.translations,
         supercell.cell,
     )
     # np.savetxt("perms_super.dat", perms_super, fmt="%d")

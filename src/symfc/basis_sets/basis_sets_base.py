@@ -35,6 +35,7 @@ class FCBasisSetBase(ABC):
         self._log_level = log_level
         self._basis_set: Optional[np.ndarray] = None
         self._spg_reps: Optional[SpgRepsBase] = None
+        self._supercell = supercell
 
     @property
     @abstractmethod

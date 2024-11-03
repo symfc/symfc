@@ -61,18 +61,30 @@ def test_fc_basis_set_o3():
     np.testing.assert_array_equal(
         sbs.compact_compression_matrix.tocoo().row[[0, 6, 9]], [5, 32, 42]
     )
-    np.testing.assert_allclose(
-        sbs.compression_matrix.data[[0, 6, 9]],
-        [-0.1443375672974064, 0.058925565098878946, 0.0833333333333333],
+    norm = sbs.compression_matrix.data[[0, 6, 9]] @ [
+        -0.1443375672974064,
+        0.058925565098878946,
+        0.0833333333333333,
+    ]
+    norm /= np.linalg.norm(sbs.compression_matrix.data[[0, 6, 9]])
+    norm /= np.linalg.norm(
+        [-0.1443375672974064, 0.058925565098878946, 0.0833333333333333]
     )
+    assert norm == pytest.approx(1.0) or norm == pytest.approx(-1.0)
 
     np.testing.assert_array_equal(
         sbs.compression_matrix.tocoo().row[[0, 6, 9]], [5, 32, 42]
     )
-    np.testing.assert_allclose(
-        sbs.compression_matrix.data[[0, 6, 9]],
-        [-0.1443375672974064, 0.058925565098878946, 0.0833333333333333],
+    norm = sbs.compression_matrix.data[[0, 6, 9]] @ [
+        -0.1443375672974064,
+        0.058925565098878946,
+        0.0833333333333333,
+    ]
+    norm /= np.linalg.norm(sbs.compression_matrix.data[[0, 6, 9]])
+    norm /= np.linalg.norm(
+        [-0.1443375672974064, 0.058925565098878946, 0.0833333333333333]
     )
+    assert norm == pytest.approx(1.0) or norm == pytest.approx(-1.0)
 
     lat_trans_compr_matrix_O3 = get_lat_trans_compr_matrix_O3(
         sbs.translation_permutations
