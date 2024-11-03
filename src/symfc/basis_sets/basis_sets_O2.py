@@ -18,6 +18,7 @@ from symfc.utils.matrix_tools_O2 import (
     compressed_projector_sum_rules_O2,
     projector_permutation_lat_trans_O2,
 )
+from symfc.utils.rotation_tools_O2 import complementary_compr_projector_rot_sum_rules_O2
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O2 import (
     _get_atomic_lat_trans_decompr_indices,
@@ -128,7 +129,7 @@ class FCBasisSetO2(FCBasisSetBase):
         """Return atomic permutations by lattice translations."""
         return self._atomic_decompr_idx
 
-    def run(self) -> FCBasisSetO2:
+    def run(self, rotational_sum_rules: bool = False) -> FCBasisSetO2:
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
         proj_pt = projector_permutation_lat_trans_O2(
@@ -158,6 +159,16 @@ class FCBasisSetO2(FCBasisSetBase):
             use_mkl=self._use_mkl,
             # verbose=self._log_level > 0,
         )
+
+        if rotational_sum_rules:
+            proj_rot_cmplt = complementary_compr_projector_rot_sum_rules_O2(
+                self._supercell,
+                trans_perms,
+                n_a_compress_mat,
+                use_mkl=self._use_mkl,
+            )
+            proj -= proj_rot_cmplt
+
         eigvecs = eigsh_projector_sumrule(proj, verbose=self._log_level > 0)
 
         self._basis_set = eigvecs

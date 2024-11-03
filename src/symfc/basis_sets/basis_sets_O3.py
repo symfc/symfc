@@ -19,6 +19,7 @@ from symfc.utils.matrix_tools_O3 import (
     compressed_projector_sum_rules_O3,
     projector_permutation_lat_trans_O3,
 )
+from symfc.utils.permutation_tools_O3 import compr_permutation_lat_trans_O3
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O3 import (
     get_atomic_lat_trans_decompr_indices_O3,
@@ -138,17 +139,32 @@ class FCBasisSetO3(FCBasisSetBase):
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
 
-        tt0 = time.time()
-        proj_pt = projector_permutation_lat_trans_O3(
-            trans_perms,
-            atomic_decompr_idx=self._atomic_decompr_idx,
-            fc_cutoff=self._fc_cutoff,
-            use_mkl=self._use_mkl,
-            verbose=self._log_level > 0,
-        )
-        tt1 = time.time()
+        if self._fc_cutoff is not None:
+            direct_permutation = False
+        else:
+            direct_permutation = True
 
-        c_pt = eigsh_projector(proj_pt, verbose=self._log_level > 0)
+        if direct_permutation:
+            tt0 = time.time()
+            tt1 = time.time()
+            c_pt = compr_permutation_lat_trans_O3(
+                trans_perms,
+                atomic_decompr_idx=self._atomic_decompr_idx,
+                fc_cutoff=self._fc_cutoff,
+                verbose=self._log_level > 0,
+            )
+        else:
+            tt0 = time.time()
+            proj_pt = projector_permutation_lat_trans_O3(
+                trans_perms,
+                atomic_decompr_idx=self._atomic_decompr_idx,
+                fc_cutoff=self._fc_cutoff,
+                use_mkl=self._use_mkl,
+                verbose=self._log_level > 0,
+            )
+            tt1 = time.time()
+            c_pt = eigsh_projector(proj_pt, verbose=self._log_level > 0)
+
         if self._log_level:
             print(" c_pt (size) :", c_pt.shape, flush=True)
         tt2 = time.time()
@@ -158,6 +174,7 @@ class FCBasisSetO3(FCBasisSetBase):
             fc_cutoff=self._fc_cutoff,
             atomic_decompr_idx=self._atomic_decompr_idx,
             c_pt=c_pt,
+            use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )
         tt3 = time.time()
