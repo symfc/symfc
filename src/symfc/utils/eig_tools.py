@@ -68,10 +68,15 @@ def eigsh_projector(
     for i, ll in enumerate(labels):
         group[ll].append(i)
 
-    r = np.array([i for ids in group.values() for i in ids for j in ids])
-    c = np.array([j for ids in group.values() for i in ids for j in ids])
-    s_end = np.cumsum([len(ids) * len(ids) for ids in group.values()])
-    s_begin = np.zeros(len(s_end), dtype=int)
+    # r = np.array([i for ids in group.values() for i in ids for j in ids])
+    group_ravel = [i for ids in group.values() for i in ids]
+    lengths = [len(ids) for ids in group.values() for i in ids]
+    r = np.repeat(group_ravel, lengths)
+    c = np.array([j for ids in group.values() for _ in ids for j in ids])
+
+    sizes = np.array([len(ids) for ids in group.values()], dtype=int)
+    s_end = np.cumsum(sizes**2)
+    s_begin = np.zeros_like(s_end)
     s_begin[1:] = s_end[:-1]
     p_data = np.ravel(p[r, c])
 
@@ -81,40 +86,58 @@ def eigsh_projector(
         print("Number of blocks in projector:", n_components, flush=True)
 
     uniq_eigvecs = dict()
-    row, col, data = [], [], []
-    col_id = 0
-    for i, (s1, s2, ids) in enumerate(zip(s_begin, s_end, group.values())):
+    for s1, s2, (label, ids) in zip(s_begin, s_end, group.items()):
         p_block1 = p_data[s1:s2]
         if len(ids) > 1:
             key = tuple(p_block1)
             try:
-                eigvecs = uniq_eigvecs[key]
+                uniq_eigvecs[key][1].append(label)
             except KeyError:
                 size = len(ids)
                 p_numpy = p_block1.reshape((size, size))
                 rank = int(round(np.trace(p_numpy)))
-                if rank == 0:
-                    eigvals, eigvecs = None, None
-                else:
+                if rank > 0:
                     eigvals, eigvecs = np.linalg.eigh(p_numpy)
-                    nonzero = np.isclose(eigvals, 1.0)
-                    eigvecs = eigvecs[:, nonzero]
-                uniq_eigvecs[key] = eigvecs
-
-            if eigvecs is not None:
-                n_row, n_col = eigvecs.shape
-                row.extend([ids[i] for i in range(n_row) for j in range(n_col)])
-                col.extend(
-                    [j for i in range(n_row) for j in range(col_id, col_id + n_col)]
-                )
-                data.extend(eigvecs.reshape(-1))
-                col_id += n_col
+                    eigvecs = eigvecs[:, np.isclose(eigvals, 1.0)]
+                    uniq_eigvecs[key] = [eigvecs, [label]]
+                else:
+                    uniq_eigvecs[key] = [None, [label]]
         else:
             if not np.isclose(p_block1[0], 0.0):
-                row.append(ids[0])
-                col.append(col_id)
-                data.append(1.0)
-                col_id += 1
+                if "one" in uniq_eigvecs:
+                    uniq_eigvecs["one"][1].append(label)
+                else:
+                    uniq_eigvecs["one"] = [np.array([[1.0]]), [label]]
+
+    total_length = sum(
+        len(labels) * v.shape[0] * v.shape[1]
+        for v, labels in uniq_eigvecs.values()
+        if v is not None
+    )
+    row = np.zeros(total_length, dtype=int)
+    col = np.zeros(total_length, dtype=int)
+    data = np.zeros(total_length, dtype=eigvecs.dtype)
+
+    current_id, col_id = 0, 0
+    for eigvecs, labels in uniq_eigvecs.values():
+        if eigvecs is not None:
+            n_row, n_col = eigvecs.shape
+            num_labels = len(labels)
+            end_id = current_id + n_row * n_col * num_labels
+
+            row[current_id:end_id] = np.repeat(
+                [i for ll in labels for i in group[ll]], n_col
+            )
+            col[current_id:end_id] = [
+                j
+                for seq, _ in enumerate(labels)
+                for i in range(n_row)
+                for j in range(col_id + seq * n_col, col_id + (seq + 1) * n_col)
+            ]
+            data[current_id:end_id] = np.tile(eigvecs.flatten(), num_labels)
+
+            col_id += n_col * num_labels
+            current_id = end_id
 
     n_col = col_id
     c_p = csr_array((data, (row, col)), shape=(p.shape[0], n_col))

@@ -18,7 +18,7 @@ except ImportError:
     pass
 
 
-def N3N3N3_to_NNNand333(combs: np.ndarray, N: int) -> np.ndarray:
+def _N3N3N3_to_NNNand333(combs: np.ndarray, N: int) -> np.ndarray:
     """Transform index order."""
     vecNNN, vec333 = np.divmod(combs[:, 0], 3)
     vecNNN *= N**2
@@ -32,113 +32,37 @@ def N3N3N3_to_NNNand333(combs: np.ndarray, N: int) -> np.ndarray:
     return vecNNN, vec333
 
 
-def _complete_projector_permutation_lat_trans_unique_index1(
+def _construct_projector_permutation_lat_trans_from_combinations(
+    combinations: np.ndarray,
+    permutations: np.ndarray,
     atomic_decompr_idx: np.ndarray,
-    natom: int,
-    n_lp: int,
-    fc_cutoff: Optional[FCCutoff] = None,
-    use_mkl: bool = False,
-    return_ids: bool = False,
-) -> csr_array:
-    """FC3 with single distinct index (ia, ia, ia)."""
-    combinations = np.array([[i, i, i] for i in range(3 * natom)], dtype=int)
-    combinations, combinations333 = N3N3N3_to_NNNand333(combinations, natom)
-    c_pt = permutation_dot_lat_trans(
-        combinations,
-        combinations333,
-        atomic_decompr_idx,
-        n_perms=1,
-        n_perms_group=1,
-        n_lp=n_lp,
-        order=3,
-        natom=natom,
-    )
-    if return_ids:
-        return (
-            dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl),
-            combinations,
-            combinations333,
-        )
-    return dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
-
-
-def _complete_projector_permutation_lat_trans_unique_index2(
-    atomic_decompr_idx: np.ndarray,
-    natom: int,
-    n_lp: int,
-    fc_cutoff: Optional[FCCutoff] = None,
-    use_mkl: bool = False,
-    return_ids: bool = False,
-) -> csr_array:
-    """FC3 with two distinct indices (ia,ia,jb)."""
-    combinations = get_combinations(natom, order=2, fc_cutoff=fc_cutoff)
-    perms = [
-        [0, 0, 1],
-        [0, 1, 0],
-        [1, 0, 0],
-        [0, 1, 1],
-        [1, 0, 1],
-        [1, 1, 0],
-    ]
-    combinations = combinations[:, perms].reshape((-1, 3))
-    combinations, combinations333 = N3N3N3_to_NNNand333(combinations, natom)
-    c_pt = permutation_dot_lat_trans(
-        combinations,
-        combinations333,
-        atomic_decompr_idx,
-        n_perms=len(perms),
-        n_perms_group=2,
-        n_lp=n_lp,
-        order=3,
-        natom=natom,
-    )
-
-    if return_ids:
-        return (
-            dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl),
-            combinations,
-            combinations333,
-        )
-    return dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
-
-
-def _complete_projector_permutation_lat_trans_unique_index3(
-    atomic_decompr_idx: np.ndarray,
-    natom: int,
-    n_lp: int,
-    fc_cutoff: Optional[FCCutoff] = None,
+    trans_perms: np.ndarray,
+    included_indices: np.ndarray = None,
+    n_perms_group: int = 1,
     use_mkl: bool = False,
     n_batch: int = 1,
     verbose: bool = False,
-    return_ids: bool = False,
 ) -> csr_array:
-    """FC3 with three distinct indices (ia,jb,kc)."""
-    combinations = get_combinations(natom, order=3, fc_cutoff=fc_cutoff)
-    n_comb3 = combinations.shape[0]
-    perms = [
-        [0, 1, 2],
-        [0, 2, 1],
-        [1, 0, 2],
-        [1, 2, 0],
-        [2, 0, 1],
-        [2, 1, 0],
-    ]
+    """Construct projector of permutation and lattice translation."""
+    n_lp, natom = trans_perms.shape
+    n_comb = combinations.shape[0]
+    n_perms = len(permutations)
 
-    c_pt = None
-    proj_pt = None
-    for begin, end in zip(*get_batch_slice(n_comb3, n_comb3 // n_batch)):
+    c_pt, proj_pt = None, None
+    for begin, end in zip(*get_batch_slice(n_comb, n_comb // n_batch)):
         if verbose:
-            print("Proj (perm.T @ trans):", str(end) + "/" + str(n_comb3), flush=True)
-        combinations_perm = combinations[begin:end][:, perms].reshape((-1, 3))
-        combinations_perm, combinations333 = N3N3N3_to_NNNand333(
-            combinations_perm, natom
-        )
+            print("Proj (perm.T @ trans):", str(end) + "/" + str(n_comb), flush=True)
+        combs_perm = combinations[begin:end][:, permutations].reshape((-1, 3))
+        combs_perm, combs333 = _N3N3N3_to_NNNand333(combs_perm, natom)
+        if included_indices is not None:
+            included_indices[combs_perm * 27 + combs333] = True
+
         c_pt_batch = permutation_dot_lat_trans(
-            combinations_perm,
-            combinations333,
+            combs_perm,
+            combs333,
             atomic_decompr_idx,
-            n_perms=len(perms),
-            n_perms_group=1,
+            n_perms=n_perms,
+            n_perms_group=n_perms_group,
             n_lp=n_lp,
             order=3,
             natom=natom,
@@ -161,29 +85,93 @@ def _complete_projector_permutation_lat_trans_unique_index3(
     return proj_pt
 
 
-def _approx_projector_permutation_lat_trans_unique_index3(
+def _projector_permutation_lat_trans_unique_index1(
     atomic_decompr_idx: np.ndarray,
-    indep_atoms: np.ndarray,
-    included_indices: np.ndarray,
-    natom: int,
-    n_lp: int,
+    trans_perms: np.ndarray,
+    included_indices: Optional[np.ndarray] = None,
+    fc_cutoff: Optional[FCCutoff] = None,
+    use_mkl: bool = False,
+    verbose: bool = False,
+) -> csr_array:
+    """FC3 with single distinct index (ia, ia, ia)."""
+    n_lp, natom = trans_perms.shape
+    combinations = np.array([[i, i, i] for i in range(3 * natom)], dtype=int)
+    perms = [[0, 0, 0]]
+    proj_pt = _construct_projector_permutation_lat_trans_from_combinations(
+        combinations,
+        perms,
+        atomic_decompr_idx,
+        trans_perms,
+        included_indices=included_indices,
+        n_perms_group=1,
+        use_mkl=use_mkl,
+        n_batch=1,
+        verbose=verbose,
+    )
+    return proj_pt
+
+
+def _projector_permutation_lat_trans_unique_index2(
+    atomic_decompr_idx: np.ndarray,
+    trans_perms: np.ndarray,
+    included_indices: Optional[np.ndarray] = None,
+    fc_cutoff: Optional[FCCutoff] = None,
+    use_mkl: bool = False,
+    verbose: bool = False,
+) -> csr_array:
+    """FC3 with two distinct indices (ia,ia,jb)."""
+    n_lp, natom = trans_perms.shape
+    combinations = get_combinations(natom, order=2, fc_cutoff=fc_cutoff)
+    perms = [
+        [0, 0, 1],
+        [0, 1, 0],
+        [1, 0, 0],
+        [0, 1, 1],
+        [1, 0, 1],
+        [1, 1, 0],
+    ]
+    proj_pt = _construct_projector_permutation_lat_trans_from_combinations(
+        combinations,
+        perms,
+        atomic_decompr_idx,
+        trans_perms,
+        included_indices=included_indices,
+        n_perms_group=2,
+        use_mkl=use_mkl,
+        n_batch=1,
+        verbose=verbose,
+    )
+    return proj_pt
+
+
+def _projector_permutation_lat_trans_unique_index3(
+    atomic_decompr_idx: np.ndarray,
+    trans_perms: np.ndarray,
+    included_indices: Optional[np.ndarray] = None,
     fc_cutoff: Optional[FCCutoff] = None,
     use_mkl: bool = False,
     n_batch: int = 1,
     verbose: bool = False,
 ) -> csr_array:
     """FC3 with three distinct indices (ia,jb,kc)."""
+    if fc_cutoff is not None or included_indices is None:
+        complete = True
+    else:
+        complete = False
+    if verbose:
+        print("Construct complete projector:", complete)
+
+    n_lp, natom = trans_perms.shape
     combinations = get_combinations(natom, order=3, fc_cutoff=fc_cutoff)
 
-    nonzero = np.zeros(combinations.shape[0], dtype=bool)
-    atom_indices = combinations[:, 0] // 3
-    for i in indep_atoms:
-        nonzero[atom_indices == i] = True
-    combinations = combinations[nonzero]
+    if not complete:
+        indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+        nonzero = np.zeros(combinations.shape[0], dtype=bool)
+        atom_indices = combinations[:, 0] // 3
+        for i in indep_atoms:
+            nonzero[atom_indices == i] = True
+        combinations = combinations[nonzero]
 
-    NNN333 = natom**3 * 27
-
-    n_comb3 = combinations.shape[0]
     perms = [
         [0, 1, 2],
         [0, 2, 1],
@@ -192,44 +180,29 @@ def _approx_projector_permutation_lat_trans_unique_index3(
         [2, 0, 1],
         [2, 1, 0],
     ]
+    proj_pt = _construct_projector_permutation_lat_trans_from_combinations(
+        combinations,
+        perms,
+        atomic_decompr_idx,
+        trans_perms,
+        included_indices=included_indices,
+        n_perms_group=1,
+        use_mkl=use_mkl,
+        n_batch=n_batch,
+        verbose=verbose,
+    )
+    return proj_pt
 
-    c_pt = None
-    proj_pt = None
-    for begin, end in zip(*get_batch_slice(n_comb3, n_comb3 // n_batch)):
-        if verbose:
-            print("Proj (perm.T @ trans):", str(end) + "/" + str(n_comb3), flush=True)
-        combinations_perm = combinations[begin:end][:, perms].reshape((-1, 3))
-        combinations_perm, combinations333 = N3N3N3_to_NNNand333(
-            combinations_perm, natom
-        )
-        included_indices[combinations_perm * 27 + combinations333] = True
-        c_pt_batch = permutation_dot_lat_trans(
-            combinations_perm,
-            combinations333,
-            atomic_decompr_idx,
-            n_perms=len(perms),
-            n_perms_group=1,
-            n_lp=n_lp,
-            order=3,
-            natom=natom,
-        )
-        c_pt = c_pt_batch if c_pt is None else vstack([c_pt, c_pt_batch])
-        if len(c_pt.data) > 2147483647 // 4:
-            if verbose:
-                print("Executed: proj_pt += c_pt.T @ c_pt", flush=True)
-            if proj_pt is None:
-                proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
-            else:
-                proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
-            c_pt = None
 
-    if c_pt is not None:
-        if proj_pt is None:
-            proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
-        else:
-            proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
-
-    """Applicable when cutoff distance is not used."""
+def _projector_not_reduced(
+    atomic_decompr_idx: np.ndarray,
+    trans_perms: np.ndarray,
+    included_indices: np.ndarray,
+    use_mkl: bool = False,
+):
+    """Calculate a projector for indices that are not reduced by permutation rules."""
+    n_lp, natom = trans_perms.shape
+    NNN333 = natom**3 * 27
     combinations_cmplt = np.where(included_indices)[0]
     combinations_cmplt, combinations333 = np.divmod(combinations_cmplt, 27)
     col = atomic_decompr_idx[combinations_cmplt] * 27 + combinations333
@@ -245,9 +218,7 @@ def _approx_projector_permutation_lat_trans_unique_index3(
         dtype="double",
     )
     proj_cmplt = dot_product_sparse(c_cmplt.T, c_cmplt, use_mkl=use_mkl)
-    proj_pt += scipy.sparse.identity(NNN333 // n_lp) - proj_cmplt
-
-    return proj_pt
+    return scipy.sparse.identity(NNN333 // n_lp) - proj_cmplt
 
 
 def projector_permutation_lat_trans_O3(
@@ -278,161 +249,48 @@ def projector_permutation_lat_trans_O3(
     Compressed projector for permutation
     P_pt = C_trans.T @ C_perm @ C_perm.T @ C_trans
     """
-    if complete or fc_cutoff is not None:
-        proj_pt = complete_projector_permutation_lat_trans_O3(
-            trans_perms=trans_perms,
-            atomic_decompr_idx=atomic_decompr_idx,
-            fc_cutoff=fc_cutoff,
-            n_batch=n_batch,
-            use_mkl=use_mkl,
-            verbose=verbose,
-        )
-    else:
-        proj_pt = approx_projector_permutation_lat_trans_O3(
-            trans_perms=trans_perms,
-            atomic_decompr_idx=atomic_decompr_idx,
-            fc_cutoff=fc_cutoff,
-            n_batch=n_batch,
-            use_mkl=use_mkl,
-            verbose=verbose,
-        )
-    return proj_pt
-
-
-def approx_projector_permutation_lat_trans_O3(
-    trans_perms: np.ndarray,
-    atomic_decompr_idx: Optional[np.ndarray] = None,
-    fc_cutoff: Optional[FCCutoff] = None,
-    n_batch: Optional[int] = None,
-    use_mkl: bool = False,
-    verbose: bool = False,
-) -> csr_array:
-    """Calculate a projector for permutation rules compressed by C_trans.
-
-    This is calculated without allocating C_trans and C_perm.
-    Batch calculations are used to reduce memory allocation.
-
-    Parameters
-    ----------
-    trans_perms : ndarray
-        Permutation of atomic indices by lattice translational symmetry.
-        dtype='intc'.
-        shape=(n_l, N), where n_l and N are the numbers of lattce points and
-        atoms in supercell.
-    fc_cutoff : FCCutoff class object. Default is None.
-
-    Return
-    ------
-    Compressed projector for permutation
-    P_pt = C_trans.T @ C_perm @ C_perm.T @ C_trans
-    """
     n_lp, natom = trans_perms.shape
     NNN27 = natom**3 * 27
-    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
     if atomic_decompr_idx is None:
         atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
 
     if n_batch is None:
         n_batch = 1 if natom <= 128 else int(round((natom / 128) ** 2))
 
-    included_indices = np.zeros(NNN27, dtype=bool)
-    proj_pt, combs_ijk, combs_abc = (
-        _complete_projector_permutation_lat_trans_unique_index1(
-            atomic_decompr_idx,
-            natom,
-            n_lp,
-            fc_cutoff=fc_cutoff,
-            use_mkl=use_mkl,
-            return_ids=True,
-        )
-    )
-    included_indices[combs_ijk * 27 + combs_abc] = True
+    if fc_cutoff is not None:
+        complete = True
 
-    proj, combs_ijk, combs_abc = (
-        _complete_projector_permutation_lat_trans_unique_index2(
-            atomic_decompr_idx,
-            natom,
-            n_lp,
-            fc_cutoff=fc_cutoff,
-            use_mkl=use_mkl,
-            return_ids=True,
-        )
-    )
-    proj_pt += proj
-    included_indices[combs_ijk * 27 + combs_abc] = True
-
-    proj_pt += _approx_projector_permutation_lat_trans_unique_index3(
+    included_indices = None if complete else np.zeros(NNN27, dtype=bool)
+    proj_pt = _projector_permutation_lat_trans_unique_index1(
         atomic_decompr_idx,
-        indep_atoms,
-        included_indices,
-        natom,
-        n_lp,
+        trans_perms,
+        included_indices=included_indices,
+        fc_cutoff=fc_cutoff,
+        use_mkl=use_mkl,
+    )
+    proj_pt += _projector_permutation_lat_trans_unique_index2(
+        atomic_decompr_idx,
+        trans_perms,
+        included_indices=included_indices,
+        fc_cutoff=fc_cutoff,
+        use_mkl=use_mkl,
+    )
+    proj_pt += _projector_permutation_lat_trans_unique_index3(
+        atomic_decompr_idx,
+        trans_perms,
+        included_indices=included_indices,
         fc_cutoff=fc_cutoff,
         use_mkl=use_mkl,
         n_batch=n_batch,
         verbose=verbose,
     )
-
-    return proj_pt
-
-
-def complete_projector_permutation_lat_trans_O3(
-    trans_perms: np.ndarray,
-    atomic_decompr_idx: Optional[np.ndarray] = None,
-    fc_cutoff: Optional[FCCutoff] = None,
-    n_batch: Optional[int] = None,
-    use_mkl: bool = False,
-    verbose: bool = False,
-) -> csr_array:
-    """Calculate a projector for permutation rules compressed by C_trans.
-
-    This is calculated without allocating C_trans and C_perm.
-    Batch calculations are used to reduce memory allocation.
-
-    Parameters
-    ----------
-    trans_perms : ndarray
-        Permutation of atomic indices by lattice translational symmetry.
-        dtype='intc'.
-        shape=(n_l, N), where n_l and N are the numbers of lattce points and
-        atoms in supercell.
-    fc_cutoff : FCCutoff class object. Default is None.
-
-    Return
-    ------
-    Compressed projector for permutation
-    P_pt = C_trans.T @ C_perm @ C_perm.T @ C_trans
-    """
-    n_lp, natom = trans_perms.shape
-    if atomic_decompr_idx is None:
-        atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
-
-    if n_batch is None:
-        n_batch = 1 if natom <= 128 else int(round((natom / 128) ** 2))
-
-    proj_pt = _complete_projector_permutation_lat_trans_unique_index1(
-        atomic_decompr_idx,
-        natom,
-        n_lp,
-        fc_cutoff=fc_cutoff,
-        use_mkl=use_mkl,
-    )
-    proj_pt += _complete_projector_permutation_lat_trans_unique_index2(
-        atomic_decompr_idx,
-        natom,
-        n_lp,
-        fc_cutoff=fc_cutoff,
-        use_mkl=use_mkl,
-    )
-    proj_pt += _complete_projector_permutation_lat_trans_unique_index3(
-        atomic_decompr_idx,
-        natom,
-        n_lp,
-        fc_cutoff=fc_cutoff,
-        use_mkl=use_mkl,
-        n_batch=n_batch,
-        verbose=verbose,
-    )
+    if not complete:
+        proj_pt += _projector_not_reduced(
+            atomic_decompr_idx,
+            trans_perms,
+            included_indices,
+            use_mkl=use_mkl,
+        )
     return proj_pt
 
 
