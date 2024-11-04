@@ -79,14 +79,9 @@ def compr_permutation_lat_trans_O3(
     )
 
     # order = 2
-    combinations = get_combinations(natom, order=2, fc_cutoff=fc_cutoff)
-
-    nonzero = np.zeros(combinations.shape[0], dtype=bool)
-    atom_indices = combinations[:, 0] // 3
-    for i in indep_atoms:
-        nonzero[atom_indices == i] = True
-    combinations = combinations[nonzero]
-
+    combinations = get_combinations(
+        natom, order=2, fc_cutoff=fc_cutoff, indep_atoms=indep_atoms
+    )
     perms = [
         [0, 0, 1],
         [0, 1, 0],
@@ -107,14 +102,9 @@ def compr_permutation_lat_trans_O3(
     )
 
     # order = 3
-    combinations = get_combinations(natom, order=3, fc_cutoff=fc_cutoff)
-
-    nonzero = np.zeros(combinations.shape[0], dtype=bool)
-    atom_indices = combinations[:, 0] // 3
-    for i in indep_atoms:
-        nonzero[atom_indices == i] = True
-    combinations = combinations[nonzero]
-
+    combinations = get_combinations(
+        natom, order=3, fc_cutoff=fc_cutoff, indep_atoms=indep_atoms
+    )
     perms = [
         [0, 1, 2],
         [0, 2, 1],
@@ -154,20 +144,16 @@ def _update_orbits_from_combinations(
     n_lp, natom = trans_perms.shape
     n_comb = combinations.shape[0]
     n_perms = len(permutations)
-
     n_perms_sym = n_perms // n_perms_group
     for begin, end in zip(*get_batch_slice(n_comb, n_comb // n_batch)):
         if verbose:
             print("Permutation basis:", str(end) + "/" + str(n_comb), flush=True)
         combs_perm = combinations[begin:end][:, permutations].reshape((-1, 3))
         combs_perm, combs333 = _N3N3N3_to_NNNand333(combs_perm, natom)
-
         cols = atomic_decompr_idx[combs_perm] * 27 + combs333
-        rep_col = np.tile(
-            np.min(cols.reshape((-1, n_perms_sym)), axis=1), (n_perms_sym, 1)
-        ).T.reshape(-1)
-
-        orbits[cols] = rep_col
+        cols = cols.reshape(-1, n_perms_sym)
+        for c in cols.T:
+            orbits[c] = cols[:, 0]
     return orbits
 
 
