@@ -139,14 +139,9 @@ class FCBasisSetO3(FCBasisSetBase):
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
 
-        if self._fc_cutoff is not None:
-            direct_permutation = False
-        else:
-            direct_permutation = True
-
+        direct_permutation = True
+        tt0 = time.time()
         if direct_permutation:
-            tt0 = time.time()
-            tt1 = time.time()
             c_pt = compr_permutation_lat_trans_O3(
                 trans_perms,
                 atomic_decompr_idx=self._atomic_decompr_idx,
@@ -154,7 +149,6 @@ class FCBasisSetO3(FCBasisSetBase):
                 verbose=self._log_level > 0,
             )
         else:
-            tt0 = time.time()
             proj_pt = projector_permutation_lat_trans_O3(
                 trans_perms,
                 atomic_decompr_idx=self._atomic_decompr_idx,
@@ -203,16 +197,24 @@ class FCBasisSetO3(FCBasisSetBase):
         tt7 = time.time()
 
         if self._log_level:
-            print(
-                "Time (proj(perm @ lattice trans.)  :",
-                "{:.3f}".format(tt1 - tt0),
-                flush=True,
-            )
-            print(
-                "Time (eigh(perm @ ltrans))         :",
-                "{:.3f}".format(tt2 - tt1),
-                flush=True,
-            )
+            if direct_permutation:
+                print(
+                    "Time (perm @ ltrans)               :",
+                    "{:.3f}".format(tt2 - tt0),
+                    flush=True,
+                )
+
+            else:
+                print(
+                    "Time (proj(perm @ lattice trans.)  :",
+                    "{:.3f}".format(tt1 - tt0),
+                    flush=True,
+                )
+                print(
+                    "Time (eigh(perm @ ltrans))         :",
+                    "{:.3f}".format(tt2 - tt1),
+                    flush=True,
+                )
             print(
                 "Time (coset)                       :",
                 "{:.3f}".format(tt3 - tt2),
