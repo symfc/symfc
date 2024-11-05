@@ -151,6 +151,69 @@ def get_compr_coset_projector_O3(
     n_lp, N = trans_perms.shape
     size = N**3 * 27 // n_lp if c_pt is None else c_pt.shape[1]
 
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+    if atomic_decompr_idx is None:
+        atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
+
+    nonzero_indep_atom = np.zeros(N**3, dtype=bool)
+    atom_indices = np.arange(N**3) // N**2
+    for i in indep_atoms:
+        nonzero_indep_atom[atom_indices == i] = True
+
+    if fc_cutoff is None:
+        nonzero = nonzero_indep_atom
+    else:
+        nonzero = fc_cutoff.nonzero_atomic_indices_fc3()
+        nonzero = nonzero & nonzero_indep_atom
+    size_data = np.count_nonzero(nonzero)
+    col = atomic_decompr_idx[nonzero]
+
+    n_cosets = min([int(np.sqrt(len(spg_reps.unique_rotation_indices))), 4])
+    cosets = [csr_array(([], ([], [])), shape=(size, size), dtype="double")] * n_cosets
+
+    factor = 1 / len(spg_reps.unique_rotation_indices)
+    for i, _ in enumerate(spg_reps.unique_rotation_indices):
+        if verbose:
+            print(
+                "Coset sum:",
+                i + 1,
+                "/",
+                len(spg_reps.unique_rotation_indices),
+                flush=True,
+            )
+        permutation = spg_reps.get_sigma3_rep(i, nonzero=nonzero)
+        """Equivalent to mat = C.T @ spg_reps.get_sigma3_rep(i) @ C
+           C: atomic_lat_trans_compr_mat, shape=(NNN, NNN/n_lp)"""
+        mat = csr_array(
+            (
+                np.ones(size_data, dtype="int_"),
+                (atomic_decompr_idx[permutation], col),
+            ),
+            shape=(N**3 // n_lp, N**3 // n_lp),
+            dtype="int_",
+        )
+        mat = kron(mat, spg_reps.r_reps[i] * factor).tocsr()
+        if c_pt is not None:
+            mat = dot_product_sparse(c_pt.T, mat, use_mkl=use_mkl)
+            mat = dot_product_sparse(mat, c_pt, use_mkl=use_mkl)
+
+        cosets[i % n_cosets] += mat
+    return sum(cosets)
+
+
+def get_compr_coset_projector_O3_stable(
+    spg_reps: SpgRepsO3,
+    atomic_decompr_idx: Optional[np.ndarray] = None,
+    fc_cutoff: Optional[FCCutoff] = None,
+    c_pt: Optional[csr_array] = None,
+    use_mkl: bool = False,
+    verbose: bool = False,
+) -> csr_array:
+    """Return compr matrix of sum of coset reps."""
+    trans_perms = spg_reps.translation_permutations
+    n_lp, N = trans_perms.shape
+    size = N**3 * 27 // n_lp if c_pt is None else c_pt.shape[1]
+
     if atomic_decompr_idx is None:
         atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
 

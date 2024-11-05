@@ -203,7 +203,6 @@ class FCBasisSetO3(FCBasisSetBase):
                     "{:.3f}".format(tt2 - tt0),
                     flush=True,
                 )
-
             else:
                 print(
                     "Time (proj(perm @ lattice trans.)  :",
