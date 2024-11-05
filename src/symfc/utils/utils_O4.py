@@ -167,7 +167,7 @@ def get_compr_coset_projector_O4(
     if fc_cutoff is None:
         nonzero = nonzero_indep_atom
     else:
-        nonzero = fc_cutoff.nonzero_atomic_indices_fc3()
+        nonzero = fc_cutoff.nonzero_atomic_indices_fc4()
         nonzero = nonzero & nonzero_indep_atom
     size_data = np.count_nonzero(nonzero)
     col = atomic_decompr_idx[nonzero]
