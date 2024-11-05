@@ -1,4 +1,4 @@
-"""Permutation utility functions for 3rd order force constants."""
+"""Permutation utility functions for 4th order force constants."""
 
 import itertools
 from typing import Optional
@@ -161,8 +161,8 @@ def compr_permutation_lat_trans_O4(
     )
 
     # order = 4
-    if n_batch is None:
-        n_batch = 1 if natom <= 16 else int(round((natom / 16) ** 2))
+    # if n_batch is None:
+    n_batch = 1 if natom <= 16 else int(round((natom / 16) ** 2))
 
     combinations = get_combinations(
         natom, order=4, fc_cutoff=fc_cutoff, indep_atoms=indep_atoms
