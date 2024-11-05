@@ -163,6 +163,7 @@ class FCBasisSetO4(FCBasisSetBase):
             fc_cutoff=self._fc_cutoff,
             atomic_decompr_idx=self._atomic_decompr_idx,
             c_pt=c_pt,
+            use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )
         tt3 = time.time()

@@ -106,7 +106,7 @@ def compr_permutation_lat_trans_O4(
 
     # order = 3
     if n_batch is None:
-        n_batch = 1 if natom <= 128 else int(round((natom / 128) ** 2))
+        n_batch3 = 1 if natom <= 128 else int(round((natom / 128) ** 2))
 
     combinations = get_combinations(
         natom, order=3, fc_cutoff=fc_cutoff, indep_atoms=indep_atoms
@@ -156,13 +156,13 @@ def compr_permutation_lat_trans_O4(
         trans_perms,
         orbits,
         n_perms_group=3,
-        n_batch=n_batch,
+        n_batch=n_batch3,
         verbose=verbose,
     )
 
     # order = 4
-    # if n_batch is None:
-    n_batch = 1 if natom <= 16 else int(round((natom / 16) ** 2))
+    if n_batch is None:
+        n_batch4 = 1 if natom <= 16 else int(round((natom / 16) ** 2))
 
     combinations = get_combinations(
         natom, order=4, fc_cutoff=fc_cutoff, indep_atoms=indep_atoms
@@ -175,7 +175,7 @@ def compr_permutation_lat_trans_O4(
         trans_perms,
         orbits,
         n_perms_group=1,
-        n_batch=n_batch,
+        n_batch=n_batch4,
         verbose=verbose,
     )
     if verbose:
