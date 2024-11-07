@@ -81,6 +81,7 @@ def _assert_fc(
 ):
     supercell, displacements, forces = ph
     basis_set = FCBasisSetO2(supercell, log_level=1).run()
+    print(basis_set)
     fc_solver = FCSolverO2(basis_set, log_level=1).solve(displacements, forces)
     if is_compact_fc:
         fc = fc_solver.compact_fc

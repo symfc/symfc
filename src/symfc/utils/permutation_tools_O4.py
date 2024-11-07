@@ -1,5 +1,6 @@
-"""Permutation utility functions for 3rd order force constants."""
+"""Permutation utility functions for 4th order force constants."""
 
+import itertools
 from typing import Optional
 
 import numpy as np
@@ -10,24 +11,27 @@ from symfc.utils.matrix_tools import get_combinations
 from symfc.utils.permutation_tools import construct_basis_from_orbits
 from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.utils import get_indep_atoms_by_lat_trans
-from symfc.utils.utils_O3 import get_atomic_lat_trans_decompr_indices_O3
+from symfc.utils.utils_O4 import get_atomic_lat_trans_decompr_indices_O4
 
 
-def _N3N3N3_to_NNNand333(combs: np.ndarray, N: int) -> np.ndarray:
+def _N3N3N3N3_to_NNNNand3333(combs: np.ndarray, N: int) -> np.ndarray:
     """Transform index order."""
-    vecNNN, vec333 = np.divmod(combs[:, 0], 3)
-    vecNNN *= N**2
-    vec333 *= 9
+    vecNNNN, vec3333 = np.divmod(combs[:, 0], 3)
+    vecNNNN *= N**3
+    vec3333 *= 27
     div, mod = np.divmod(combs[:, 1], 3)
-    vecNNN += div * N
-    vec333 += mod * 3
+    vecNNNN += div * N**2
+    vec3333 += mod * 9
     div, mod = np.divmod(combs[:, 2], 3)
-    vecNNN += div
-    vec333 += mod
-    return vecNNN, vec333
+    vecNNNN += div * N
+    vec3333 += mod * 3
+    div, mod = np.divmod(combs[:, 3], 3)
+    vecNNNN += div
+    vec3333 += mod
+    return vecNNNN, vec3333
 
 
-def compr_permutation_lat_trans_O3(
+def compr_permutation_lat_trans_O4(
     trans_perms: np.ndarray,
     atomic_decompr_idx: Optional[np.ndarray] = None,
     fc_cutoff: Optional[FCCutoff] = None,
@@ -54,19 +58,16 @@ def compr_permutation_lat_trans_O3(
     C_pt = eigh(C_trans.T @ C_perm @ C_perm.T @ C_trans)
     """
     n_lp, natom = trans_perms.shape
-    NNN27 = natom**3 * 27
+    NNNN81 = natom**4 * 81
     if atomic_decompr_idx is None:
-        atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
+        atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
 
-    if n_batch is None:
-        n_batch = 1 if natom <= 128 else int(round((natom / 128) ** 2))
-
-    orbits = np.ones(NNN27 // n_lp, dtype="int") * -1
+    orbits = np.ones(NNNN81 // n_lp, dtype="int") * -1
     indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
 
     # order = 1
     combinations = np.array([[i, i, i] for i in range(3 * natom)], dtype=int)
-    perms = [[0, 0, 0]]
+    perms = [[0, 0, 0, 0]]
     orbits = _update_orbits_from_combinations(
         combinations,
         perms,
@@ -83,12 +84,14 @@ def compr_permutation_lat_trans_O3(
         natom, order=2, fc_cutoff=fc_cutoff, indep_atoms=indep_atoms
     )
     perms = [
-        [0, 0, 1],
-        [0, 1, 0],
-        [1, 0, 0],
-        [0, 1, 1],
-        [1, 0, 1],
-        [1, 1, 0],
+        [0, 0, 0, 1],
+        [0, 0, 1, 0],
+        [0, 1, 0, 0],
+        [1, 0, 0, 0],
+        [1, 1, 1, 0],
+        [1, 1, 0, 1],
+        [1, 0, 1, 1],
+        [0, 1, 1, 1],
     ]
     orbits = _update_orbits_from_combinations(
         combinations,
@@ -102,16 +105,49 @@ def compr_permutation_lat_trans_O3(
     )
 
     # order = 3
+    if n_batch is None:
+        n_batch3 = 1 if natom <= 128 else int(round((natom / 128) ** 2))
+
     combinations = get_combinations(
         natom, order=3, fc_cutoff=fc_cutoff, indep_atoms=indep_atoms
     )
     perms = [
-        [0, 1, 2],
-        [0, 2, 1],
-        [1, 0, 2],
-        [1, 2, 0],
-        [2, 0, 1],
-        [2, 1, 0],
+        [0, 0, 1, 2],
+        [0, 0, 2, 1],
+        [0, 1, 0, 2],
+        [0, 2, 0, 1],
+        [0, 1, 2, 0],
+        [0, 2, 1, 0],
+        [1, 0, 0, 2],
+        [2, 0, 0, 1],
+        [1, 0, 2, 0],
+        [2, 0, 1, 0],
+        [1, 2, 0, 0],
+        [2, 1, 0, 0],
+        [1, 1, 0, 2],
+        [1, 1, 2, 0],
+        [1, 0, 1, 2],
+        [1, 2, 1, 0],
+        [1, 0, 2, 1],
+        [1, 2, 0, 1],
+        [0, 1, 1, 2],
+        [2, 1, 1, 0],
+        [0, 1, 2, 1],
+        [2, 1, 0, 1],
+        [0, 2, 1, 1],
+        [2, 0, 1, 1],
+        [2, 2, 1, 0],
+        [2, 2, 0, 1],
+        [2, 1, 2, 0],
+        [2, 0, 2, 1],
+        [2, 1, 0, 2],
+        [2, 0, 1, 2],
+        [1, 2, 2, 0],
+        [0, 2, 2, 1],
+        [1, 2, 0, 2],
+        [0, 2, 1, 2],
+        [1, 0, 2, 2],
+        [0, 1, 2, 2],
     ]
     orbits = _update_orbits_from_combinations(
         combinations,
@@ -119,11 +155,29 @@ def compr_permutation_lat_trans_O3(
         atomic_decompr_idx,
         trans_perms,
         orbits,
-        n_perms_group=1,
-        n_batch=n_batch,
+        n_perms_group=3,
+        n_batch=n_batch3,
         verbose=verbose,
     )
 
+    # order = 4
+    if n_batch is None:
+        n_batch4 = 1 if natom <= 16 else int(round((natom / 16) ** 2))
+
+    combinations = get_combinations(
+        natom, order=4, fc_cutoff=fc_cutoff, indep_atoms=indep_atoms
+    )
+    perms = np.array(list(itertools.permutations(range(4))))
+    orbits = _update_orbits_from_combinations(
+        combinations,
+        perms,
+        atomic_decompr_idx,
+        trans_perms,
+        orbits,
+        n_perms_group=1,
+        n_batch=n_batch4,
+        verbose=verbose,
+    )
     if verbose:
         print("Construct basis matrix for permutations", flush=True)
     c_pt = construct_basis_from_orbits(orbits)
@@ -148,9 +202,9 @@ def _update_orbits_from_combinations(
     for begin, end in zip(*get_batch_slice(n_comb, n_comb // n_batch)):
         if verbose:
             print("Permutation basis:", str(end) + "/" + str(n_comb), flush=True)
-        combs_perm = combinations[begin:end][:, permutations].reshape((-1, 3))
-        combs_perm, combs333 = _N3N3N3_to_NNNand333(combs_perm, natom)
-        cols = atomic_decompr_idx[combs_perm] * 27 + combs333
+        combs_perm = combinations[begin:end][:, permutations].reshape((-1, 4))
+        combs_perm, combs3333 = _N3N3N3N3_to_NNNNand3333(combs_perm, natom)
+        cols = atomic_decompr_idx[combs_perm] * 81 + combs3333
         cols = cols.reshape(-1, n_perms_sym)
         for c in cols.T:
             orbits[c] = cols[:, 0]
