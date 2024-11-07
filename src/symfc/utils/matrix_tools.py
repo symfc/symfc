@@ -27,7 +27,12 @@ def get_entire_combinations(n, r):
     return combs.T
 
 
-def get_combinations(natom: int, order: int, fc_cutoff: Optional[FCCutoff] = None):
+def get_combinations(
+    natom: int,
+    order: int,
+    fc_cutoff: Optional[FCCutoff] = None,
+    indep_atoms: Optional[np.ndarray] = None,
+):
     """Return numpy array of FC index combinations."""
     if fc_cutoff is None:
         combinations = get_entire_combinations(3 * natom, order)
@@ -43,6 +48,13 @@ def get_combinations(natom: int, order: int, fc_cutoff: Optional[FCCutoff] = Non
             raise NotImplementedError(
                 "Combinations are implemented only for 2 <= order <= 4."
             )
+
+    if indep_atoms is not None:
+        nonzero = np.zeros(combinations.shape[0], dtype=bool)
+        atom_indices = combinations[:, 0] // 3
+        for i in indep_atoms:
+            nonzero[atom_indices == i] = True
+        combinations = combinations[nonzero]
     return combinations
 
 

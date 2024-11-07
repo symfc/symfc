@@ -5,7 +5,7 @@ import pytest
 from scipy.sparse import csr_array
 
 from symfc.utils.eig_tools import (
-    compr_projector,
+    _compr_projector,
     eigsh_projector,
     eigsh_projector_sumrule,
 )
@@ -56,7 +56,7 @@ def test_compr_projector():
     data = [1, 1, 1]
     proj = csr_array((data, (row, col)), shape=(6, 6), dtype=int)
 
-    proj_rev, compr = compr_projector(proj)
+    proj_rev, compr = _compr_projector(proj)
     assert proj_rev.shape == (3, 3)
     np.testing.assert_allclose(proj_rev.toarray(), np.eye(3))
     assert compr.shape == (6, 3)

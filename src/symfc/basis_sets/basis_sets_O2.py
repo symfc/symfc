@@ -18,6 +18,7 @@ from symfc.utils.matrix_tools_O2 import (
     compressed_projector_sum_rules_O2,
     projector_permutation_lat_trans_O2,
 )
+from symfc.utils.permutation_tools_O2 import compr_permutation_lat_trans_O2
 from symfc.utils.rotation_tools_O2 import complementary_compr_projector_rot_sum_rules_O2
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O2 import (
@@ -132,15 +133,25 @@ class FCBasisSetO2(FCBasisSetBase):
     def run(self, rotational_sum_rules: bool = False) -> FCBasisSetO2:
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
-        proj_pt = projector_permutation_lat_trans_O2(
-            trans_perms,
-            atomic_decompr_idx=self._atomic_decompr_idx,
-            fc_cutoff=self._fc_cutoff,
-            use_mkl=self._use_mkl,
-            verbose=self._log_level > 0,
-        )
 
-        c_pt = eigsh_projector(proj_pt, verbose=self._log_level > 0)
+        direct_permutation = True
+        if direct_permutation:
+            c_pt = compr_permutation_lat_trans_O2(
+                trans_perms,
+                atomic_decompr_idx=self._atomic_decompr_idx,
+                fc_cutoff=self._fc_cutoff,
+                verbose=self._log_level > 0,
+            )
+        else:
+            proj_pt = projector_permutation_lat_trans_O2(
+                trans_perms,
+                atomic_decompr_idx=self._atomic_decompr_idx,
+                fc_cutoff=self._fc_cutoff,
+                use_mkl=self._use_mkl,
+                verbose=self._log_level > 0,
+            )
+            c_pt = eigsh_projector(proj_pt, verbose=self._log_level > 0)
+
         proj_rpt = get_compr_coset_projector_O2(
             self._spg_reps,
             fc_cutoff=self._fc_cutoff,
