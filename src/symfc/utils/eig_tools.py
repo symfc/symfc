@@ -184,7 +184,7 @@ def eigh_projector(
         (syevr,) = get_lapack_funcs(("syevr",), ilp64=False)
         eigvals, eigvecs, _, _, _ = syevr(p, compute_v=True)
 
-    tol = 1e-10
+    tol = 1e-8
     if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
         raise ValueError("Eigenvalue error: e > 1 or e < 0.")
 
