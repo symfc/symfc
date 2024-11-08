@@ -9,6 +9,8 @@ import scipy
 from scipy.linalg import get_lapack_funcs
 from scipy.sparse import csr_array, hstack, lil_array
 
+from symfc.utils.solver_funcs import get_batch_slice
+
 try:
     from sparse_dot_mkl import dot_product_mkl
 except ImportError:
@@ -244,6 +246,143 @@ def eigsh_projector(p: csr_array, verbose: bool = True) -> csr_array:
     if compr_p is not None:
         return compr_p @ c_p
     return c_p
+
+
+def _block_eigh_projector(p_block: np.ndarray, verbose: bool = False):
+    """Solve eigenvalue problem using block divisions."""
+    eigvecs_block = np.zeros(p_block.shape, dtype="double")
+    cmplt = np.zeros((p_block.shape[0], p_block.shape[0] // 2), dtype="double")
+
+    p_size = p_block.shape[0]
+    target_size = max(min(p_size // 10, 3000), 1000)
+
+    col_id, col_id_cmplt = 0, 0
+    for begin, end in zip(*get_batch_slice(p_size, target_size)):
+        if verbose:
+            print("Block:", end, "/", p_size, flush=True)
+        p_small = p_block[begin:end, begin:end]
+        rank = int(round(np.trace(p_small)))
+        if rank > 0:
+            eigvecs, (cmplt_eigvals, cmplt_small) = eigh_projector(
+                p_small,
+                return_complement=True,
+                verbose=verbose,
+            )
+            col_end = col_id + eigvecs.shape[1]
+            col_end_cmplt = col_id_cmplt + cmplt_small.shape[1]
+            eigvecs_block[begin:end, col_id:col_end] = eigvecs
+            cmplt[begin:end, col_id_cmplt:col_end_cmplt] = cmplt_small
+            p_block[begin:end, begin:end] -= eigvecs @ eigvecs.T
+            col_id = col_end
+            col_id_cmplt = col_end_cmplt
+            if verbose:
+                print(eigvecs.shape[1], "eigenvectors are found.", flush=True)
+
+    rank = int(round(np.trace(p_block)))
+    if rank > 0:
+        if verbose:
+            print("Solving complementary projector.", flush=True)
+        cmplt = cmplt[:, :col_end_cmplt]
+        p_block_rem = cmplt.T @ p_block @ cmplt
+        eigvecs = eigh_projector(p_block_rem, verbose=verbose)
+        if verbose:
+            print(eigvecs.shape[1], "eigenvectors are found.", flush=True)
+        if eigvecs.shape[1] > 0:
+            col_end = col_id + eigvecs.shape[1]
+            eigvecs_block[:, col_id:col_end] = cmplt @ eigvecs
+            col_id = col_end
+
+    if col_id == 0:
+        return None
+    return eigvecs_block[:, :col_id]
+
+
+def eigsh_projector_sumrule(
+    p: csr_array,
+    size_threshold: int = 1000,
+    verbose: bool = True,
+) -> np.ndarray:
+    """Solve eigenvalue problem for matrix p.
+
+    Return dense matrix for eigenvectors of matrix p.
+    """
+    if p.shape[0] > size_threshold:
+        return eigsh_projector_sumrule_large(p, verbose=verbose)
+    return eigsh_projector_sumrule_stable(p, verbose=verbose)
+
+
+def eigsh_projector_sumrule_stable(p: csr_array, verbose: bool = True) -> np.ndarray:
+    """Solve eigenvalue problem for matrix p.
+
+    Return dense matrix for eigenvectors of matrix p.
+
+    This algorithm begins with finding block diagonal structures in matrix p.
+    For each block submatrix, eigenvectors are solved.
+    When p = diag(A,B), Av = v, and Bw = w, p[v,0] = [v,0] and p[0,w] = [0,w]
+    are solutions.
+
+    This function solves numpy.eigh for all block matrices.
+    This function is efficient for matrix p composed of nonequivalent
+    block matrices.
+
+    """
+    group = _find_projector_blocks(p)
+    if verbose:
+        print("Use standard normal eigsh solver.", flush=True)
+        print("Number of blocks in projector (Sum rule):", len(group), flush=True)
+
+    eigvecs_full = np.zeros(p.shape, dtype="double")
+    col_id = 0
+    for i, ids in enumerate(group.values()):
+        if verbose:
+            print("Eigsh_solver_block:", i + 1, "/", len(group), flush=True)
+            print(" - Block_size:", len(ids), flush=True)
+        p_block = p[np.ix_(ids, ids)].toarray()
+        rank = int(round(np.trace(p_block)))
+        if rank > 0:
+            eigvecs = eigh_projector(p_block, verbose=verbose)
+            col_end = col_id + eigvecs.shape[1]
+            eigvecs_full[ids, col_id:col_end] = eigvecs
+            col_id = col_end
+    return eigvecs_full[:, :col_id]
+
+
+def eigsh_projector_sumrule_large(p: csr_array, verbose: bool = True) -> np.ndarray:
+    """Solve eigenvalue problem for matrix p.
+
+    Return dense matrix for eigenvectors of matrix p.
+
+    This algorithm begins with finding block diagonal structures in matrix p.
+    For each block submatrix, eigenvectors are solved.
+    When p = diag(A,B), Av = v, and Bw = w, p[v,0] = [v,0] and p[0,w] = [0,w]
+    are solutions.
+
+    This function solves numpy.eigh for all block matrices.
+    This function is efficient for matrix p composed of nonequivalent
+    block matrices.
+
+    """
+    group = _find_projector_blocks(p)
+    if verbose:
+        print("Use eigsh solver for large matrices.", flush=True)
+        print("Number of blocks in projector (Sum rule):", len(group), flush=True)
+
+    eigvecs_full = np.zeros(p.shape, dtype="double")
+    col_id = 0
+    for i, ids in enumerate(group.values()):
+        if verbose and len(ids) > 2:
+            print("Eigsh_solver_block:", i + 1, "/", len(group), flush=True)
+            print(" - Block_size:", len(ids), flush=True)
+        ids = np.array(ids)
+        p_block = p[np.ix_(ids, ids)].toarray()
+        rank = int(round(np.trace(p_block)))
+        if rank > 0:
+            eigvecs = _block_eigh_projector(p_block, verbose=verbose)
+            if eigvecs is not None:
+                col_end = col_id + eigvecs.shape[1]
+                eigvecs_full[ids, col_id:col_end] = eigvecs
+                col_id = col_end
+    return eigvecs_full[:, :col_id]
 
 
 def _find_smaller_block(p1: np.ndarray, target_size: int = 3000, random: bool = True):
@@ -484,114 +623,3 @@ def _iterative_eigsh_projector_use_sparse(
     if col_id == 0:
         return None, p_block, None
     return eigvecs_block[:, :col_id], p_block, compr.toarray()
-
-
-def eigsh_projector_sumrule(
-    p: csr_array,
-    size_threshold: int = 2000,
-    use_mkl: bool = False,
-    verbose: bool = True,
-) -> np.ndarray:
-    """Solve eigenvalue problem for matrix p.
-
-    Return dense matrix for eigenvectors of matrix p.
-    """
-    if p.shape[0] > size_threshold:
-        return eigsh_projector_sumrule_large(p, use_mkl=use_mkl, verbose=verbose)
-    return eigsh_projector_sumrule_stable(p, verbose=verbose)
-
-
-def eigsh_projector_sumrule_stable(p: csr_array, verbose: bool = True) -> np.ndarray:
-    """Solve eigenvalue problem for matrix p.
-
-    Return dense matrix for eigenvectors of matrix p.
-
-    This algorithm begins with finding block diagonal structures in matrix p.
-    For each block submatrix, eigenvectors are solved.
-    When p = diag(A,B), Av = v, and Bw = w, p[v,0] = [v,0] and p[0,w] = [0,w]
-    are solutions.
-
-    This function solves numpy.eigh for all block matrices.
-    This function is efficient for matrix p composed of nonequivalent
-    block matrices.
-
-    """
-    group = _find_projector_blocks(p)
-    if verbose:
-        print("Number of blocks in projector (Sum rule):", len(group), flush=True)
-
-    eigvecs_full = np.zeros(p.shape, dtype="double")
-    col_id = 0
-    for i, ids in enumerate(group.values()):
-        if verbose:
-            print("Eigsh_solver_block:", i + 1, "/", len(group), flush=True)
-            print(" - Block_size:", len(ids), flush=True)
-        p_block = p[np.ix_(ids, ids)].toarray()
-        rank = int(round(np.trace(p_block)))
-        if rank > 0:
-            eigvecs = eigh_projector(p_block, verbose=verbose)
-            col_end = col_id + eigvecs.shape[1]
-            eigvecs_full[ids, col_id:col_end] = eigvecs
-            col_id = col_end
-    return eigvecs_full[:, :col_id]
-
-
-def eigsh_projector_sumrule_large(
-    p: csr_array,
-    use_mkl: bool = False,
-    verbose: bool = True,
-) -> np.ndarray:
-    """Solve eigenvalue problem for matrix p.
-
-    Return dense matrix for eigenvectors of matrix p.
-
-    This algorithm begins with finding block diagonal structures in matrix p.
-    For each block submatrix, eigenvectors are solved.
-    When p = diag(A,B), Av = v, and Bw = w, p[v,0] = [v,0] and p[0,w] = [0,w]
-    are solutions.
-
-    This function solves numpy.eigh for all block matrices.
-    This function is efficient for matrix p composed of nonequivalent
-    block matrices.
-
-    """
-    tol = 1e-16
-    p.data[np.abs(p.data) < tol] = 0.0
-    row, col = p.nonzero()
-    data = p.data[np.abs(p.data) >= tol]
-    p = csr_array((data, (row, col)), shape=p.shape)
-
-    group = _find_projector_blocks(p)
-    if verbose:
-        print("Number of blocks in projector (Sum rule):", len(group), flush=True)
-
-    eigvecs_full = np.zeros(p.shape, dtype="double")
-    col_id = 0
-    for i, ids in enumerate(group.values()):
-        if verbose and len(ids) > 2:
-            print("Eigsh_solver_block:", i + 1, "/", len(group), flush=True)
-            print(" - Block_size:", len(ids), flush=True)
-        ids = np.array(ids)
-        p_block = p[np.ix_(ids, ids)].toarray()
-        rank = int(round(np.trace(p_block)))
-        if rank > 0:
-            eigvecs, p_block, compr_mat = _iterative_eigsh_projector(
-                p_block,
-                use_mkl=use_mkl,
-                verbose=verbose,
-            )
-            if eigvecs is not None:
-                col_end = col_id + eigvecs.shape[1]
-                eigvecs_full[ids, col_id:col_end] = eigvecs
-                col_id = col_end
-
-            if p_block.shape[0] > 0:
-                eigvecs = eigh_projector(p_block)
-                col_end = col_id + eigvecs.shape[1]
-                if compr_mat is not None:
-                    eigvecs_full[ids, col_id:col_end] = compr_mat @ eigvecs
-                else:
-                    eigvecs_full[ids, col_id:col_end] = eigvecs
-                col_id = col_end
-
-    return eigvecs_full[:, :col_id]
