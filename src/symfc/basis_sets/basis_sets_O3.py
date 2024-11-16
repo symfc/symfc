@@ -190,9 +190,7 @@ class FCBasisSetO3(FCBasisSetBase):
             verbose=self._log_level > 0,
         )
         tt6 = time.time()
-        eigvecs = eigsh_projector_sumrule(
-            proj, use_mkl=self._use_mkl, verbose=self._log_level > 0
-        )
+        eigvecs = eigsh_projector_sumrule(proj, verbose=self._log_level > 0)
 
         if self._log_level:
             print("Final size of basis set:", eigvecs.shape, flush=True)
