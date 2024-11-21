@@ -8,7 +8,7 @@ from typing import Literal, Optional
 import numpy as np
 
 from symfc.basis_sets import FCBasisSetO3
-from symfc.solver.solver_O2O3 import reshape_nNN333_nx_to_N3N3_n3nx, set_disps_N3N3
+from symfc.solvers.solver_O2O3 import reshape_nNN333_nx_to_N3N3_n3nx, set_disps_N3N3
 from symfc.utils.eig_tools import dot_product_sparse
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 

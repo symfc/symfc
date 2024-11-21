@@ -180,7 +180,7 @@ class Symfc:
         self._check_dataset()
         orders = self._check_orders(max_order, orders)
 
-        if orders == (2):
+        if orders == (2,):
             basis_set: FCBasisSetO2 = self._basis_set[2]
             solver_o2 = FCSolverO2(
                 basis_set,
@@ -191,7 +191,7 @@ class Symfc:
                 self._force_constants[2] = solver_o2.compact_fc
             else:
                 self._force_constants[2] = solver_o2.full_fc
-        elif orders == (3):
+        elif orders == (3,):
             basis_set: FCBasisSetO3 = self._basis_set[3]
             solver_o3 = FCSolverO3(
                 basis_set,
@@ -202,7 +202,7 @@ class Symfc:
                 self._force_constants[3] = solver_o3.compact_fc
             else:
                 self._force_constants[3] = solver_o3.full_fc
-        elif orders == (4):
+        elif orders == (4,):
             basis_set: FCBasisSetO4 = self._basis_set[4]
             solver_o4 = FCSolverO4(
                 basis_set,
@@ -316,7 +316,7 @@ class Symfc:
             orders = tuple(list(range(2, max_order + 1)))
         else:
             orders = tuple(sorted(orders))
-            if orders not in [(2), (3), (4), (2, 3), (3, 4), (2, 3, 4)]:
+            if orders not in [(2,), (3,), (4,), (2, 3), (3, 4), (2, 3, 4)]:
                 raise RuntimeError("Invalid FC orders.")
         return orders
 
