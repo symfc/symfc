@@ -263,14 +263,12 @@ def prepare_normal_equation_O2O3O4(
     NN = N**2
     NNN = N**3
 
-    n_basis_fc2 = compress_eigvecs_fc2.shape[1]
-    n_basis_fc3 = compress_eigvecs_fc3.shape[1]
-    n_basis_fc4 = compress_eigvecs_fc4.shape[1]
+    # n_basis_fc2 = compress_eigvecs_fc2.shape[1]
+    # n_basis_fc3 = compress_eigvecs_fc3.shape[1]
+    # n_basis_fc4 = compress_eigvecs_fc4.shape[1]
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]
     n_compr_fc3 = compact_compress_mat_fc3.shape[1]
     n_compr_fc4 = compact_compress_mat_fc4.shape[1]
-    n_basis_fc23 = n_basis_fc2 + n_basis_fc3
-    n_basis = n_basis_fc2 + n_basis_fc3 + n_basis_fc4
 
     n_batch = (n_compr_fc3 // 10000 + n_compr_fc4 // 5000 + 1) * (N // 50 + 1)
     n_batch = min(N, n_batch)
@@ -377,33 +375,48 @@ def prepare_normal_equation_O2O3O4(
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
-    XTX = np.zeros((n_basis, n_basis), dtype=float)
-    XTy = np.zeros(n_basis, dtype=float)
-    XTX[:n_basis_fc2, :n_basis_fc2] = (
-        compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2
+
+    mat22 = compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2
+    mat23 = compress_eigvecs_fc2.T @ mat23 @ compress_eigvecs_fc3
+    mat24 = compress_eigvecs_fc2.T @ mat24 @ compress_eigvecs_fc4
+    mat33 = compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
+    mat34 = compress_eigvecs_fc3.T @ mat34 @ compress_eigvecs_fc4
+    mat44 = compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
+    mat2y = compress_eigvecs_fc2.T @ mat2y
+    mat3y = compress_eigvecs_fc3.T @ mat3y
+    mat4y = compress_eigvecs_fc4.T @ mat4y
+    XTX = np.block(
+        [[mat22, mat23, mat24], [mat23.T, mat33, mat34], [mat24.T, mat34.T, mat44]]
     )
-    XTX[:n_basis_fc2, n_basis_fc2:n_basis_fc23] = (
-        compress_eigvecs_fc2.T @ mat23 @ compress_eigvecs_fc3
-    )
-    XTX[:n_basis_fc2, n_basis_fc23:] = (
-        compress_eigvecs_fc2.T @ mat24 @ compress_eigvecs_fc4
-    )
-    XTX[n_basis_fc2:, :n_basis_fc2] = XTX[:n_basis_fc2, n_basis_fc2:].T
-    XTX[n_basis_fc2:n_basis_fc23, n_basis_fc2:n_basis_fc23] = (
-        compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
-    )
-    XTX[n_basis_fc2:n_basis_fc23, n_basis_fc23:] = (
-        compress_eigvecs_fc3.T @ mat34 @ compress_eigvecs_fc4
-    )
-    XTX[n_basis_fc23:, n_basis_fc2:n_basis_fc23] = XTX[
-        n_basis_fc2:n_basis_fc23, n_basis_fc23:
-    ].T
-    XTX[n_basis_fc23:, n_basis_fc23:] = (
-        compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
-    )
-    XTy[:n_basis_fc2] = compress_eigvecs_fc2.T @ mat2y
-    XTy[n_basis_fc2:n_basis_fc23] = compress_eigvecs_fc3.T @ mat3y
-    XTy[n_basis_fc23:] = compress_eigvecs_fc4.T @ mat4y
+    XTy = np.hstack([mat2y, mat3y, mat4y])
+
+    # XTX = np.zeros((n_basis, n_basis), dtype=float)
+    # XTy = np.zeros(n_basis, dtype=float)
+    # XTX[:n_basis_fc2, :n_basis_fc2] = (
+    #     compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2
+    # )
+    # XTX[:n_basis_fc2, n_basis_fc2:n_basis_fc23] = (
+    #     compress_eigvecs_fc2.T @ mat23 @ compress_eigvecs_fc3
+    # )
+    # XTX[:n_basis_fc2, n_basis_fc23:] = (
+    #     compress_eigvecs_fc2.T @ mat24 @ compress_eigvecs_fc4
+    # )
+    # XTX[n_basis_fc2:, :n_basis_fc2] = XTX[:n_basis_fc2, n_basis_fc2:].T
+    # XTX[n_basis_fc2:n_basis_fc23, n_basis_fc2:n_basis_fc23] = (
+    #     compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
+    # )
+    # XTX[n_basis_fc2:n_basis_fc23, n_basis_fc23:] = (
+    #     compress_eigvecs_fc3.T @ mat34 @ compress_eigvecs_fc4
+    # )
+    # XTX[n_basis_fc23:, n_basis_fc2:n_basis_fc23] = XTX[
+    #     n_basis_fc2:n_basis_fc23, n_basis_fc23:
+    # ].T
+    # XTX[n_basis_fc23:, n_basis_fc23:] = (
+    #     compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
+    # )
+    # XTy[:n_basis_fc2] = compress_eigvecs_fc2.T @ mat2y
+    # XTy[n_basis_fc2:n_basis_fc23] = compress_eigvecs_fc3.T @ mat3y
+    # XTy[n_basis_fc23:] = compress_eigvecs_fc4.T @ mat4y
 
     compact_compress_mat_fc2 /= const_fc2
     compact_compress_mat_fc3 /= const_fc3
@@ -430,7 +443,7 @@ def run_solver_O2O3O4(
     atomic_decompr_idx_fc2,
     atomic_decompr_idx_fc3,
     atomic_decompr_idx_fc4,
-    batch_size=100,
+    batch_size=36,
     use_mkl=False,
     verbose=False,
 ):

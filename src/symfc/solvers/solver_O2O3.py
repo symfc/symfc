@@ -309,14 +309,13 @@ def prepare_normal_equation_O2O3(
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
 
+    mat22 = compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2
     mat23 = compress_eigvecs_fc2.T @ mat23 @ compress_eigvecs_fc3
-    XTX = np.block(
-        [
-            [compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2, mat23],
-            [mat23.T, compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3],
-        ]
-    )
-    XTy = np.hstack([compress_eigvecs_fc2.T @ mat2y, compress_eigvecs_fc3.T @ mat3y])
+    mat33 = compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
+    mat2y = compress_eigvecs_fc2.T @ mat2y
+    mat3y = compress_eigvecs_fc3.T @ mat3y
+    XTX = np.block([[mat22, mat23], [mat23.T, mat33]])
+    XTy = np.hstack([mat2y, mat3y])
 
     compact_compress_mat_fc2 /= const_fc2
     compact_compress_mat_fc3 /= const_fc3
