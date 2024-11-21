@@ -77,15 +77,17 @@ class Symfc:
 
     @property
     def basis_set(self) -> dict[FCBasisSetBase]:
-        """Return basis set instance.
+        """Setter and getter of basis set.
 
-        Returns
-        -------
         dict[FCBasisSet]
             The key is the order of basis set in int.
 
         """
         return self._basis_set
+
+    @basis_set.setter
+    def basis_set(self, basis_set):
+        self._basis_set = basis_set
 
     @property
     def force_constants(self) -> dict[np.ndarray]:
