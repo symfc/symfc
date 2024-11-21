@@ -1,4 +1,4 @@
-"""2nd order force constants solver."""
+"""Solver of 4th order force constants."""
 
 from __future__ import annotations
 
@@ -7,19 +7,23 @@ from typing import Literal, Optional
 
 import numpy as np
 
-from symfc.basis_sets import FCBasisSetO2
+from symfc.basis_sets import FCBasisSetO4
+from symfc.solvers.solver_O2O3O4 import (
+    reshape_nNNN3333_nx_to_N3N3N3_n3nx,
+    set_disps_N3N3N3,
+)
 from symfc.utils.eig_tools import dot_product_sparse
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
 from .solver_base import FCSolverBase
 
 
-class FCSolverO2(FCSolverBase):
-    """Third order force constants solver."""
+class FCSolverO4(FCSolverBase):
+    """Fourth order force constants solver."""
 
     def __init__(
         self,
-        basis_set: FCBasisSetO2,
+        basis_set: FCBasisSetO4,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -30,9 +34,13 @@ class FCSolverO2(FCSolverBase):
         self,
         displacements: np.ndarray,
         forces: np.ndarray,
-        batch_size: int = 100,
-    ) -> FCSolverO2:
-        """Solve coefficients of basis set from displacements and forces.
+        batch_size: int = 36,
+    ) -> FCSolverO4:
+        """Solve force constants.
+
+        Note
+        ----
+        self._coefs = coefs_fc4
 
         Parameters
         ----------
@@ -45,25 +53,25 @@ class FCSolverO2(FCSolverBase):
 
         Returns
         -------
-        self : FCSolverO2
+        self : FCSolverO4
 
         """
         n_data = forces.shape[0]
         f = forces.reshape(n_data, -1)
         d = displacements.reshape(n_data, -1)
 
-        fc2_basis: FCBasisSetO2 = self._basis_set
-        compress_mat_fc2 = fc2_basis.compact_compression_matrix
-        basis_set_fc2 = fc2_basis.basis_set
+        fc4_basis: FCBasisSetO4 = self._basis_set
+        compress_mat_fc4 = fc4_basis.compact_compression_matrix
+        basis_set_fc4 = fc4_basis.basis_set
 
-        atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
+        atomic_decompr_idx_fc4 = fc4_basis.atomic_decompr_idx
 
-        self._coefs = run_solver_O2(
+        self._coefs = run_solver_O4(
             d,
             f,
-            compress_mat_fc2,
-            basis_set_fc2,
-            atomic_decompr_idx_fc2,
+            compress_mat_fc4,
+            basis_set_fc4,
+            atomic_decompr_idx_fc4,
             batch_size=batch_size,
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
@@ -77,7 +85,7 @@ class FCSolverO2(FCSolverBase):
         Returns
         -------
         np.ndarray
-            shape=(N, N, 3, 3), dtype='double', order='C'
+            shape=(N, N, N, N, 3, 3, 3, 3), dtype='double', order='C'
 
         """
         return self._recover_fcs("full")
@@ -89,7 +97,7 @@ class FCSolverO2(FCSolverBase):
         Returns
         -------
         np.ndarray
-            shape=(n_a, N, 3, 3), dtype='double', order='C'
+            shape=(n_a, N, N, N, 3, 3, 3, 3), dtype='double', order='C'
 
         """
         return self._recover_fcs("compact")
@@ -100,64 +108,42 @@ class FCSolverO2(FCSolverBase):
         if self._coefs is None:
             return None
 
-        fc2_basis: FCBasisSetO2 = self._basis_set
+        fc4_basis: FCBasisSetO4 = self._basis_set
         if comp_mat_type == "full":
-            comp_mat_fc2 = fc2_basis.compression_matrix
+            comp_mat_fc4 = fc4_basis.compression_matrix
         elif comp_mat_type == "compact":
-            comp_mat_fc2 = fc2_basis.compact_compression_matrix
+            comp_mat_fc4 = fc4_basis.compact_compression_matrix
         else:
             raise ValueError("Invalid comp_mat_type.")
 
         N = self._natom
-        fc2 = fc2_basis.basis_set @ self._coefs
-        fc2 = np.array(
-            (comp_mat_fc2 @ fc2).reshape((-1, N, 3, 3)), dtype="double", order="C"
+        fc4 = fc4_basis.basis_set @ self._coefs
+        fc4 = np.array(
+            (comp_mat_fc4 @ fc4).reshape((-1, N, N, N, 3, 3, 3, 3)),
+            dtype="double",
+            order="C",
         )
-        return fc2
+
+        return fc4
 
 
-def reshape_nN33_nx_to_N3_n3nx(mat, N, n, n_batch=1):
-    """Reorder and reshape a sparse matrix (nN33,nx)->(N3,n3nx).
-
-    Return reordered csr_matrix used for FC2.
-    """
-    _, nx = mat.shape
-    N3 = N * 3
-    n3nx = n * 3 * nx
-    mat = mat.tocoo(copy=False)
-
-    begin_batch, end_batch = get_batch_slice(len(mat.row), len(mat.row) // n_batch)
-    for begin, end in zip(begin_batch, end_batch):
-        div, rem = np.divmod(mat.row[begin:end], 9 * N)
-        mat.col[begin:end] += div * 3 * nx
-        div, rem = np.divmod(rem, 9)
-        mat.row[begin:end] = div * 3
-        div, rem = np.divmod(rem, 3)
-        mat.col[begin:end] += div * nx
-        mat.row[begin:end] += rem
-
-    mat.resize((N3, n3nx))
-    mat = mat.tocsr(copy=False)
-    return mat
-
-
-def prepare_normal_equation_O2(
+def prepare_normal_equation_O4(
     disps,
     forces,
-    compact_compress_mat_fc2,
-    compress_eigvecs_fc2,
-    atomic_decompr_idx_fc2,
-    batch_size=100,
+    compact_compress_mat_fc4,
+    compress_eigvecs_fc4,
+    atomic_decompr_idx_fc4,
+    batch_size=36,
     use_mkl=False,
     verbose=False,
 ):
     r"""Calculate X.T @ X and X.T @ y.
 
-    X = displacements @ compress_mat @ compress_eigvecs
+    X = displacements (fc4) @ compress_mat @ compress_eigvecs
 
-    displacements (fc2): (n_samples, N3)
-    compact_compress_mat_fc2: (n_aN33, n_compr)
-    compress_eigvecs_fc2: (n_compr_fc2, n_basis_fc2)
+    displacements (fc4): (n_samples, NNN333)
+    compact_compress_mat_fc4: (n_aNNN3333, n_compr_fc4)
+    compress_eigvecs_fc4: (n_compr_fc4, n_basis_fc4)
     Matrix reshapings are appropriately applied to compress_mat
     and its products.
 
@@ -167,18 +153,20 @@ def prepare_normal_equation_O2(
     """
     N3 = disps.shape[1]
     N = N3 // 3
-    n_compr_fc2 = compact_compress_mat_fc2.shape[1]
+    NNN = N**3
+    n_compr_fc4 = compact_compress_mat_fc4.shape[1]
 
-    n_batch = 1
+    n_batch = (n_compr_fc4 // 5000 + 1) * (N // 50 + 1)
+    n_batch = min(N, n_batch)
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
 
-    mat22 = np.zeros((n_compr_fc2, n_compr_fc2), dtype=float)
-    mat2y = np.zeros(n_compr_fc2, dtype=float)
+    mat44 = np.zeros((n_compr_fc4, n_compr_fc4), dtype=float)
+    mat4y = np.zeros(n_compr_fc4, dtype=float)
 
     t_all1 = time.time()
-    const_fc2 = -1.0
-    compact_compress_mat_fc2 *= const_fc2
+    const_fc4 = -1.0 / 6.0
+    compact_compress_mat_fc4 *= const_fc4
     for begin_i, end_i in zip(begin_batch_atom, end_batch_atom):
         if verbose:
             print("-----", flush=True)
@@ -187,11 +175,11 @@ def prepare_normal_equation_O2(
 
         t1 = time.time()
         decompr_idx = (
-            atomic_decompr_idx_fc2[begin_i * N : end_i * N, None] * 9
-            + np.arange(9)[None, :]
+            atomic_decompr_idx_fc4[begin_i * NNN : end_i * NNN, None] * 81
+            + np.arange(81)[None, :]
         ).reshape(-1)
-        compr_mat_fc2 = reshape_nN33_nx_to_N3_n3nx(
-            compact_compress_mat_fc2[decompr_idx],
+        compr_mat_fc4 = reshape_nNNN3333_nx_to_N3N3N3_n3nx(
+            compact_compress_mat_fc4[decompr_idx],
             N,
             n_atom_batch,
         )
@@ -205,15 +193,15 @@ def prepare_normal_equation_O2(
 
         for begin, end in zip(begin_batch, end_batch):
             t1 = time.time()
-            X2 = dot_product_sparse(
-                disps[begin:end],
-                compr_mat_fc2,
+            X4 = dot_product_sparse(
+                set_disps_N3N3N3(disps[begin:end], sparse=False),
+                compr_mat_fc4,
                 use_mkl=use_mkl,
                 dense=True,
-            ).reshape((-1, n_compr_fc2))
+            ).reshape((-1, n_compr_fc4))
             y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
-            mat22 += X2.T @ X2
-            mat2y += X2.T @ y
+            mat44 += X4.T @ X4
+            mat4y += X4.T @ y
             t2 = time.time()
             if verbose:
                 print("Solver_block:", end, "/", disps.shape[0], flush=True)
@@ -221,45 +209,45 @@ def prepare_normal_equation_O2(
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
-    XTX = compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2
-    XTy = compress_eigvecs_fc2.T @ mat2y
+    XTX = compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
+    XTy = compress_eigvecs_fc4.T @ mat4y
 
-    compact_compress_mat_fc2 /= const_fc2
+    compact_compress_mat_fc4 /= const_fc4
     t_all2 = time.time()
     if verbose:
         print(
-            " (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):",
+            "Time (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):",
             "{:.3f}".format(t_all2 - t_all1),
             flush=True,
         )
     return XTX, XTy
 
 
-def run_solver_O2(
+def run_solver_O4(
     disps,
     forces,
-    compact_compress_mat_fc2,
-    compress_eigvecs_fc2,
-    atomic_decompr_idx_fc2,
-    batch_size=100,
+    compact_compress_mat_fc4,
+    compress_eigvecs_fc4,
+    atomic_decompr_idx_fc4,
+    batch_size=36,
     use_mkl=False,
     verbose=False,
 ):
     """Estimate coeffs. in X @ coeffs = y.
 
-    X = displacements_fc2 @ compress_mat_fc2 @ compress_eigvecs_fc2
+    X = displacements_fc4 @ compress_mat_fc4 @ compress_eigvecs_fc4
 
     Matrix reshapings are appropriately applied.
-    X: features (n_samples * N3, N_basis_fc2)
+    X: features (n_samples * N3, N_basis_fc4)
     y: observations (forces), (n_samples * N3)
 
     """
-    XTX, XTy = prepare_normal_equation_O2(
+    XTX, XTy = prepare_normal_equation_O4(
         disps,
         forces,
-        compact_compress_mat_fc2,
-        compress_eigvecs_fc2,
-        atomic_decompr_idx_fc2,
+        compact_compress_mat_fc4,
+        compress_eigvecs_fc4,
+        atomic_decompr_idx_fc4,
         batch_size=batch_size,
         use_mkl=use_mkl,
         verbose=verbose,
