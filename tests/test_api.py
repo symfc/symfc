@@ -31,7 +31,14 @@ def test_api_NaCl_222(ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
 def test_api_NaCl_222_with_dataset(
     ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray],
 ):
-    """Test Symfc class with displacements and forces as input."""
+    """Test Symfc class with displacements and forces as input.
+
+    1. symfc.run()
+    2. basis_set = symfc.basis_set.
+    3. new_symfc.basis_set
+    4. new_symfc.solve()
+
+    """
     supercell, displacements, forces = ph_nacl_222
     symfc = Symfc(
         supercell,
@@ -41,6 +48,15 @@ def test_api_NaCl_222_with_dataset(
     fc = symfc.force_constants[2]
     fc_ref = np.loadtxt(cwd / "compact_fc_NaCl_222.xz").reshape(fc.shape)
     np.testing.assert_allclose(fc, fc_ref)
+
+    new_symfc = Symfc(
+        supercell,
+        displacements=displacements,
+        forces=forces,
+    )
+    new_symfc.basis_set = symfc.basis_set
+    new_symfc.solve(max_order=2)
+    np.testing.assert_allclose(new_symfc.force_constants[2], fc_ref)
 
 
 def test_api_NaCl_222_exception(ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
