@@ -108,4 +108,3 @@ def test_api_si_111_fc4(
     np.testing.assert_allclose(fc2_ref, fc2, atol=1e-6)
     np.testing.assert_allclose(fc3_ref, fc3, atol=1e-6)
     np.testing.assert_allclose(fc4_ref, fc4, atol=1e-6)
-
