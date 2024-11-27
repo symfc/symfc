@@ -138,7 +138,6 @@ def test_api_si_111_fc4_step(
 
     fc2_ref = np.loadtxt(cwd / "full_fc_Si_111_fc4_2.xz").reshape(fc2.shape)
     fc3_ref = np.loadtxt(cwd / "full_fc_Si_111_fc4_3.xz").reshape(fc3.shape)
-    fc4_ref = np.loadtxt(cwd / "full_fc_Si_111_fc4_4.xz").reshape(fc4.shape)
     np.testing.assert_allclose(fc2_ref, fc2, atol=1e-1)
     np.testing.assert_allclose(fc3_ref, fc3, atol=1e-1)
 
