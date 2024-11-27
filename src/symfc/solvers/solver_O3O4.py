@@ -119,8 +119,8 @@ class FCSolverO3O4(FCSolverBase):
         if self._coefs is None:
             return None
 
-        fc3_basis: FCBasisSetO3 = self._basis_set[1]
-        fc4_basis: FCBasisSetO4 = self._basis_set[2]
+        fc3_basis: FCBasisSetO3 = self._basis_set[0]
+        fc4_basis: FCBasisSetO4 = self._basis_set[1]
         if comp_mat_type == "full":
             comp_mat_fc3 = fc3_basis.compression_matrix
             comp_mat_fc4 = fc4_basis.compression_matrix
