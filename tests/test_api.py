@@ -108,3 +108,46 @@ def test_api_si_111_fc4(
     np.testing.assert_allclose(fc2_ref, fc2, atol=1e-6)
     np.testing.assert_allclose(fc3_ref, fc3, atol=1e-6)
     np.testing.assert_allclose(fc4_ref, fc4, atol=1e-6)
+
+
+@pytest.mark.parametrize("is_compact_fc", [False])
+def test_api_si_111_fc4_step(
+    ph3_si_111_fc3: tuple[SymfcAtoms, np.ndarray, np.ndarray], is_compact_fc: bool
+):
+    """Test Symfc class with displacements and forces as input."""
+    supercell, displacements, forces = ph3_si_111_fc3
+    symfc = Symfc(supercell, displacements=displacements, forces=forces).run(
+        orders=[2], is_compact_fc=is_compact_fc
+    )
+    fc2 = symfc.force_constants[2]
+
+    natom = fc2.shape[0]
+    N3 = natom * 3
+    fc2_mat = fc2.transpose((0, 2, 1, 3)).reshape((N3, N3))
+    displacements_mat = displacements.reshape((-1, N3))
+    forces_mat = forces.reshape((-1, N3))
+
+    forces_mat -= -displacements_mat @ fc2_mat
+    forces = forces_mat.reshape((-1, natom, 3))
+
+    symfc = Symfc(supercell, displacements=displacements, forces=forces).run(
+        orders=[3, 4], is_compact_fc=is_compact_fc
+    )
+    fc3 = symfc.force_constants[3]
+    fc4 = symfc.force_constants[4]
+
+    fc2_ref = np.loadtxt(cwd / "full_fc_Si_111_fc4_2.xz").reshape(fc2.shape)
+    fc3_ref = np.loadtxt(cwd / "full_fc_Si_111_fc4_3.xz").reshape(fc3.shape)
+    fc4_ref = np.loadtxt(cwd / "full_fc_Si_111_fc4_4.xz").reshape(fc4.shape)
+    np.testing.assert_allclose(fc2_ref, fc2, atol=1e-1)
+    np.testing.assert_allclose(fc3_ref, fc3, atol=1e-1)
+
+    # np.savetxt(cwd / "full_fc_Si_111_fc4_step_2.xz", fc2.ravel())
+    # np.savetxt(cwd / "full_fc_Si_111_fc4_step_3.xz", fc3.ravel())
+    # np.savetxt(cwd / "full_fc_Si_111_fc4_step_4.xz", fc4.ravel())
+    fc2_ref = np.loadtxt(cwd / "full_fc_Si_111_fc4_step_2.xz").reshape(fc2.shape)
+    fc3_ref = np.loadtxt(cwd / "full_fc_Si_111_fc4_step_3.xz").reshape(fc3.shape)
+    fc4_ref = np.loadtxt(cwd / "full_fc_Si_111_fc4_step_4.xz").reshape(fc4.shape)
+    np.testing.assert_allclose(fc2_ref, fc2, atol=1e-6)
+    np.testing.assert_allclose(fc3_ref, fc3, atol=1e-6)
+    np.testing.assert_allclose(fc4_ref, fc4, atol=1e-6)
