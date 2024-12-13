@@ -251,7 +251,9 @@ def eigsh_projector(p: csr_array, verbose: bool = True) -> csr_array:
 def _block_eigh_projector(p_block: np.ndarray, verbose: bool = False):
     """Solve eigenvalue problem using block divisions."""
     eigvecs_block = np.zeros(p_block.shape, dtype="double")
-    cmplt = np.zeros((p_block.shape[0], p_block.shape[0] // 2), dtype="double")
+    cmplt = np.zeros((p_block.shape[0], p_block.shape[0]), dtype="double")
+    # TODO: memory allocation of cmlpt should be more efficient
+    # cmplt = np.zeros((p_block.shape[0], p_block.shape[0] // 2), dtype="double")
 
     p_size = p_block.shape[0]
     target_size = min(max(p_size // 10, 1000), 3000)

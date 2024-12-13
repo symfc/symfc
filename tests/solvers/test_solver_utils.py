@@ -30,7 +30,6 @@ def test_reshape_O2():
 
 def test_reshape_O3():
     """Test reshape_nNN333_nx_to_N3N3_n3nx in solver_O2O3."""
-    N = 30
     N = 4
     n = 2
     nx = 23
