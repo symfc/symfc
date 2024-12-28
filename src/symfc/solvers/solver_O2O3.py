@@ -113,7 +113,8 @@ class FCSolverO2O3(FCSolverBase):
         return self._recover_fcs("compact")
 
     def _recover_fcs(
-        self, comp_mat_type: str = Literal["full", "compact"]
+        self,
+        comp_mat_type: str = Literal["full", "compact"],
     ) -> Optional[tuple[np.ndarray, np.ndarray]]:
         if self._coefs is None:
             return None
@@ -193,17 +194,17 @@ def reshape_nNN333_nx_to_N3N3_n3nx(mat, N, n, n_batch=9):
 
 
 def prepare_normal_equation_O2O3(
-    disps,
-    forces,
-    compact_compress_mat_fc2,
-    compact_compress_mat_fc3,
-    compress_eigvecs_fc2,
-    compress_eigvecs_fc3,
-    atomic_decompr_idx_fc2,
-    atomic_decompr_idx_fc3,
-    batch_size=100,
-    use_mkl=False,
-    verbose=False,
+    disps: np.ndarray,
+    forces: np.ndarray,
+    compact_compress_mat_fc2: csr_array,
+    compact_compress_mat_fc3: csr_array,
+    compress_eigvecs_fc2: np.ndarray,
+    compress_eigvecs_fc3: np.ndarray,
+    atomic_decompr_idx_fc2: np.ndarray,
+    atomic_decompr_idx_fc3: np.ndarray,
+    batch_size: int = 100,
+    use_mkl: bool = False,
+    verbose: bool = False,
 ):
     r"""Calculate X.T @ X and X.T @ y.
 
@@ -246,6 +247,7 @@ def prepare_normal_equation_O2O3(
     const_fc3 = -0.5
     compact_compress_mat_fc2 *= const_fc2
     compact_compress_mat_fc3 *= const_fc3
+
     for begin_i, end_i in zip(begin_batch_atom, end_batch_atom):
         if verbose:
             print("-----", flush=True)
@@ -296,6 +298,7 @@ def prepare_normal_equation_O2O3(
                 dense=True,
             ).reshape((-1, n_compr_fc3))
             y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
+
             mat22 += X2.T @ X2
             mat23 += X2.T @ X3
             mat33 += X3.T @ X3
@@ -330,17 +333,17 @@ def prepare_normal_equation_O2O3(
 
 
 def run_solver_O2O3(
-    disps,
-    forces,
-    compact_compress_mat_fc2,
-    compact_compress_mat_fc3,
-    compress_eigvecs_fc2,
-    compress_eigvecs_fc3,
-    atomic_decompr_idx_fc2,
-    atomic_decompr_idx_fc3,
-    batch_size=100,
-    use_mkl=False,
-    verbose=False,
+    disps: np.ndarray,
+    forces: np.ndarray,
+    compact_compress_mat_fc2: csr_array,
+    compact_compress_mat_fc3: csr_array,
+    compress_eigvecs_fc2: np.ndarray,
+    compress_eigvecs_fc3: np.ndarray,
+    atomic_decompr_idx_fc2: np.ndarray,
+    atomic_decompr_idx_fc3: np.ndarray,
+    batch_size: int = 100,
+    use_mkl: bool = False,
+    verbose: bool = False,
 ):
     """Estimate coeffs. in X @ coeffs = y.
 
