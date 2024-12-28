@@ -98,22 +98,21 @@ def compute_sg_permutations(
     for r, t in zip(rotations, translations):
         if (r != np.eye(3, dtype=int)).any():
             continue
+        trans_positions = positions + t
         sorted_trans_ids, sorted_trans_positions = argsort_positions(
-            positions + t,
+            trans_positions,
             decimals=decimals,
         )
-        if not np.allclose(sorted_trans_positions - sorted_positions, 0.0):
-            out = compute_sg_permutations_stable(
-                positions=positions,
-                rotations=rotations,
-                translations=translations,
-                lattice=lattice,
-                symprec=symprec,
-            )
-            return out
-
-        tp = np.zeros(n_atom, dtype=int)
-        tp[sorted_ids] = sorted_trans_ids
+        if np.allclose(sorted_trans_positions - sorted_positions, 0.0):
+            tp = np.zeros(n_atom, dtype=int)
+            tp[sorted_ids] = sorted_trans_ids
+        else:
+            diffs = positions[None, :, :] - trans_positions[:, None, :]
+            diffs -= np.rint(diffs)
+            dists = np.linalg.norm(diffs @ lattice.T, axis=2)
+            rows, cols = np.where(dists < symprec)
+            assert len(positions) == len(np.unique(rows)) == len(np.unique(cols))
+            tp = cols[np.argsort(rows)]
         trans_perms.append(tp)
         pure_trans.append(t)
     trans_perms = np.array(trans_perms, dtype=int)
