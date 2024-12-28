@@ -34,7 +34,7 @@ def get_indep_atoms_by_lat_trans(trans_perms: np.ndarray) -> np.ndarray:
     return np.array(unique_atoms, dtype=int)
 
 
-def round_positions(positions, tol=1e-13, decimals=8):
+def round_positions(positions, tol=1e-13, decimals=5):
     """Round fractional coordinates of positions (-0.5 <= p < 0.5)."""
     positions_rint = positions - np.rint(positions)
     positions_rint[np.abs(positions_rint - 0.5) < tol] = -0.5
@@ -42,7 +42,7 @@ def round_positions(positions, tol=1e-13, decimals=8):
     return positions_rint
 
 
-def argsort_positions(positions, tol=1e-13, decimals=8):
+def argsort_positions(positions, tol=1e-13, decimals=5):
     """Round and sort fractional coordinates of positions (-0.5 <= p < 0.5)."""
     positions_rint = round_positions(positions, tol=tol, decimals=decimals)
     """Not needed part?"""
@@ -91,12 +91,13 @@ def compute_sg_permutations(
     trans_perms = []
     pure_trans = []
     n_atom = positions.shape[0]
-    sorted_ids = argsort_positions(positions)
+    decimals = int(-np.log10(symprec))
+    sorted_ids = argsort_positions(positions, decimals=decimals)
     for r, t in zip(rotations, translations):
         if (r != np.eye(3, dtype=int)).any():
             continue
         tp = np.zeros(n_atom, dtype=int)
-        tp[sorted_ids] = argsort_positions(positions + t)
+        tp[sorted_ids] = argsort_positions(positions + t, decimals=decimals)
         trans_perms.append(tp)
         pure_trans.append(t)
     trans_perms = np.array(trans_perms, dtype=int)
