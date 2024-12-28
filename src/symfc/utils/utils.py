@@ -45,10 +45,10 @@ def round_positions(positions, tol=1e-13, decimals=5):
 def argsort_positions(positions, tol=1e-13, decimals=5):
     """Round and sort fractional coordinates of positions (-0.5 <= p < 0.5)."""
     positions_rint = round_positions(positions, tol=tol, decimals=decimals)
-    """Not needed part?"""
+    # Not needed part?
     positions_rint *= 10**decimals
     positions_rint = [tuple(p) for p in positions_rint.astype(int)]
-    """Not needed part? (end)"""
+    # Not needed part? (end)
     sorted_ids = sorted(range(positions.shape[0]), key=positions_rint.__getitem__)
     return sorted_ids
 
@@ -102,6 +102,17 @@ def compute_sg_permutations(
         pure_trans.append(t)
     trans_perms = np.array(trans_perms, dtype=int)
     pure_trans = np.array(pure_trans)
+
+    n_uniq = np.array([len(np.unique(tp)) for tp in trans_perms.T])
+    if not np.all(n_uniq == trans_perms.shape[0]):
+        out = compute_sg_permutations_stable(
+            positions=positions,
+            rotations=rotations,
+            translations=translations,
+            lattice=lattice,
+            symprec=symprec,
+        )
+        return out
 
     unique_r = []
     unique_t = []
