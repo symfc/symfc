@@ -34,7 +34,7 @@ def get_indep_atoms_by_lat_trans(trans_perms: np.ndarray) -> np.ndarray:
     return np.array(unique_atoms, dtype=int)
 
 
-def round_positions(positions, tol=1e-13, decimals=5):
+def round_positions(positions: np.ndarray, tol: float = 1e-13, decimals: int = 5):
     """Round fractional coordinates of positions (-0.5 <= p < 0.5)."""
     positions_rint = positions - np.rint(positions)
     positions_rint[np.abs(positions_rint - 0.5) < tol] = -0.5
@@ -42,15 +42,27 @@ def round_positions(positions, tol=1e-13, decimals=5):
     return positions_rint
 
 
-def argsort_positions(positions, tol=1e-13, decimals=5):
+def argsort_positions(positions: np.ndarray, tol: float = 1e-13, decimals: int = 5):
     """Round and sort fractional coordinates of positions (-0.5 <= p < 0.5)."""
-    positions_rint = round_positions(positions, tol=tol, decimals=decimals)
-    """Not needed part?"""
-    positions_rint *= 10**decimals
+    positions_round = round_positions(positions, tol=tol, decimals=decimals)
+    # Not needed part?
+    positions_rint = 10**decimals * positions_round
     positions_rint = [tuple(p) for p in positions_rint.astype(int)]
-    """Not needed part? (end)"""
+    # Not needed part? (end)
     sorted_ids = sorted(range(positions.shape[0]), key=positions_rint.__getitem__)
-    return sorted_ids
+    sorted_positions = positions_round[sorted_ids]
+    return sorted_ids, sorted_positions
+
+
+def _find_optimal_decimals(positions: np.ndarray, tol: float = 1e-13):
+    """Find optimal value of decimals used for sorting atoms."""
+    n_atom = positions.shape[0]
+    for decimals in range(1, 15):
+        positions_round = round_positions(positions, tol=tol, decimals=decimals)
+        n_atom_uniq = len(set([tuple(pos) for pos in positions_round]))
+        if n_atom_uniq == n_atom:
+            return decimals
+    raise RuntimeError("Optimal decimals not found.")
 
 
 def compute_sg_permutations(
@@ -91,13 +103,26 @@ def compute_sg_permutations(
     trans_perms = []
     pure_trans = []
     n_atom = positions.shape[0]
-    decimals = int(-np.log10(symprec))
-    sorted_ids = argsort_positions(positions, decimals=decimals)
+    decimals = _find_optimal_decimals(positions)
+    sorted_ids, sorted_positions = argsort_positions(positions, decimals=decimals)
     for r, t in zip(rotations, translations):
         if (r != np.eye(3, dtype=int)).any():
             continue
-        tp = np.zeros(n_atom, dtype=int)
-        tp[sorted_ids] = argsort_positions(positions + t, decimals=decimals)
+        trans_positions = positions + t
+        sorted_trans_ids, sorted_trans_positions = argsort_positions(
+            trans_positions,
+            decimals=decimals,
+        )
+        if np.allclose(sorted_trans_positions - sorted_positions, 0.0):
+            tp = np.zeros(n_atom, dtype=int)
+            tp[sorted_ids] = sorted_trans_ids
+        else:
+            diffs = positions[None, :, :] - trans_positions[:, None, :]
+            diffs -= np.rint(diffs)
+            dists = np.linalg.norm(diffs @ lattice.T, axis=2)
+            rows, cols = np.where(dists < symprec)
+            assert len(positions) == len(np.unique(rows)) == len(np.unique(cols))
+            tp = cols[np.argsort(rows)]
         trans_perms.append(tp)
         pure_trans.append(t)
     trans_perms = np.array(trans_perms, dtype=int)

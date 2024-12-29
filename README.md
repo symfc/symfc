@@ -19,4 +19,23 @@ factors such as numerical noise or approximations used. Symfc is a software
 designed to compute force constants from displacement-force datasets in the
 supercell approach, ensuring they meet the required symmetry constraints.
 
-For more detail, please refer https://arxiv.org/abs/2403.03588.
+## Citation of symfc
+
+"Projector-based efficient estimation of force constants", A. Seko and A. Togo,
+Phys. Rev. B, **110**, 214302 (2024)
+[[doi](https://doi.org/10.1103/PhysRevB.110.214302)]
+[[arxiv](https://arxiv.org/abs/2403.03588)].
+
+```
+@article{PhysRevB.110.214302,
+  title = {Projector-based efficient estimation of force constants},
+  author = {Seko, Atsuto and Togo, Atsushi},
+  journal = {Phys. Rev. B},
+  volume = {110},
+  issue = {21},
+  pages = {214302},
+  numpages = {18},
+  year = {2024},
+  month = {Dec},
+}
+```
