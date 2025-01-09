@@ -35,8 +35,11 @@ A simplest installation using conda-forge packages:
 
 ## Usage
 
-Detailed documentation will be provided soon. For Python developers, please
-refer to `api_symfc.py` for more information.
+Detailed documentation will be provided soon. In the meantime, please refer to
+`api_symfc.py` for more information. Additionally, an [example
+implementation](https://github.com/phonopy/phonopy/blob/master/phonopy/interface/symfc.py)
+can be found in the phonopy code, particularly in the
+`SymfcFCSolver._initialize` method.
 
 ## License
 
