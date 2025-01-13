@@ -57,7 +57,7 @@ def argsort_positions(positions: np.ndarray, tol: float = 1e-13, decimals: int =
 def _find_optimal_decimals(positions: np.ndarray, tol: float = 1e-13):
     """Find optimal value of decimals used for sorting atoms."""
     n_atom = positions.shape[0]
-    for decimals in range(1, 15):
+    for decimals in range(3, 15):
         positions_round = round_positions(positions, tol=tol, decimals=decimals)
         n_atom_uniq = len(set([tuple(pos) for pos in positions_round]))
         if n_atom_uniq == n_atom:
@@ -115,7 +115,7 @@ def compute_sg_permutations(
         )
         if np.allclose(sorted_trans_positions - sorted_positions, 0.0):
             tp = np.zeros(n_atom, dtype=int)
-            tp[sorted_ids] = sorted_trans_ids
+            tp[sorted_trans_ids] = sorted_ids
         else:
             diffs = positions[None, :, :] - trans_positions[:, None, :]
             diffs -= np.rint(diffs)
