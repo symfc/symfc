@@ -306,6 +306,49 @@ class Symfc:
                 self._basis_set[4] = basis_set_o4
         return self
 
+    def estimate_basis_size(self, order: Optional[int] = None):
+        """Estimate the size of basis set.
+
+        Parameters
+        ----------
+        order : int
+            FC order.
+
+        Returns
+        -------
+        basis_size_estimates: Estimates of basis set size.
+        """
+        if order < 2 or order > 4:
+            raise NotImplementedError(
+                "Only fc2, fc3 and fc4 basis sets are implemented."
+            )
+
+        if order == 2:
+            basis_size_estimates = FCBasisSetO2(
+                self._supercell,
+                spacegroup_operations=self._spacegroup_operations,
+                use_mkl=self._use_mkl,
+                log_level=self._log_level,
+            ).estimate_basis_size()
+        elif order == 3:
+            basis_size_estimates = FCBasisSetO3(
+                self._supercell,
+                spacegroup_operations=self._spacegroup_operations,
+                cutoff=self._cutoff[3],
+                use_mkl=self._use_mkl,
+                log_level=self._log_level,
+            ).estimate_basis_size()
+        elif order == 4:
+            basis_size_estimates = FCBasisSetO4(
+                self._supercell,
+                spacegroup_operations=self._spacegroup_operations,
+                cutoff=self._cutoff[4],
+                use_mkl=self._use_mkl,
+                log_level=self._log_level,
+            ).estimate_basis_size()
+
+        return basis_size_estimates
+
     def _check_orders(self, max_order: int, orders: list) -> tuple:
         if max_order is None and orders is None:
             raise RuntimeError("Maximum order and orders not found.")
