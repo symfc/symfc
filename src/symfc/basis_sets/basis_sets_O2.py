@@ -192,7 +192,7 @@ class FCBasisSetO2(FCBasisSetBase):
         if self._fc_cutoff is None:
             n_sym, N = self._spg_reps._permutations.shape
             basis_size_estimates = 9 * (N**2) / n_sym / 2
-            return np.round(basis_size_estimates).astype(int)
+            return int(np.round(basis_size_estimates).astype(int))
 
         trans_perms = self._spg_reps.translation_permutations
         c_pt = compr_permutation_lat_trans_O2(
@@ -203,4 +203,4 @@ class FCBasisSetO2(FCBasisSetBase):
         )
         n_sym_prim = len(self._spg_reps._unique_rotations)
         basis_size_estimates = c_pt.shape[1] / n_sym_prim
-        return np.round(basis_size_estimates).astype(int)
+        return int(np.round(basis_size_estimates).astype(int))

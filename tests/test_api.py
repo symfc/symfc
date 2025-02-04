@@ -166,3 +166,18 @@ def test_api_si_111_fc4_step(
     np.testing.assert_allclose(fc2_ref, fc2, atol=1e-6)
     np.testing.assert_allclose(fc3_ref, fc3, atol=1e-6)
     np.testing.assert_allclose(fc4_ref, fc4, atol=1e-6)
+
+
+def test_api_estimate_basis_size_NaCl_222(
+    cell_nacl_222: SymfcAtoms,
+):
+    """Test Symfc class."""
+    symfc = Symfc(cell_nacl_222)
+    ref_estimates = {
+        2: 12,
+        3: 768,
+        4: 36864,
+    }
+
+    assert symfc.estimate_basis_size(orders=[2, 3, 4]) == ref_estimates
+    assert symfc.estimate_basis_size(max_order=4) == ref_estimates

@@ -78,8 +78,8 @@ def cell_gan_111() -> SymfcAtoms:
 
 
 @pytest.fixture(scope="session")
-def ph_nacl_222() -> tuple[SymfcAtoms, np.ndarray, np.ndarray]:
-    """Return NaCl-222 data."""
+def cell_nacl_222() -> SymfcAtoms:
+    """Return 2x2x2 supercell of NaCl."""
     lattice = [
         [11.281120000000000, 0.000000000000000, 0.000000000000000],
         [0.000000000000000, 11.281120000000000, 0.000000000000000],
@@ -218,11 +218,17 @@ def ph_nacl_222() -> tuple[SymfcAtoms, np.ndarray, np.ndarray]:
         17,
     ]
     cell = SymfcAtoms(cell=lattice, scaled_positions=points, numbers=numbers)
+    return cell
+
+
+@pytest.fixture(scope="session")
+def ph_nacl_222(cell_nacl_222) -> tuple[SymfcAtoms, np.ndarray, np.ndarray]:
+    """Return NaCl-222 data."""
     N = 20
     dfset = np.loadtxt(cwd / "dfset_NaCl_222_rd.xz")
     d = dfset[:, :3].reshape(N, -1, 3)
     f = dfset[:, 3:].reshape(N, -1, 3)
-    return cell, d, f
+    return cell_nacl_222, d, f
 
 
 @pytest.fixture(scope="session")
