@@ -68,6 +68,11 @@ class Symfc:
         self._prepare_cutoff(cutoff)
 
     @property
+    def supercell(self) -> SymfcAtoms:
+        """Return supercell."""
+        return self._supercell
+
+    @property
     def p2s_map(self) -> Optional[np.ndarray]:
         """Return indices of translationally independent atoms."""
         if self._basis_set:
