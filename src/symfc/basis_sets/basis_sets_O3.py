@@ -250,3 +250,21 @@ class FCBasisSetO3(FCBasisSetBase):
         self._n_a_compression_matrix = n_a_compress_mat
 
         return self
+
+    def estimate_basis_size(self) -> int:
+        """Estimate basis set size."""
+        if self._fc_cutoff is None:
+            n_sym, N = self._spg_reps._permutations.shape
+            basis_size_estimates = 27 * (N**3) / n_sym / 6
+            return int(np.round(basis_size_estimates).astype(int))
+
+        trans_perms = self._spg_reps.translation_permutations
+        c_pt = compr_permutation_lat_trans_O3(
+            trans_perms,
+            atomic_decompr_idx=self._atomic_decompr_idx,
+            fc_cutoff=self._fc_cutoff,
+            verbose=False,
+        )
+        n_sym_prim = len(self._spg_reps._unique_rotations)
+        basis_size_estimates = c_pt.shape[1] / n_sym_prim
+        return int(np.round(basis_size_estimates).astype(int))

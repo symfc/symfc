@@ -7,32 +7,6 @@ requirements. The code accepts displacement–force datasets as input and output
 supercell force constants. Symfc supports the calculation of second-, third-,
 and fourth-order force constants.
 
-## Installation
-
-PyPI and conda-forge packages are available.
-
-- https://pypi.org/project/sympy/
-- https://anaconda.org/conda-forge/symfc
-
-### Requirement
-
-- numpy
-- scipy
-- spglib (optional)
-
-### Installation from source code
-
-A simplest installation using conda-forge packages:
-
-```bash
-% conda create -n symfc -c conda-forge
-% conda activate symfc
-% conda install -c conda-forge numpy scipy spglib
-% git clone https://github.com/symfc/symfc.git
-% cd symfc
-% pip install -e .
-```
-
 ## Usage
 
 Detailed documentation will be provided soon. In the meantime, please refer to
@@ -71,7 +45,8 @@ Phys. Rev. B, **110**, 214302 (2024)
 - {user}`Atsuto Seko <sekocha>` (Kyoto university)
 - {user}`Atsushi Togo <atztogo>` (National Institute for Materials Science)
 
-<!-- ```{toctree}
+```{toctree}
 :hidden:
 install
-``` -->
+changelog
+```
