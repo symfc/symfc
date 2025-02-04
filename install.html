@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Symfc &#8212; Symfc v.1.3.0</title>
+    <title>Installation &#8212; Symfc v.1.3.0</title>
   
   
   
@@ -43,10 +43,11 @@
     <script src="_static/doctools.js?v=9bcbadda"></script>
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'index';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'install';</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Installation" href="install.html" />
+    <link rel="next" title="Change Log" href="changelog.html" />
+    <link rel="prev" title="Symfc" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="1.3" />
@@ -98,8 +99,6 @@
       
       
       
-        
-      
       <dialog id="pst-primary-sidebar-modal"></dialog>
       <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
         
@@ -119,7 +118,7 @@
     
   
 
-<a class="navbar-brand logo" href="#">
+<a class="navbar-brand logo" href="index.html">
   
   
   
@@ -138,8 +137,8 @@
 </button></div>
         <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
-        <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+        <ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="changelog.html">Change Log</a></li>
 </ul>
 
@@ -200,7 +199,7 @@
       
       
       
-      <li><a href="_sources/index.md" target="_blank"
+      <li><a href="_sources/install.md" target="_blank"
    class="btn btn-sm btn-download-source-button dropdown-item"
    title="Download source file"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -276,7 +275,7 @@
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Symfc</h1>
+    <h1>Installation</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -286,10 +285,8 @@
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#usage">Usage</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#license">License</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#citation-of-symfc">Citation of symfc</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributors">Contributors</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#requirement">Requirement</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation-from-source-code">Installation from source code</a></li>
 </ul>
             </nav>
         </div>
@@ -301,53 +298,31 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section class="tex2jax_ignore mathjax_ignore" id="symfc">
-<h1>Symfc<a class="headerlink" href="#symfc" title="Link to this heading">#</a></h1>
-<p>Symfc is a Python-based force-constants solver that uses the supercell approach.
-By employing an efficient projector-based algorithm that leverages crystal and
-force-constant symmetries, it significantly reduces computational and memory
-requirements. The code accepts displacement–force datasets as input and outputs
-supercell force constants. Symfc supports the calculation of second-, third-,
-and fourth-order force constants.</p>
-<section id="usage">
-<h2>Usage<a class="headerlink" href="#usage" title="Link to this heading">#</a></h2>
-<p>Detailed documentation will be provided soon. In the meantime, please refer to
-<code class="docutils literal notranslate"><span class="pre">api_symfc.py</span></code> for more information. Additionally, an <a class="reference external" href="https://github.com/phonopy/phonopy/blob/master/phonopy/interface/symfc.py">example
-implementation</a>
-can be found in the phonopy code, particularly in the
-<code class="docutils literal notranslate"><span class="pre">SymfcFCSolver._initialize</span></code> method.</p>
-</section>
-<section id="license">
-<h2>License<a class="headerlink" href="#license" title="Link to this heading">#</a></h2>
-<p>BSD-3-Clause.</p>
-</section>
-<section id="citation-of-symfc">
-<h2>Citation of symfc<a class="headerlink" href="#citation-of-symfc" title="Link to this heading">#</a></h2>
-<p>“Projector-based efficient estimation of force constants”, A. Seko and A. Togo,
-Phys. Rev. B, <strong>110</strong>, 214302 (2024)
-[<a class="reference external" href="https://doi.org/10.1103/PhysRevB.110.214302">doi</a>]
-[<a class="reference external" href="https://arxiv.org/abs/2403.03588">arxiv</a>].</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nd">@article</span><span class="p">{</span><span class="n">PhysRevB</span><span class="mf">.110.214302</span><span class="p">,</span>
-  <span class="n">title</span> <span class="o">=</span> <span class="p">{</span><span class="n">Projector</span><span class="o">-</span><span class="n">based</span> <span class="n">efficient</span> <span class="n">estimation</span> <span class="n">of</span> <span class="n">force</span> <span class="n">constants</span><span class="p">},</span>
-  <span class="n">author</span> <span class="o">=</span> <span class="p">{</span><span class="n">Seko</span><span class="p">,</span> <span class="n">Atsuto</span> <span class="ow">and</span> <span class="n">Togo</span><span class="p">,</span> <span class="n">Atsushi</span><span class="p">},</span>
-  <span class="n">journal</span> <span class="o">=</span> <span class="p">{</span><span class="n">Phys</span><span class="o">.</span> <span class="n">Rev</span><span class="o">.</span> <span class="n">B</span><span class="p">},</span>
-  <span class="n">volume</span> <span class="o">=</span> <span class="p">{</span><span class="mi">110</span><span class="p">},</span>
-  <span class="n">issue</span> <span class="o">=</span> <span class="p">{</span><span class="mi">21</span><span class="p">},</span>
-  <span class="n">pages</span> <span class="o">=</span> <span class="p">{</span><span class="mi">214302</span><span class="p">},</span>
-  <span class="n">numpages</span> <span class="o">=</span> <span class="p">{</span><span class="mi">18</span><span class="p">},</span>
-  <span class="n">year</span> <span class="o">=</span> <span class="p">{</span><span class="mi">2024</span><span class="p">},</span>
-  <span class="n">month</span> <span class="o">=</span> <span class="p">{</span><span class="n">Dec</span><span class="p">},</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-</section>
-<section id="contributors">
-<h2>Contributors<a class="headerlink" href="#contributors" title="Link to this heading">#</a></h2>
+  <section class="tex2jax_ignore mathjax_ignore" id="installation">
+<h1>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h1>
+<p>PyPI and conda-forge packages are available.</p>
 <ul class="simple">
-<li><p><a class="extlink-user reference external" href="https://github.com/sekocha">Atsuto Seko</a> (Kyoto university)</p></li>
-<li><p><a class="extlink-user reference external" href="https://github.com/atztogo">Atsushi Togo</a> (National Institute for Materials Science)</p></li>
+<li><p><a class="reference external" href="https://pypi.org/project/sympy/">https://pypi.org/project/sympy/</a></p></li>
+<li><p><a class="reference external" href="https://anaconda.org/conda-forge/symfc">https://anaconda.org/conda-forge/symfc</a></p></li>
 </ul>
-<div class="toctree-wrapper compound">
+<section id="requirement">
+<h2>Requirement<a class="headerlink" href="#requirement" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>numpy</p></li>
+<li><p>scipy</p></li>
+<li><p>spglib (optional)</p></li>
+</ul>
+</section>
+<section id="installation-from-source-code">
+<h2>Installation from source code<a class="headerlink" href="#installation-from-source-code" title="Link to this heading">#</a></h2>
+<p>A simplest installation using conda-forge packages:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>%<span class="w"> </span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>symfc<span class="w"> </span>-c<span class="w"> </span>conda-forge
+%<span class="w"> </span>conda<span class="w"> </span>activate<span class="w"> </span>symfc
+%<span class="w"> </span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>numpy<span class="w"> </span>scipy<span class="w"> </span>spglib
+%<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/symfc/symfc.git
+%<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>symfc
+%<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
 </div>
 </section>
 </section>
@@ -363,12 +338,21 @@ Phys. Rev. B, <strong>110</strong>, 214302 (2024)
                 <footer class="prev-next-footer d-print-none">
                   
 <div class="prev-next-area">
+    <a class="left-prev"
+       href="index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Symfc</p>
+      </div>
+    </a>
     <a class="right-next"
-       href="install.html"
+       href="changelog.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Installation</p>
+        <p class="prev-next-title">Change Log</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -389,10 +373,8 @@ Phys. Rev. B, <strong>110</strong>, 214302 (2024)
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#usage">Usage</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#license">License</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#citation-of-symfc">Citation of symfc</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributors">Contributors</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#requirement">Requirement</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installation-from-source-code">Installation from source code</a></li>
 </ul>
   </nav></div>
 
