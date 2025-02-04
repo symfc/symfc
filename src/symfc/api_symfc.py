@@ -68,6 +68,11 @@ class Symfc:
         self._prepare_cutoff(cutoff)
 
     @property
+    def supercell(self) -> SymfcAtoms:
+        """Return supercell."""
+        return self._supercell
+
+    @property
     def p2s_map(self) -> Optional[np.ndarray]:
         """Return indices of translationally independent atoms."""
         if self._basis_set:
@@ -276,8 +281,7 @@ class Symfc:
         orders: list
             Orders of force constants.
         """
-        orders = self._check_orders(max_order, orders)
-        for order in orders:
+        for order in self._check_orders(max_order, orders):
             if order == 2:
                 basis_set_o2 = FCBasisSetO2(
                     self._supercell,
@@ -305,6 +309,59 @@ class Symfc:
                 ).run()
                 self._basis_set[4] = basis_set_o4
         return self
+
+    def estimate_basis_size(
+        self,
+        max_order: Optional[int] = None,
+        orders: Optional[list] = None,
+    ) -> dict:
+        """Estimate the size of basis set.
+
+        Parameters
+        ----------
+        max_order : int
+            Maximum fc order.
+        orders: list
+            Orders of force constants.
+
+        Returns
+        -------
+        dict :
+            Estimates of basis set sizes for each order. The key of dict is the
+            order.
+        """
+        basis_size_estimates = {}
+        for order in self._check_orders(max_order, orders):
+            if order < 2 or order > 4:
+                raise NotImplementedError(
+                    "Only fc2, fc3 and fc4 basis sets are implemented."
+                )
+
+            if order == 2:
+                basis_size_estimates[order] = FCBasisSetO2(
+                    self._supercell,
+                    spacegroup_operations=self._spacegroup_operations,
+                    use_mkl=self._use_mkl,
+                    log_level=self._log_level,
+                ).estimate_basis_size()
+            elif order == 3:
+                basis_size_estimates[order] = FCBasisSetO3(
+                    self._supercell,
+                    spacegroup_operations=self._spacegroup_operations,
+                    cutoff=self._cutoff[3],
+                    use_mkl=self._use_mkl,
+                    log_level=self._log_level,
+                ).estimate_basis_size()
+            elif order == 4:
+                basis_size_estimates[order] = FCBasisSetO4(
+                    self._supercell,
+                    spacegroup_operations=self._spacegroup_operations,
+                    cutoff=self._cutoff[4],
+                    use_mkl=self._use_mkl,
+                    log_level=self._log_level,
+                ).estimate_basis_size()
+
+        return basis_size_estimates
 
     def _check_orders(self, max_order: int, orders: list) -> tuple:
         if max_order is None and orders is None:
