@@ -45,6 +45,38 @@ def test_fc_basis_set_o2():
     assert np.linalg.norm(sbs.basis_set) == pytest.approx(1.0)
 
 
+def test_fc_basis_set_o2_nacl222(cell_nacl_222: SymfcAtoms):
+    """Test symmetry adapted basis sets of FCBasisSetO2 by nacl222."""
+    sbs = FCBasisSetO2(cell_nacl_222, log_level=1).run()
+
+    assert sbs.basis_set.shape[0] == 33
+    assert sbs.basis_set.shape[1] == 31
+    compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
+    assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(0.96875)
+
+    sbs = FCBasisSetO2(cell_nacl_222, cutoff=5.0, log_level=1).run()
+    assert sbs.basis_set.shape[0] == 12
+    assert sbs.basis_set.shape[1] == 10
+    compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
+    assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(0.3125)
+
+
+def test_fc_basis_set_o2_wurtzite332(cell_wurtzite_332: SymfcAtoms):
+    """Test symmetry adapted basis sets of FCBasisSetO2 by wurtzite332."""
+    sbs = FCBasisSetO2(cell_wurtzite_332, log_level=1).run()
+
+    assert sbs.basis_set.shape[0] == 130
+    assert sbs.basis_set.shape[1] == 126
+    compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
+    assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(7)
+
+    sbs = FCBasisSetO2(cell_wurtzite_332, cutoff=5.0, log_level=1).run()
+    assert sbs.basis_set.shape[0] == 49
+    assert sbs.basis_set.shape[1] == 45
+    compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
+    assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(2.5)
+
+
 @pytest.mark.parametrize("is_compact_fc", [True, False])
 def test_fc2_NaCl_222(
     ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray], is_compact_fc: bool

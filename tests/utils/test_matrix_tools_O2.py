@@ -5,6 +5,7 @@ import pytest
 import scipy
 
 from symfc.spg_reps import SpgRepsBase
+from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.matrix_tools_O2 import (
     N3N3_to_NNand33,
     compressed_projector_sum_rules_O2,
@@ -59,6 +60,17 @@ def test_projector_permutation_lat_trans_O2():
         proj_ref[(row, col)] = 0.5
     np.testing.assert_allclose(proj.toarray(), proj_ref)
 
+    proj = projector_permutation_lat_trans_O2(
+        trans_perms,
+        atomic_decompr_idx,
+        fc_cutoff=FCCutoff(supercell, cutoff=1),
+    )
+    proj_ref_cutoff = np.zeros_like(proj_ref)
+    proj_ref_cutoff[0:9, 0:9] = proj_ref[0:9, 0:9]
+    assert proj.trace() == pytest.approx(6.0)
+    assert proj.shape == (18, 18)
+    np.testing.assert_allclose(proj.toarray(), proj_ref_cutoff)
+
 
 def test_compressed_projector_sum_rules_O2():
     """Test compressed_projector_sum_rules_O2."""
@@ -73,3 +85,13 @@ def test_compressed_projector_sum_rules_O2():
     eigvals, _ = np.linalg.eigh(proj.toarray())
     assert proj.shape == (18, 18)
     assert np.count_nonzero(np.isclose(eigvals, 1.0)) == 9
+
+    proj = compressed_projector_sum_rules_O2(
+        trans_perms,
+        n_a_compress_mat,
+        atomic_decompr_idx,
+        fc_cutoff=FCCutoff(supercell, cutoff=1),
+    )
+    """If the cutoff implementation is changed, the trace value may also change."""
+    assert proj.trace() == pytest.approx(15.75)
+    assert len(proj.data) == 18
