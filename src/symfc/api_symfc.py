@@ -286,6 +286,7 @@ class Symfc:
                 basis_set_o2 = FCBasisSetO2(
                     self._supercell,
                     spacegroup_operations=self._spacegroup_operations,
+                    cutoff=self._cutoff[2],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
                 ).run()
@@ -341,6 +342,7 @@ class Symfc:
                 basis_size_estimates[order] = FCBasisSetO2(
                     self._supercell,
                     spacegroup_operations=self._spacegroup_operations,
+                    cutoff=self._cutoff[2],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
                 ).estimate_basis_size()
@@ -409,9 +411,9 @@ class Symfc:
 
     def _prepare_cutoff(self, cutoff):
         if cutoff is None:
-            self._cutoff = {3: None, 4: None}
+            self._cutoff = {2: None, 3: None, 4: None}
         else:
             self._cutoff = cutoff
-            for order in (3, 4):
+            for order in (2, 3, 4):
                 if order not in self._cutoff:
                     self._cutoff[order] = None
