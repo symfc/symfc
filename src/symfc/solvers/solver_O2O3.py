@@ -308,6 +308,7 @@ def prepare_normal_equation_O2O3(
             if verbose:
                 print("Solver_block:", end, "/", disps.shape[0], flush=True)
                 print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
+            del X3
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
