@@ -2,6 +2,10 @@
 
 # Change Log
 
+## Feb-10-2025: Version 1.3.2
+
+- Use numerically stable version of O3 translational invariance
+
 ## Feb-5-2025: Version 1.3.1
 
 - Enabled cutoff parameter for fc2.

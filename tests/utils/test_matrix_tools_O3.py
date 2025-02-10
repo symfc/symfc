@@ -98,5 +98,5 @@ def test_compressed_projector_sum_rules_O3():
         fc_cutoff=FCCutoff(supercell, cutoff=1),
     )
     """If the cutoff implementation is changed, the trace value may also change."""
-    assert proj.trace() == pytest.approx(101.25)
+    assert proj.trace() == pytest.approx(94.5)
     assert len(proj.data) == 108
