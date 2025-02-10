@@ -95,6 +95,14 @@ def projector_permutation_lat_trans_O2(
     return proj_pt
 
 
+def optimize_batch_size_sum_rules_O2(natom: int, n_batch: Optional[int] = None):
+    """Calculate batch size for constructing projector for sum rules."""
+    if n_batch > natom:
+        raise ValueError("n_batch must be smaller than N.")
+    batch_size = natom * (natom // n_batch)
+    return batch_size
+
+
 def compressed_projector_sum_rules_O2(
     trans_perms: np.ndarray,
     n_a_compress_mat: csr_array,
@@ -123,23 +131,20 @@ def compressed_projector_sum_rules_O2(
     proj_size = n_a_compress_mat.shape[1]
     proj_cplmt = csr_array((proj_size, proj_size), dtype="double")
 
-    if n_batch > natom:
-        raise ValueError("n_batch must be smaller than N.")
-    batch_size = natom * (natom // n_batch)
-
     if atomic_decompr_idx is None:
         atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
 
     decompr_idx = atomic_decompr_idx.reshape((natom, natom)).T.reshape(-1) * 9
-    nonzero = np.zeros((natom, natom), dtype=bool)
-    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
-    nonzero[indep_atoms, :] = True
-    nonzero = nonzero.reshape(-1)
-    if fc_cutoff is not None:
-        nonzero_cutoff = fc_cutoff.nonzero_atomic_indices_fc2()
-        nonzero_cutoff = nonzero_cutoff.reshape((natom, natom)).T.reshape(-1)
-        nonzero = nonzero & nonzero_cutoff
+    if fc_cutoff is None:
+        indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+        nonzero = np.zeros((natom, natom), dtype=bool)
+        nonzero[indep_atoms, :] = True
+        nonzero = nonzero.reshape(-1)
+    else:
+        nonzero = fc_cutoff.nonzero_atomic_indices_fc2()
+        nonzero = nonzero.reshape((natom, natom)).T.reshape(-1)
 
+    batch_size = optimize_batch_size_sum_rules_O2(natom, n_batch=n_batch)
     ab = np.arange(9)
     for begin, end in zip(*get_batch_slice(NN, batch_size)):
         size = end - begin
@@ -148,25 +153,23 @@ def compressed_projector_sum_rules_O2(
 
         nonzero_b = nonzero[begin:end]
         size_data = np.count_nonzero(nonzero_b) * 9
-        if size_data > 0:
-            decompr_idx_b = decompr_idx[begin:end]
-            c_sum_cplmt = csr_array(
+        if size_data == 0:
+            continue
+
+        decompr_idx_b = decompr_idx[begin:end][nonzero_b]
+        c_sum_cplmt = csr_array(
+            (
+                np.ones(size_data, dtype="double"),
                 (
-                    np.ones(size_data, dtype="double"),
-                    (
-                        np.repeat(np.arange(size_row), natom)[np.tile(nonzero_b, 9)],
-                        (decompr_idx_b[nonzero_b][None, :] + ab[:, None]).reshape(-1),
-                    ),
+                    np.repeat(np.arange(size_row), natom)[np.tile(nonzero_b, 9)],
+                    (ab[:, None] + decompr_idx_b[None, :]).reshape(-1),
                 ),
-                shape=(size_row, NN9 // n_lp),
-                dtype="double",
-            )
-            c_sum_cplmt = dot_product_sparse(
-                c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl
-            )
-            proj_cplmt += dot_product_sparse(
-                c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl
-            )
+            ),
+            shape=(size_row, NN9 // n_lp),
+            dtype="double",
+        )
+        c_sum_cplmt = dot_product_sparse(c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl)
+        proj_cplmt += dot_product_sparse(c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl)
 
     proj_cplmt /= n_lp * natom
     return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt
@@ -200,10 +203,6 @@ def compressed_projector_sum_rules_O2_stable(
     proj_size = n_a_compress_mat.shape[1]
     proj_cplmt = csr_array((proj_size, proj_size), dtype="double")
 
-    if n_batch > natom:
-        raise ValueError("n_batch must be smaller than N.")
-    batch_size = natom * (natom // n_batch)
-
     if atomic_decompr_idx is None:
         atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
 
@@ -212,6 +211,7 @@ def compressed_projector_sum_rules_O2_stable(
         nonzero = fc_cutoff.nonzero_atomic_indices_fc2()
         nonzero = nonzero.reshape((natom, natom)).T.reshape(-1)
 
+    batch_size = optimize_batch_size_sum_rules_O2(natom, n_batch=n_batch)
     ab = np.arange(9)
     for begin, end in zip(*get_batch_slice(NN, batch_size)):
         size = end - begin
@@ -224,7 +224,7 @@ def compressed_projector_sum_rules_O2_stable(
                     np.ones(size_vector, dtype="double"),
                     (
                         np.repeat(np.arange(size_row), natom),
-                        (decompr_idx[begin:end][None, :] + ab[:, None]).reshape(-1),
+                        (ab[:, None] + decompr_idx[begin:end][None, :]).reshape(-1),
                     ),
                 ),
                 shape=(size_row, NN9 // n_lp),
@@ -232,15 +232,14 @@ def compressed_projector_sum_rules_O2_stable(
             )
         else:
             nonzero_b = nonzero[begin:end]
+            decompr_idx_b = decompr_idx[begin:end][nonzero_b]
             size_data = np.count_nonzero(nonzero_b) * 9
             c_sum_cplmt = csr_array(
                 (
                     np.ones(size_data, dtype="double"),
                     (
                         np.repeat(np.arange(size_row), natom)[np.tile(nonzero_b, 9)],
-                        (
-                            decompr_idx[begin:end][nonzero_b][None, :] + ab[:, None]
-                        ).reshape(-1),
+                        (ab[:, None] + decompr_idx_b[None, :]).reshape(-1),
                     ),
                 ),
                 shape=(size_row, NN9 // n_lp),
