@@ -255,7 +255,7 @@ def optimize_batch_size_sum_rules_O4(natom: int, n_batch: Optional[int] = None):
     return batch_size
 
 
-def compressed_projector_sum_rules_O4(
+def compressed_projector_sum_rules_O4_indep_atoms(
     trans_perms: np.ndarray,
     n_a_compress_mat: csr_array,
     atomic_decompr_idx: Optional[np.ndarray] = None,
@@ -332,7 +332,7 @@ def compressed_projector_sum_rules_O4(
     return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt
 
 
-def compressed_projector_sum_rules_O4_stable(
+def compressed_projector_sum_rules_O4(
     trans_perms: np.ndarray,
     n_a_compress_mat: csr_array,
     atomic_decompr_idx: Optional[np.ndarray] = None,
