@@ -2,6 +2,10 @@
 
 # Change Log
 
+## Feb-11-2025: Version 1.3.3
+
+- Fix minor translational invariance issues in O2, O3, and O4
+
 ## Feb-10-2025: Version 1.3.2
 
 - Use numerically stable version of O3 translational invariance
