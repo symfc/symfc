@@ -103,7 +103,7 @@ def optimize_batch_size_sum_rules_O2(natom: int, n_batch: Optional[int] = None):
     return batch_size
 
 
-def compressed_projector_sum_rules_O2_index_atoms(
+def compressed_projector_sum_rules_O2(
     trans_perms: np.ndarray,
     n_a_compress_mat: csr_array,
     atomic_decompr_idx: Optional[np.ndarray] = None,
@@ -135,14 +135,15 @@ def compressed_projector_sum_rules_O2_index_atoms(
         atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
 
     decompr_idx = atomic_decompr_idx.reshape((natom, natom)).T.reshape(-1) * 9
-    if fc_cutoff is None:
-        indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
-        nonzero = np.zeros((natom, natom), dtype=bool)
-        nonzero[indep_atoms, :] = True
-        nonzero = nonzero.reshape(-1)
-    else:
-        nonzero = fc_cutoff.nonzero_atomic_indices_fc2()
-        nonzero = nonzero.reshape((natom, natom)).T.reshape(-1)
+
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+    nonzero = np.zeros((natom, natom), dtype=bool)
+    nonzero[indep_atoms, :] = True
+    nonzero = nonzero.reshape(-1)
+    if fc_cutoff is not None:
+        nonzero_c = fc_cutoff.nonzero_atomic_indices_fc2()
+        nonzero_c = nonzero_c.reshape((natom, natom)).T.reshape(-1)
+        nonzero = nonzero & nonzero_c
 
     batch_size = optimize_batch_size_sum_rules_O2(natom, n_batch=n_batch)
     ab = np.arange(9)
@@ -171,11 +172,11 @@ def compressed_projector_sum_rules_O2_index_atoms(
         c_sum_cplmt = dot_product_sparse(c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl)
         proj_cplmt += dot_product_sparse(c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl)
 
-    proj_cplmt /= n_lp * natom
+    proj_cplmt /= natom
     return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt
 
 
-def compressed_projector_sum_rules_O2(
+def compressed_projector_sum_rules_O2_stable(
     trans_perms: np.ndarray,
     n_a_compress_mat: csr_array,
     atomic_decompr_idx: Optional[np.ndarray] = None,

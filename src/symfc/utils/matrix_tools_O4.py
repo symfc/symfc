@@ -255,83 +255,6 @@ def optimize_batch_size_sum_rules_O4(natom: int, n_batch: Optional[int] = None):
     return batch_size
 
 
-def compressed_projector_sum_rules_O4_indep_atoms(
-    trans_perms: np.ndarray,
-    n_a_compress_mat: csr_array,
-    atomic_decompr_idx: Optional[np.ndarray] = None,
-    fc_cutoff: Optional[FCCutoff] = None,
-    n_batch: Optional[int] = None,
-    use_mkl: bool = False,
-    verbose: bool = False,
-) -> csr_array:
-    """Return projection matrix for sum rule.
-
-    Calculate a complementary projector for sum rules.
-    This is compressed by C_trans and n_a_compress_mat without
-    allocating C_trans.
-    Memory efficient version using get_atomic_lat_trans_decompr_indices_O3.
-
-    Return
-    ------
-    Compressed projector I - P^(c)
-    P^(c) = n_a_compress_mat.T @ C_trans.T @ C_sum^(c)
-            @ C_sum^(c).T @ C_trans @ n_a_compress_mat
-    """
-    n_lp, natom = trans_perms.shape
-    NNNN81 = natom**4 * 81
-    NNNN = natom**4
-    NNN = natom**3
-
-    proj_size = n_a_compress_mat.shape[1]
-    proj_cplmt = csr_array((proj_size, proj_size), dtype="double")
-
-    if atomic_decompr_idx is None:
-        atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
-
-    decompr_idx = atomic_decompr_idx.reshape((natom, NNN)).T.reshape(-1) * 81
-
-    if fc_cutoff is None:
-        indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
-        nonzero = np.zeros((natom, natom, natom, natom), dtype=bool)
-        nonzero[indep_atoms, :, :, :] = True
-        nonzero = nonzero.reshape(-1)
-    else:
-        nonzero = fc_cutoff.nonzero_atomic_indices_fc4()
-        nonzero = nonzero.reshape((natom, NNN)).T.reshape(-1)
-
-    batch_size = optimize_batch_size_sum_rules_O4(natom, n_batch=n_batch)
-    abcd = np.arange(81)
-    for begin, end in zip(*get_batch_slice(NNNN, batch_size)):
-        size = end - begin
-        size_vector = size * 81
-        size_row = size_vector // natom
-
-        nonzero_b = nonzero[begin:end]
-        size_data = np.count_nonzero(nonzero_b) * 81
-        if size_data == 0:
-            continue
-
-        if verbose:
-            print("Complementary P (Sum rule):", str(end) + "/" + str(NNN), flush=True)
-        decompr_idx_b = decompr_idx[begin:end][nonzero_b]
-        c_sum_cplmt = csr_array(
-            (
-                np.ones(size_data, dtype="double"),
-                (
-                    np.repeat(np.arange(size_row), natom)[np.tile(nonzero_b, 81)],
-                    (abcd[:, None] + decompr_idx_b[None, :]).reshape(-1),
-                ),
-            ),
-            shape=(size_row, NNNN81 // n_lp),
-            dtype="double",
-        )
-        c_sum_cplmt = dot_product_sparse(c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl)
-        proj_cplmt += dot_product_sparse(c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl)
-
-    proj_cplmt /= n_lp * natom
-    return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt
-
-
 def compressed_projector_sum_rules_O4(
     trans_perms: np.ndarray,
     n_a_compress_mat: csr_array,
@@ -407,6 +330,83 @@ def compressed_projector_sum_rules_O4(
                 dtype="double",
             )
 
+        c_sum_cplmt = dot_product_sparse(c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl)
+        proj_cplmt += dot_product_sparse(c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl)
+
+    proj_cplmt /= n_lp * natom
+    return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt
+
+
+def compressed_projector_sum_rules_O4_indep_atoms(
+    trans_perms: np.ndarray,
+    n_a_compress_mat: csr_array,
+    atomic_decompr_idx: Optional[np.ndarray] = None,
+    fc_cutoff: Optional[FCCutoff] = None,
+    n_batch: Optional[int] = None,
+    use_mkl: bool = False,
+    verbose: bool = False,
+) -> csr_array:
+    """Return projection matrix for sum rule.
+
+    Calculate a complementary projector for sum rules.
+    This is compressed by C_trans and n_a_compress_mat without
+    allocating C_trans.
+    Memory efficient version using get_atomic_lat_trans_decompr_indices_O3.
+
+    Return
+    ------
+    Compressed projector I - P^(c)
+    P^(c) = n_a_compress_mat.T @ C_trans.T @ C_sum^(c)
+            @ C_sum^(c).T @ C_trans @ n_a_compress_mat
+    """
+    n_lp, natom = trans_perms.shape
+    NNNN81 = natom**4 * 81
+    NNNN = natom**4
+    NNN = natom**3
+
+    proj_size = n_a_compress_mat.shape[1]
+    proj_cplmt = csr_array((proj_size, proj_size), dtype="double")
+
+    if atomic_decompr_idx is None:
+        atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
+
+    decompr_idx = atomic_decompr_idx.reshape((natom, NNN)).T.reshape(-1) * 81
+
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+    nonzero = np.zeros((natom, natom, natom, natom), dtype=bool)
+    nonzero[indep_atoms, :, :, :] = True
+    nonzero = nonzero.reshape(-1)
+    if fc_cutoff is not None:
+        nonzero_c = fc_cutoff.nonzero_atomic_indices_fc4()
+        nonzero_c = nonzero_c.reshape((natom, NNN)).T.reshape(-1)
+        nonzero = nonzero & nonzero_c
+
+    batch_size = optimize_batch_size_sum_rules_O4(natom, n_batch=n_batch)
+    abcd = np.arange(81)
+    for begin, end in zip(*get_batch_slice(NNNN, batch_size)):
+        size = end - begin
+        size_vector = size * 81
+        size_row = size_vector // natom
+
+        nonzero_b = nonzero[begin:end]
+        size_data = np.count_nonzero(nonzero_b) * 81
+        if size_data == 0:
+            continue
+
+        if verbose:
+            print("Complementary P (Sum rule):", str(end) + "/" + str(NNN), flush=True)
+        decompr_idx_b = decompr_idx[begin:end][nonzero_b]
+        c_sum_cplmt = csr_array(
+            (
+                np.ones(size_data, dtype="double"),
+                (
+                    np.repeat(np.arange(size_row), natom)[np.tile(nonzero_b, 81)],
+                    (abcd[:, None] + decompr_idx_b[None, :]).reshape(-1),
+                ),
+            ),
+            shape=(size_row, NNNN81 // n_lp),
+            dtype="double",
+        )
         c_sum_cplmt = dot_product_sparse(c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl)
         proj_cplmt += dot_product_sparse(c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl)
 
