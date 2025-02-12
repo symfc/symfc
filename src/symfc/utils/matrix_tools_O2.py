@@ -7,7 +7,8 @@ import scipy
 from scipy.sparse import csr_array
 
 from symfc.utils.cutoff_tools import FCCutoff
-from symfc.utils.matrix_tools import get_combinations, permutation_dot_lat_trans
+from symfc.utils.matrix_tools import permutation_dot_lat_trans
+from symfc.utils.permutation_tools import get_combinations
 from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O2 import _get_atomic_lat_trans_decompr_indices
