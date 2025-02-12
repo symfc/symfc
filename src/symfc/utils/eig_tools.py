@@ -359,10 +359,23 @@ def eigsh_projector_sumrule_large(p: csr_array, verbose: bool = True) -> np.ndar
     When p = diag(A,B), Av = v, and Bw = w, p[v,0] = [v,0] and p[0,w] = [0,w]
     are solutions.
 
-    This function solves numpy.eigh for all block matrices.
-    This function is efficient for matrix p composed of nonequivalent
-    block matrices.
-
+    This algorithm is optimized to solve an eigenvalue problem for
+    projection matrix p with large block submatrices.
+    The algorithm for solving each block submatrix is as follows.
+    1. Divide each block submatrix into reasonable sizes of submatrices,
+       not projectors.
+    2. Solve eigenvalue problems for these submatrices and eigenvectors
+       with eigenvalues of one are extracted. The eigenvectors with
+       eigenvalues e < 1 are used for compressing the complementary matrix
+       in the next step.
+    3. Calculate the complementary matrix, which corresponds to the complement
+       of the vector space spanned by the eigenvectors. The complementary matrix
+       is compressed using the eigenvectors with e < 1.
+    4. Solve eigenvalue problem for the complementary matrix and eigenvectors
+       with e = 1 are calculated. The eigenvalue problems are efficiently solved
+       using the compressed complementary matrix and the eigenvectors are recovered by
+       the compression matrix.
+    5. Collect all eigenvectors with e = 1.
     """
     group = _find_projector_blocks(p)
     if verbose:
