@@ -2,6 +2,10 @@
 
 # Change Log
 
+## Feb-25-2025: Version 1.3.4
+
+- Maintenance release after refactoring
+
 ## Feb-11-2025: Version 1.3.3
 
 - Fix minor translational invariance issues in O2, O3, and O4

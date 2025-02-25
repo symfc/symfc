@@ -8,7 +8,8 @@ import scipy
 from scipy.sparse import csr_array, vstack
 
 from symfc.utils.cutoff_tools import FCCutoff
-from symfc.utils.matrix_tools import get_combinations, permutation_dot_lat_trans
+from symfc.utils.matrix_tools import permutation_dot_lat_trans
+from symfc.utils.permutation_tools import get_combinations
 from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O4 import get_atomic_lat_trans_decompr_indices_O4
@@ -255,7 +256,7 @@ def optimize_batch_size_sum_rules_O4(natom: int, n_batch: Optional[int] = None):
     return batch_size
 
 
-def compressed_projector_sum_rules_O4(
+def compressed_projector_sum_rules_O4_stable(
     trans_perms: np.ndarray,
     n_a_compress_mat: csr_array,
     atomic_decompr_idx: Optional[np.ndarray] = None,
@@ -264,18 +265,66 @@ def compressed_projector_sum_rules_O4(
     use_mkl: bool = False,
     verbose: bool = False,
 ) -> csr_array:
-    """Return projection matrix for sum rule.
+    r"""Return projection matrix for translational sum rule.
 
-    Calculate a complementary projector for sum rules.
-    This is compressed by C_trans and n_a_compress_mat without
-    allocating C_trans.
-    Memory efficient version using get_atomic_lat_trans_decompr_indices_O4.
+    Calculate a compressed projector for translational sum rules.
+    This compression is achieved using C_trans and n_a_compress_mat,
+    without the need to allocate C_trans. The implementation utilizes
+    get_atomic_lat_trans_decompr_indices_O4 to ensure efficient memory usage.
 
     Return
     ------
-    Compressed projector I - P^(c)
-    P^(c) = n_a_compress_mat.T @ C_trans.T @ C_sum^(c)
-            @ C_sum^(c).T @ C_trans @ n_a_compress_mat
+    Compressed projector I - P^(c).
+    I - P^(c)
+    = n_a_compress_mat.T @ C_trans.T
+      @ [I - C_sum^(c) @ C_sum^(c).T] @ C_trans @ n_a_compress_mat
+    = I - [n_a_compress_mat.T @ C_trans.T @ C_sum^(c)]
+          @ [C_sum^(c).T @ C_trans @ n_a_compress_mat]
+
+    Algorithm
+    ---------
+    1. C_sum^(c).T = [I, I, I, ...] of size (27N^3, 27N^4).
+       I denotes the unit matrix of size (27N^3, 27N^3).
+       C_sum^(c).T is composed of N unit matrices.
+       In this representation, the translational sum rules are given by
+       \sum_i FC4(i, j, k, l, a, b, c, d) = 0.
+
+    2. To divide the computation of a compressed projector into several batches,
+       C_sum^(c) and C_trans are permuted from the index order of
+       (i, j, k, l, a, b, c, d) to (a, b, c, d, j, k, l, i).
+       This is represented by C_sum^(c).T @ C_trans = C_sum^(c).T @ S.T @ S @ C_trans,
+       where S denotes the permutation matrix that changes the index order to
+       (a, b, c, d, j, k, l, i). Using this permutation, the translational sum rules are
+       represented as
+       C_sum^(c).T @ S.T = [
+           [1_N.T, 0_N.T, 0_N.T, ...]
+           [0_N.T, 1_N.T, 0_N.T, ...]
+           [0_N.T, 0_N.T, 1_N.T, ...]
+           ...
+       ],
+       where 1_N and 0_N are column vectors of size N with all elements
+       equal to one and zero, respectively.
+       (Example) C_sum^(c).T @ S.T = [
+                    [1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 ...]
+                    [0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 ...]
+                    [0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 ...]
+                    ...
+                 ]
+        In this function, the permutation is achieved by using matrix reshapes.
+
+    3. Set C_trans.T @ C_sum^(c) @ C_sum^(c).T @ C_trans
+       = [(C_trans.T @ S.T) @ (S @ C_sum^(c))] @ [(C_sum^(c).T @ S.T) @ (S @ C_trans)]
+       =   [T_1, T_2, ..., T_NNN3333]
+         @ (S @ C_sum^(c)) @ (C_sum^(c).T @ S.T)
+         @ [T_1, T_2, ..., T_NNN3333].T
+       = \sum_i t_i @ t_i.T,
+       where t_i = \sum_c T_i[:, c].
+       t_i is represented by c_sum_cplmt.T in this function.
+       T_i is the submatrix of size (N, n_aNNN333) of permuted C_trans.
+
+    4. Compute P^(c) = \sum_i (n_a_compress_mat.T @ t_i) @ (t_i.T @ n_a_compress_mat)
+
+    5. Compute P = I - P^(c)
     """
     n_lp, natom = trans_perms.shape
     NNNN81 = natom**4 * 81
@@ -337,7 +386,7 @@ def compressed_projector_sum_rules_O4(
     return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt
 
 
-def compressed_projector_sum_rules_O4_indep_atoms(
+def compressed_projector_sum_rules_O4(
     trans_perms: np.ndarray,
     n_a_compress_mat: csr_array,
     atomic_decompr_idx: Optional[np.ndarray] = None,
@@ -346,18 +395,67 @@ def compressed_projector_sum_rules_O4_indep_atoms(
     use_mkl: bool = False,
     verbose: bool = False,
 ) -> csr_array:
-    """Return projection matrix for sum rule.
+    r"""Return projection matrix for translational sum rule.
 
-    Calculate a complementary projector for sum rules.
-    This is compressed by C_trans and n_a_compress_mat without
-    allocating C_trans.
-    Memory efficient version using get_atomic_lat_trans_decompr_indices_O3.
+    Calculate a compressed projector for translational sum rules
+    efficiently using independent atom with respect to lattice translations.
+    This compression is achieved using C_trans and n_a_compress_mat,
+    without the need to allocate C_trans. The implementation utilizes
+    get_atomic_lat_trans_decompr_indices_O4 to ensure efficient memory usage.
 
     Return
     ------
-    Compressed projector I - P^(c)
-    P^(c) = n_a_compress_mat.T @ C_trans.T @ C_sum^(c)
-            @ C_sum^(c).T @ C_trans @ n_a_compress_mat
+    Compressed projector I - P^(c).
+    I - P^(c)
+    = n_a_compress_mat.T @ C_trans.T
+      @ [I - C_sum^(c) @ C_sum^(c).T] @ C_trans @ n_a_compress_mat
+    = I - [n_a_compress_mat.T @ C_trans.T @ C_sum^(c)]
+          @ [C_sum^(c).T @ C_trans @ n_a_compress_mat]
+
+    Algorithm
+    ---------
+    1. C_sum^(c).T = [I, I, I, ...] of size (27N^3, 27N^4).
+       I denotes the unit matrix of size (27N^3, 27N^3).
+       C_sum^(c).T is composed of N unit matrices.
+       In this representation, the translational sum rules are given by
+       \sum_i FC4(i, j, k, l, a, b, c, d) = 0.
+
+    2. To divide the computation of a compressed projector into several batches,
+       C_sum^(c) and C_trans are permuted from the index order of
+       (i, j, k, l, a, b, c, d) to (a, b, c, d, j, k, l, i).
+       This is represented by C_sum^(c).T @ C_trans = C_sum^(c).T @ S.T @ S @ C_trans,
+       where S denotes the permutation matrix that changes the index order to
+       (a, b, c, d, j, k, l, i). Using this permutation, the translational sum rules are
+       represented as
+       C_sum^(c).T @ S.T = [
+           [1_N.T, 0_N.T, 0_N.T, ...]
+           [0_N.T, 1_N.T, 0_N.T, ...]
+           [0_N.T, 0_N.T, 1_N.T, ...]
+           ...
+       ],
+       where 1_N and 0_N are column vectors of size N with all elements
+       equal to one and zero, respectively.
+       (Example) C_sum^(c).T @ S.T = [
+                    [1 1 1 1 1 0 0 0 0 0 0 0 0 0 0 ...]
+                    [0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 ...]
+                    [0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 ...]
+                    ...
+                 ]
+        In this function, the permutation is achieved by using matrix reshapes.
+
+    3. Set C_trans.T @ C_sum^(c) @ C_sum^(c).T @ C_trans
+       = [(C_trans.T @ S.T) @ (S @ C_sum^(c))] @ [(C_sum^(c).T @ S.T) @ (S @ C_trans)]
+       =   [T_1, T_2, ..., T_NNN3333]
+         @ (S @ C_sum^(c)) @ (C_sum^(c).T @ S.T)
+         @ [T_1, T_2, ..., T_NNN3333].T
+       = \sum_i t_i @ t_i.T,
+       where t_i = \sum_c T_i[:, c].
+       t_i is represented by c_sum_cplmt.T in this function.
+       T_i is the submatrix of size (N, n_aNNN333) of permuted C_trans.
+
+    4. Compute P^(c) = \sum_i (n_a_compress_mat.T @ t_i) @ (t_i.T @ n_a_compress_mat)
+
+    5. Compute P = I - P^(c)
     """
     n_lp, natom = trans_perms.shape
     NNNN81 = natom**4 * 81
