@@ -218,10 +218,12 @@ def prepare_normal_equation_O2(
             if verbose:
                 print("Solver_block:", end, "/", disps.shape[0], flush=True)
                 print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
+            del X2
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
-    XTX = compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2
+    mat22 = mat22 @ compress_eigvecs_fc2
+    XTX = compress_eigvecs_fc2.T @ mat22
     XTy = compress_eigvecs_fc2.T @ mat2y
 
     compact_compress_mat_fc2 /= const_fc2
