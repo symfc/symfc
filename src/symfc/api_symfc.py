@@ -413,7 +413,9 @@ class Symfc:
         if cutoff is None:
             self._cutoff = {2: None, 3: None, 4: None}
         else:
-            self._cutoff = cutoff
+            self._cutoff = {}
             for order in (2, 3, 4):
-                if order not in self._cutoff:
+                if order in cutoff:
+                    self._cutoff[order] = cutoff[order]
+                else:
                     self._cutoff[order] = None
