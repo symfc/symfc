@@ -79,7 +79,7 @@ class FCBasisSetO2(FCBasisSetBase):
 
         """
         super().__init__(supercell, use_mkl=use_mkl, log_level=log_level)
-        self._spg_reps = SpgRepsO2(
+        self._spg_reps: SpgRepsO2 = SpgRepsO2(
             supercell, spacegroup_operations=spacegroup_operations
         )
         if cutoff is None:
@@ -109,6 +109,10 @@ class FCBasisSetO2(FCBasisSetBase):
         This expands fc basis_sets to (N*N*3*3, n_bases).
 
         """
+        if self._n_a_compression_matrix is None:
+            raise ValueError(
+                "Compression matrix is not computed. Call run() method to compute it."
+            )
         trans_perms = self._spg_reps.translation_permutations
         c_trans = get_lat_trans_compr_matrix_O2(trans_perms)
         return dot_product_sparse(
@@ -202,5 +206,5 @@ class FCBasisSetO2(FCBasisSetBase):
             verbose=False,
         )
         n_sym_prim = len(self._spg_reps._unique_rotations)
-        basis_size_estimates = c_pt.shape[1] / n_sym_prim
+        basis_size_estimates = c_pt.shape[1] / n_sym_prim  # type: ignore
         return int(np.round(basis_size_estimates).astype(int))

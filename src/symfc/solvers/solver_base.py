@@ -21,18 +21,19 @@ class FCSolverBase(ABC):
         log_level: int = 0,
     ):
         """Init method."""
-        self._basis_set: FCBasisSetBase = basis_set
-        self._use_mkl: bool = use_mkl
-        self._log_level: int = log_level
+        self._basis_set = basis_set
+        self._use_mkl = use_mkl
+        self._log_level = log_level
         if isinstance(self._basis_set, Sequence):
-            _basis_set: FCBasisSetBase = self._basis_set[0]
+            _basis_set = self._basis_set[0]
         else:
             _basis_set = basis_set
-        self._natom: int = _basis_set.translation_permutations.shape[1]
+        assert isinstance(_basis_set, FCBasisSetBase)
+        self._natom = _basis_set.translation_permutations.shape[1]
         self._coefs: Optional[Union[np.ndarray, Sequence[np.ndarray]]] = None
 
     @property
-    def coefs(self) -> Optional[np.ndarray]:
+    def coefs(self) -> Optional[Union[np.ndarray, Sequence[np.ndarray]]]:
         """Return coefficients of force constants with respect to basis set."""
         return self._coefs
 

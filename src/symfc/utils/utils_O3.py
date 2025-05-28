@@ -149,7 +149,7 @@ def get_compr_coset_projector_O3(
     """Return compr matrix of sum of coset reps."""
     trans_perms = spg_reps.translation_permutations
     n_lp, N = trans_perms.shape
-    size = N**3 * 27 // n_lp if c_pt is None else c_pt.shape[1]
+    size = N**3 * 27 // n_lp if c_pt is None else c_pt.shape[1]  # type: ignore
 
     indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
     if atomic_decompr_idx is None:
@@ -198,7 +198,7 @@ def get_compr_coset_projector_O3(
             mat = dot_product_sparse(mat, c_pt, use_mkl=use_mkl)
 
         cosets[i % n_cosets] += mat
-    return sum(cosets)
+    return sum(cosets)  # type: ignore
 
 
 def get_compr_coset_projector_O3_stable(
@@ -212,7 +212,7 @@ def get_compr_coset_projector_O3_stable(
     """Return compr matrix of sum of coset reps."""
     trans_perms = spg_reps.translation_permutations
     n_lp, N = trans_perms.shape
-    size = N**3 * 27 // n_lp if c_pt is None else c_pt.shape[1]
+    size = N**3 * 27 // n_lp if c_pt is None else c_pt.shape[1]  # type: ignore
 
     if atomic_decompr_idx is None:
         atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
@@ -256,4 +256,4 @@ def get_compr_coset_projector_O3_stable(
             mat = dot_product_sparse(mat, c_pt, use_mkl=use_mkl)
 
         cosets[i % n_cosets] += mat
-    return sum(cosets)
+    return sum(cosets)  # type: ignore

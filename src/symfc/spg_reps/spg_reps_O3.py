@@ -39,7 +39,9 @@ class SpgRepsO3(SpgRepsBase):
         """Return 3rd rank tensor rotation matricies."""
         return self._r3_reps
 
-    def get_sigma3_rep(self, i: int, nonzero: np.ndarray = None) -> np.ndarray:
+    def get_sigma3_rep(
+        self, i: int, nonzero: Optional[np.ndarray] = None
+    ) -> np.ndarray:
         """Compute vector representation of i-th atomic pair permutation matrix.
 
         Parameters
@@ -71,7 +73,9 @@ class SpgRepsO3(SpgRepsBase):
             r3_reps.append(csr_array((data, (row, col)), shape=r3_rep.shape))
         self._r3_reps = r3_reps
 
-    def _get_sigma3_rep_data(self, i: int, nonzero: np.ndarray = None) -> np.ndarray:
+    def _get_sigma3_rep_data(
+        self, i: int, nonzero: Optional[np.ndarray] = None
+    ) -> np.ndarray:
         """Compute vector representation of i-th atomic pair permutation matrix.
 
         Operation permutation[self._atom_triplets] @ self._coeff is divided

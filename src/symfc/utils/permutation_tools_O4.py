@@ -1,7 +1,7 @@
 """Permutation utility functions for 4th order force constants."""
 
 import itertools
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 from scipy.sparse import csr_array
@@ -16,7 +16,9 @@ from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O4 import get_atomic_lat_trans_decompr_indices_O4
 
 
-def _N3N3N3N3_to_NNNNand3333(combs: np.ndarray, N: int) -> np.ndarray:
+def _N3N3N3N3_to_NNNNand3333(
+    combs: np.ndarray, N: int
+) -> tuple[np.ndarray, np.ndarray]:
     """Transform index order."""
     vecNNNN, vec3333 = np.divmod(combs[:, 0], 3)
     vecNNNN *= N**3
@@ -198,14 +200,14 @@ def compr_permutation_lat_trans_O4(
 
 def _update_perm_decompr_indices(
     combinations: np.ndarray,
-    permutations: np.ndarray,
+    permutations: Union[np.ndarray, list],
     atomic_decompr_idx: np.ndarray,
     trans_perms: np.ndarray,
     perm_decompr_idx: np.ndarray,
     n_perms_group: int = 1,
     n_batch: int = 1,
     verbose: bool = False,
-) -> csr_array:
+) -> np.ndarray:
     """Apply permutations to lattice translation basis.
 
     Return

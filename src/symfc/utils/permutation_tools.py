@@ -60,7 +60,7 @@ def get_combinations(
 
 
 def _eliminate_zero_elements(
-    perm_decompr_idx: np.ndarray, nonzero: np.array
+    perm_decompr_idx: np.ndarray, nonzero: np.ndarray
 ) -> np.ndarray:
     """Eliminate zero elements and reindex orbit indexes."""
     size_full = len(perm_decompr_idx)
