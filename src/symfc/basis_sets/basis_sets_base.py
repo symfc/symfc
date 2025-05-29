@@ -30,17 +30,13 @@ class FCBasisSetBase(ABC):
             Log level. Default is 0.
 
         """
+        self._supercell = supercell
         self._natom = len(supercell)
         self._use_mkl = use_mkl
         self._log_level = log_level
         self._spg_reps: SpgRepsBase
-        self._supercell = supercell
-
-    @property
-    @abstractmethod
-    def basis_set(self) -> Optional[np.ndarray]:
-        """Return (compressed) basis set."""
-        pass
+        self._atomic_decompr_idx: np.ndarray
+        self._basis_set: np.ndarray
 
     @property
     @abstractmethod
@@ -53,6 +49,20 @@ class FCBasisSetBase(ABC):
     def compression_matrix(self) -> Optional[np.ndarray]:
         """Return compression matrix."""
         pass
+
+    @property
+    def basis_set(self) -> Optional[np.ndarray]:
+        """Return compressed basis set.
+
+        shape=(n_c, n_bases), dtype='double'.
+
+        """
+        return self._basis_set
+
+    @property
+    def atomic_decompr_idx(self) -> np.ndarray:
+        """Return atomic permutations by lattice translations."""
+        return self._atomic_decompr_idx
 
     @property
     def translation_permutations(self) -> np.ndarray:

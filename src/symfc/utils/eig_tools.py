@@ -12,7 +12,7 @@ from scipy.sparse import csr_array
 from symfc.utils.solver_funcs import get_batch_slice
 
 try:
-    from sparse_dot_mkl import dot_product_mkl
+    from sparse_dot_mkl import dot_product_mkl  # type: ignore
 except ImportError:
     pass
 
@@ -61,7 +61,7 @@ def _recover_eigvecs_from_uniq_eigvecs(
     uniq_eigvecs: dict,
     group: dict,
     size_projector: int,
-):
+) -> csr_array:
     """Recover all eigenvectors from unique eigenvectors.
 
     Parameters

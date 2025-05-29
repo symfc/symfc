@@ -44,8 +44,8 @@ class FCSolverO2O3(FCSolverBase):
             raise TypeError("First element must be FCBasisSetO2")
         if not isinstance(basis_set[1], FCBasisSetO3):
             raise TypeError("Second element must be FCBasisSetO3")
-        super().__init__(basis_set, use_mkl=use_mkl, log_level=log_level)
         self._basis_set: Sequence[Union[FCBasisSetO2, FCBasisSetO3]]
+        super().__init__(basis_set, use_mkl=use_mkl, log_level=log_level)
 
     def solve(
         self,
