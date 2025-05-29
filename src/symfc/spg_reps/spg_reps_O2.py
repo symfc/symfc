@@ -40,7 +40,7 @@ class SpgRepsO2(SpgRepsBase):
         """Return 2nd rank tensor rotation matricies."""
         return self._r2_reps
 
-    def get_sigma2_rep(self, i: int, nonzero: np.ndarray = None) -> csr_array:
+    def get_sigma2_rep(self, i: int, nonzero: Optional[np.ndarray] = None) -> csr_array:
         """Compute vector representation of i-th atomic pair permutation matrix.
 
         Parameters
@@ -71,7 +71,9 @@ class SpgRepsO2(SpgRepsBase):
             r2_reps.append(csr_array((data, (row, col)), shape=r2_rep.shape))
         self._r2_reps = r2_reps
 
-    def _get_sigma2_rep_data(self, i: int, nonzero: np.ndarray = None) -> csr_array:
+    def _get_sigma2_rep_data(
+        self, i: int, nonzero: Optional[np.ndarray] = None
+    ) -> csr_array:
         """Compute vector representation of i-th atomic pair permutation matrix.
 
         Operation permutation[self._atom_pairs @ self._coeff is divided
@@ -155,7 +157,7 @@ class SpgRepsO2MatrixReps(SpgRepsBase):
             r2_reps.append(csr_array((data, (row, col)), shape=r2_rep.shape))
         self._r2_reps = r2_reps
 
-    def _get_sigma2_rep_data(self, i: int) -> csr_array:
+    def _get_sigma2_rep_data(self, i: int) -> tuple:
         uri = self._unique_rotation_indices
         permutation = self._permutations[uri[i]]
         NN = len(self._numbers) ** 2

@@ -38,10 +38,10 @@ class SpgRepsBase:
             supercell.scaled_positions, dtype="double", order="C"
         )
         self._numbers = supercell.numbers
-        self._unique_rotations: Optional[np.ndarray] = None
-        self._unique_rotation_indices: Optional[np.ndarray] = None
-        self._translation_permutations: Optional[np.ndarray] = None
-        self._p2s_map: Optional[np.ndarray] = None
+        self._unique_rotations: np.ndarray
+        self._unique_rotation_indices: np.ndarray
+        self._translation_permutations: np.ndarray
+        self._p2s_map: np.ndarray
         self._prepare(spacegroup_operations)
 
     @property
@@ -66,12 +66,11 @@ class SpgRepsBase:
         """Return indices of translationally independent atoms."""
         return self._p2s_map
 
-    def _prepare(self, spacegroup_operations) -> np.ndarray:
+    def _prepare(self, spacegroup_operations):
         rotations, translations = self._get_symops(spacegroup_operations)
-        (
-            self._unique_rotation_indices,
-            self._unique_rotations,
-        ) = self._get_unique_rotation_indices(rotations)
+        self._unique_rotation_indices, self._unique_rotations = (
+            self._get_unique_rotation_indices(rotations)
+        )
         self._permutations = compute_sg_permutations(
             self._positions, rotations, translations, self._lattice.T, 1e-5
         )
@@ -86,7 +85,9 @@ class SpgRepsBase:
                 trans_perms.append(perm)
         return np.array(trans_perms, dtype="intc", order="C")
 
-    def _get_unique_rotation_indices(self, rotations: np.ndarray) -> list[int]:
+    def _get_unique_rotation_indices(
+        self, rotations: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
         unique_rotations: list[np.ndarray] = []
         indices = []
         for i, r in enumerate(rotations):
@@ -98,7 +99,7 @@ class SpgRepsBase:
             if not is_found:
                 unique_rotations.append(r)
                 indices.append(i)
-        return indices, unique_rotations
+        return np.array(indices, dtype=int), np.array(unique_rotations, dtype=int)
 
     def _get_symops(
         self, spacegroup_operations: Optional[dict] = None
@@ -132,9 +133,9 @@ class SpgRepsBase:
                     "Spglib python module was not found."
                 ) from exc
 
-            symops = spglib.get_symmetry(
-                (self._lattice, self._positions, self._numbers)
+            symops = spglib.get_symmetry(  # type: ignore
+                (self._lattice, self._positions, self._numbers)  # type: ignore
             )
         else:
             symops = spacegroup_operations
-        return symops["rotations"], symops["translations"]
+        return symops["rotations"], symops["translations"]  # type: ignore

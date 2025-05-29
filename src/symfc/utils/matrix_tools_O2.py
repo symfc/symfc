@@ -19,7 +19,7 @@ except ImportError:
     pass
 
 
-def N3N3_to_NNand33(combs: np.ndarray, N: int) -> np.ndarray:
+def N3N3_to_NNand33(combs: np.ndarray, N: int) -> tuple[np.ndarray, np.ndarray]:
     """Transform index order."""
     vecNN, vec33 = np.divmod(combs[:, 0], 3)
     vecNN *= N
@@ -96,7 +96,7 @@ def projector_permutation_lat_trans_O2(
     return proj_pt
 
 
-def optimize_batch_size_sum_rules_O2(natom: int, n_batch: Optional[int] = None):
+def optimize_batch_size_sum_rules_O2(natom: int, n_batch: int):
     """Calculate batch size for constructing projector for sum rules."""
     if n_batch > natom:
         raise ValueError("n_batch must be smaller than N.")
@@ -178,7 +178,7 @@ def compressed_projector_sum_rules_O2(
     NN9 = natom**2 * 9
     NN = natom**2
 
-    proj_size = n_a_compress_mat.shape[1]
+    proj_size = n_a_compress_mat.shape[1]  # type: ignore
     proj_cplmt = csr_array((proj_size, proj_size), dtype="double")
 
     if atomic_decompr_idx is None:
@@ -299,7 +299,7 @@ def compressed_projector_sum_rules_O2_stable(
     NN9 = natom**2 * 9
     NN = natom**2
 
-    proj_size = n_a_compress_mat.shape[1]
+    proj_size = n_a_compress_mat.shape[1]  # type: ignore
     proj_cplmt = csr_array((proj_size, proj_size), dtype="double")
 
     if atomic_decompr_idx is None:

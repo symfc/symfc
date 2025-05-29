@@ -33,8 +33,7 @@ class FCBasisSetBase(ABC):
         self._natom = len(supercell)
         self._use_mkl = use_mkl
         self._log_level = log_level
-        self._basis_set: Optional[np.ndarray] = None
-        self._spg_reps: Optional[SpgRepsBase] = None
+        self._spg_reps: SpgRepsBase
         self._supercell = supercell
 
     @property
@@ -67,7 +66,9 @@ class FCBasisSetBase(ABC):
         """Return indices of translationally independent atoms."""
         if self._spg_reps is None:
             raise ValueError("SpgRepsBase is not set.")
-        return self._spg_reps._p2s_map
+        if self._spg_reps.p2s_map is None:
+            raise ValueError("p2s_map is not set.")
+        return self._spg_reps.p2s_map
 
     @abstractmethod
     def run(self):
