@@ -25,6 +25,7 @@ class FCSolverO3(FCSolverBase):
         log_level: int = 0,
     ):
         """Init method."""
+        self._basis_set: FCBasisSetO3
         super().__init__(basis_set, use_mkl=use_mkl, log_level=log_level)
 
     def solve(
@@ -57,7 +58,7 @@ class FCSolverO3(FCSolverBase):
         f = forces.reshape(n_data, -1)
         d = displacements.reshape(n_data, -1)
 
-        fc3_basis: FCBasisSetO3 = self._basis_set
+        fc3_basis = self._basis_set
         compress_mat_fc3 = fc3_basis.compact_compression_matrix
         basis_set_fc3 = fc3_basis.basis_set
 
@@ -100,12 +101,13 @@ class FCSolverO3(FCSolverBase):
         return self._recover_fcs("compact")
 
     def _recover_fcs(
-        self, comp_mat_type: str = Literal["full", "compact"]
+        self, comp_mat_type: Literal["full", "compact"]
     ) -> Optional[np.ndarray]:
-        if self._coefs is None:
+        fc3_basis = self._basis_set
+
+        if self._coefs is None or fc3_basis.basis_set is None:
             return None
 
-        fc3_basis: FCBasisSetO3 = self._basis_set
         if comp_mat_type == "full":
             comp_mat_fc3 = fc3_basis.compression_matrix
         elif comp_mat_type == "compact":

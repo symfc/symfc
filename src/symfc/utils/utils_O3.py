@@ -30,7 +30,7 @@ def get_atomic_lat_trans_decompr_indices_O3(trans_perms: np.ndarray) -> np.ndarr
     trans_perms : ndarray
         Permutation of atomic indices by lattice translational symmetry.
         dtype='intc'.
-        shape=(n_l, N), where n_l and N are the numbers of lattce points and
+        shape=(n_l, N), where n_l and N are the numbers of lattice points and
         atoms in supercell.
 
     Returns
@@ -72,7 +72,7 @@ def get_lat_trans_decompr_indices_O3(trans_perms: np.ndarray) -> np.ndarray:
     trans_perms : ndarray
         Permutation of atomic indices by lattice translational symmetry.
         dtype='intc'.
-        shape=(n_l, N), where n_l and N are the numbers of lattce points and
+        shape=(n_l, N), where n_l and N are the numbers of lattice points and
         atoms in supercell.
 
     Returns

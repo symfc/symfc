@@ -20,39 +20,7 @@ from symfc.utils.utils_O1 import (
 from .basis_sets_base import FCBasisSetBase
 
 
-class FCBasisSetO1Base(FCBasisSetBase):
-    """Base class of FCBasisSetO1."""
-
-    def __init__(
-        self,
-        supercell: SymfcAtoms,
-        use_mkl: bool = False,
-        log_level: int = 0,
-    ):
-        """Init method.
-
-        Parameters
-        ----------
-        supercell : SymfcAtoms
-            Supercell.
-        use_mkl : bool
-            Use MKL or not. Default is False.
-        log_level : int, optional
-            Log level. Default is 0.
-
-        """
-        super().__init__(supercell, use_mkl=use_mkl, log_level=log_level)
-        self._spg_reps = SpgRepsO1(supercell)
-
-    def _get_c_trans(self) -> csr_array:
-        trans_perms = self._spg_reps.translation_permutations
-        n_lp, N = trans_perms.shape
-        decompr_idx = get_lat_trans_decompr_indices(trans_perms)
-        c_trans = get_lat_trans_compr_matrix(decompr_idx, N, n_lp)
-        return c_trans
-
-
-class FCBasisSetO1(FCBasisSetO1Base):
+class FCBasisSetO1(FCBasisSetBase):
     """Dense symmetry adapted basis set for 1st order force constants.
 
     Attributes
@@ -98,20 +66,13 @@ class FCBasisSetO1(FCBasisSetO1Base):
             supercell, spacegroup_operations=spacegroup_operations
         )
         self._n_a_compression_matrix: Optional[csr_array] = None
+        self._basis_set: Optional[np.ndarray] = None
+
+        # Unused in O1, just dummy variable to satisfy the base class
+        self._atomic_decompr_idx: np.ndarray
 
     @property
-    def basis_set(self) -> Optional[np.ndarray]:
-        """Return compressed basis set.
-
-        n_c = len(compressed_indices).
-
-        shape=(n_c, n_bases), dtype='double'.
-
-        """
-        return self._basis_set
-
-    @property
-    def full_basis_set(self) -> Optional[np.ndarray]:
+    def full_basis_set(self) -> Optional[csr_array]:
         """Return full (decompressed) basis set.
 
         shape=(N*3, n_bases), dtype='double'.
@@ -134,7 +95,7 @@ class FCBasisSetO1(FCBasisSetO1Base):
     def run(self) -> FCBasisSetO1:
         """Compute compressed force constants basis set."""
         c_trans = self._get_c_trans()
-        coset_reps_sum = get_compr_coset_reps_sum(self._spg_reps)
+        coset_reps_sum = get_compr_coset_reps_sum(self._spg_reps)  # type: ignore
         proj_rt = coset_reps_sum
 
         if len(proj_rt.data) == 0:
@@ -143,7 +104,15 @@ class FCBasisSetO1(FCBasisSetO1Base):
         c_rt = eigsh_projector(proj_rt, verbose=self._log_level > 0)
         compress_mat = c_trans @ c_rt
         proj = compressed_projector_sum_rules(compress_mat, self._natom)
-        self._basis_set = eigsh_projector(proj, verbose=self._log_level > 0)
-        self._full_basis_set = compress_mat @ self._basis_set
+        basis_set = eigsh_projector(proj, verbose=self._log_level > 0)
+        self._full_basis_set = compress_mat @ basis_set
+        self._basis_set = basis_set.toarray()
 
         return self
+
+    def _get_c_trans(self) -> csr_array:
+        trans_perms = self._spg_reps.translation_permutations
+        n_lp, N = trans_perms.shape
+        decompr_idx = get_lat_trans_decompr_indices(trans_perms)
+        c_trans = get_lat_trans_compr_matrix(decompr_idx, N, n_lp)
+        return c_trans
