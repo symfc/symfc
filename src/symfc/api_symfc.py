@@ -27,7 +27,7 @@ class Symfc:
         displacements: Optional[np.ndarray] = None,
         forces: Optional[np.ndarray] = None,
         spacegroup_operations: Optional[dict] = None,
-        cutoff: Optional[dict] = None,
+        cutoff: Optional[dict[int, float]] = None,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -48,8 +48,9 @@ class Symfc:
             spglib is used. The following keys and values correspond to spglib
             symmetry dataset:
                 rotations : array_like translations : array_like
-        cutoff : dict, optional
+        cutoff : dict[int, float], optional
             Cutoff radii in angstrom for FC3 and FC4, by default None.
+            For example, {3: 4.0, 4: 4.0}
         use_mkl : bool, optional
             Use MKL library, by default False.
         log_level : int, optional

@@ -8,6 +8,7 @@ from typing import Optional
 import numpy as np
 
 from symfc.spg_reps import SpgRepsBase
+from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.utils import SymfcAtoms
 
 
@@ -17,6 +18,7 @@ class FCBasisSetBase(ABC):
     def __init__(
         self,
         supercell: SymfcAtoms,
+        cutoff: Optional[float] = None,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -26,6 +28,10 @@ class FCBasisSetBase(ABC):
         ----------
         supercell : SymfcAtoms
             Supercell.
+        cutoff: float
+            Cutoff distance in angstroms. Default is None.
+        use_mkl : bool
+            Use MKL or not. Default is False.
         log_level : int, optional
             Log level. Default is 0.
 
@@ -37,6 +43,11 @@ class FCBasisSetBase(ABC):
         self._spg_reps: SpgRepsBase
         self._atomic_decompr_idx: np.ndarray
         self._basis_set: np.ndarray
+
+        if cutoff is None:
+            self._fc_cutoff = None
+        else:
+            self._fc_cutoff = FCCutoff(supercell, cutoff=cutoff)
 
     @property
     @abstractmethod
@@ -79,6 +90,11 @@ class FCBasisSetBase(ABC):
         if self._spg_reps.p2s_map is None:
             raise ValueError("p2s_map is not set.")
         return self._spg_reps.p2s_map
+
+    @property
+    def fc_cutoff(self) -> Optional[FCCutoff]:
+        """Return force constants cutoff."""
+        return self._fc_cutoff
 
     @abstractmethod
     def run(self):
