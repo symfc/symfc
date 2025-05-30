@@ -92,6 +92,13 @@ class FCBasisSetO1(FCBasisSetBase):
         """Return compression matrix."""
         pass
 
+    @property
+    def atomic_decompr_idx(self) -> np.ndarray:
+        """Return atomic permutations by lattice translations."""
+        raise NotImplementedError(
+            "Atomic decompression indices are not defined for O1 basis sets."
+        )
+
     def run(self) -> FCBasisSetO1:
         """Compute compressed force constants basis set."""
         c_trans = self._get_c_trans()

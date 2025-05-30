@@ -9,7 +9,6 @@ import numpy as np
 from scipy.sparse import csr_array
 
 from symfc.spg_reps import SpgRepsO4
-from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.eig_tools import (
     dot_product_sparse,
     eigsh_projector,
@@ -78,14 +77,10 @@ class FCBasisSetO4(FCBasisSetBase):
             Log level. Default is 0.
 
         """
-        super().__init__(supercell, use_mkl=use_mkl, log_level=log_level)
+        super().__init__(supercell, cutoff=cutoff, use_mkl=use_mkl, log_level=log_level)
         self._spg_reps = SpgRepsO4(
             supercell, spacegroup_operations=spacegroup_operations
         )
-        if cutoff is None:
-            self._fc_cutoff = None
-        else:
-            self._fc_cutoff = FCCutoff(supercell, cutoff=cutoff)
 
         trans_perms = self._spg_reps.translation_permutations
         self._atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
