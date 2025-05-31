@@ -2,6 +2,10 @@
 
 # Change Log
 
+## May-31-2025: Version 1.4.0
+
+- Maintenance release after refactoring
+
 ## Feb-25-2025: Version 1.3.4
 
 - Maintenance release after refactoring
