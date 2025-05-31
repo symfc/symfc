@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Sequence
-from typing import Literal, Optional
+from typing import Literal, Optional, Union, cast
 
 import numpy as np
 from scipy.sparse import csr_array
@@ -22,11 +22,29 @@ class FCSolverO2O3(FCSolverBase):
 
     def __init__(
         self,
-        basis_set: Sequence[FCBasisSetO2, FCBasisSetO3],
+        basis_set: Sequence[Union[FCBasisSetO2, FCBasisSetO3]],
         use_mkl: bool = False,
         log_level: int = 0,
     ):
-        """Init method."""
+        """Init method.
+
+        Parameters
+        ----------
+        basis_set : Sequence of (FCBasisSetO2, FCBasisSetO3)
+            First element must be FCBasisSetO2 and second must be FCBasisSetO3.
+        use_mkl : bool, optional
+            Use MKL if True. Default is False.
+        log_level : int, optional
+            Logging level. Default is 0.
+
+        """
+        if len(basis_set) != 2:
+            raise ValueError("basis_set must contain exactly 2 elements")
+        if not isinstance(basis_set[0], FCBasisSetO2):
+            raise TypeError("First element must be FCBasisSetO2")
+        if not isinstance(basis_set[1], FCBasisSetO3):
+            raise TypeError("Second element must be FCBasisSetO3")
+        self._basis_set: Sequence[Union[FCBasisSetO2, FCBasisSetO3]]
         super().__init__(basis_set, use_mkl=use_mkl, log_level=log_level)
 
     def solve(
@@ -61,8 +79,8 @@ class FCSolverO2O3(FCSolverBase):
         f = forces.reshape(n_data, -1)
         d = displacements.reshape(n_data, -1)
 
-        fc2_basis: FCBasisSetO2 = self._basis_set[0]
-        fc3_basis: FCBasisSetO3 = self._basis_set[1]
+        fc2_basis: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[0])
+        fc3_basis: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[1])
         compress_mat_fc2 = fc2_basis.compact_compression_matrix
         basis_set_fc2 = fc2_basis.basis_set
         compress_mat_fc3 = fc3_basis.compact_compression_matrix
@@ -71,6 +89,16 @@ class FCSolverO2O3(FCSolverBase):
         atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
         atomic_decompr_idx_fc3 = fc3_basis.atomic_decompr_idx
 
+        if (
+            compress_mat_fc2 is None
+            or compress_mat_fc3 is None
+            or basis_set_fc2 is None
+            or basis_set_fc3 is None
+        ):
+            raise ValueError(
+                "Compression matrices or basis sets are not set. "
+                "Call run() method to compute them."
+            )
         self._coefs = run_solver_O2O3(
             d,
             f,
@@ -114,13 +142,13 @@ class FCSolverO2O3(FCSolverBase):
 
     def _recover_fcs(
         self,
-        comp_mat_type: str = Literal["full", "compact"],
+        comp_mat_type: Literal["full", "compact"],
     ) -> Optional[tuple[np.ndarray, np.ndarray]]:
         if self._coefs is None:
             return None
 
-        fc2_basis: FCBasisSetO2 = self._basis_set[0]
-        fc3_basis: FCBasisSetO3 = self._basis_set[1]
+        fc2_basis: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[0])
+        fc3_basis: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[1])
         if comp_mat_type == "full":
             comp_mat_fc2 = fc2_basis.compression_matrix
             comp_mat_fc3 = fc3_basis.compression_matrix
@@ -228,8 +256,8 @@ def prepare_normal_equation_O2O3(
     N = N3 // 3
     NN = N * N
 
-    n_compr_fc2 = compact_compress_mat_fc2.shape[1]
-    n_compr_fc3 = compact_compress_mat_fc3.shape[1]
+    n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
+    n_compr_fc3 = compact_compress_mat_fc3.shape[1]  # type: ignore
 
     n_batch = (N // 256 + 1) * (n_compr_fc3 // 30000 + 1)
     n_batch = min(N, n_batch)

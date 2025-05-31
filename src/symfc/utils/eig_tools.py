@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 import scipy
@@ -12,14 +12,14 @@ from scipy.sparse import csr_array
 from symfc.utils.solver_funcs import get_batch_slice
 
 try:
-    from sparse_dot_mkl import dot_product_mkl
+    from sparse_dot_mkl import dot_product_mkl  # type: ignore
 except ImportError:
     pass
 
 
 def dot_product_sparse(
-    A: csr_array,
-    B: csr_array,
+    A: Union[np.ndarray, csr_array],
+    B: Union[np.ndarray, csr_array],
     use_mkl: bool = False,
     dense: bool = False,
 ) -> csr_array:
@@ -29,9 +29,9 @@ def dot_product_sparse(
     return A @ B
 
 
-def _compr_projector(p: csr_array) -> csr_array:
+def _compr_projector(p: csr_array) -> tuple[csr_array, Optional[csr_array]]:
     """Compress projection matrix p with many zero rows and columns."""
-    _, col_p = p.nonzero()
+    _, col_p = p.nonzero()  # type: ignore
     col_p = np.unique(col_p)
     size = len(col_p)
 
@@ -61,7 +61,7 @@ def _recover_eigvecs_from_uniq_eigvecs(
     uniq_eigvecs: dict,
     group: dict,
     size_projector: int,
-):
+) -> csr_array:
     """Recover all eigenvectors from unique eigenvectors.
 
     Parameters
@@ -124,6 +124,8 @@ class DataCSR:
 
     def get_data(self, idx: int):
         """Get data in projector for i-th block."""
+        if self.slice_begin is None or self.slice_end is None:
+            raise ValueError("Slice begin and end are not initialized.")
         s1 = self.slice_begin[idx]
         s2 = self.slice_end[idx]
         return self.data[s1:s2]
@@ -160,7 +162,7 @@ def _extract_sparse_projector_data(p: csr_array, group: dict) -> DataCSR:
 
     p_data = DataCSR(
         data=np.ravel(p[r, c]),
-        block_labels=list(group.keys()),
+        block_labels=np.array(list(group.keys())),
         block_sizes=sizes,
     )
     return p_data
@@ -170,7 +172,12 @@ def eigh_projector(
     p: np.ndarray,
     return_complement: bool = False,
     verbose: bool = True,
-) -> np.ndarray:
+) -> Union[
+    np.ndarray,
+    tuple[np.ndarray, tuple[np.ndarray, np.ndarray]],
+    None,
+    tuple[None, None],
+]:
     """Solve eigenvalue problem using numpy and eliminate eigenvectors with e < 1.0."""
     rank = int(round(np.trace(p)))
     if rank == 0:
@@ -242,7 +249,7 @@ def eigsh_projector(p: csr_array, verbose: bool = True) -> csr_array:
                 else:
                     uniq_eigvecs["one"] = [np.array([[1.0]]), [block_label]]
 
-    c_p = _recover_eigvecs_from_uniq_eigvecs(uniq_eigvecs, group, p.shape[0])
+    c_p = _recover_eigvecs_from_uniq_eigvecs(uniq_eigvecs, group, p.shape[0])  # type: ignore
     if compr_p is not None:
         return compr_p @ c_p
     return c_p
@@ -265,11 +272,14 @@ def _block_eigh_projector(p_block: np.ndarray, verbose: bool = False):
         p_small = p_block[begin:end, begin:end]
         rank = int(round(np.trace(p_small)))
         if rank > 0:
-            eigvecs, (cmplt_eigvals, cmplt_small) = eigh_projector(
+            result = eigh_projector(
                 p_small,
                 return_complement=True,
                 verbose=verbose,
             )
+            assert result is not None
+            assert result[0] is not None
+            eigvecs, (cmplt_eigvals, cmplt_small) = result
             col_end = col_id + eigvecs.shape[1]
             col_end_cmplt = col_id_cmplt + cmplt_small.shape[1]
             eigvecs_block[begin:end, col_id:col_end] = eigvecs
@@ -287,10 +297,11 @@ def _block_eigh_projector(p_block: np.ndarray, verbose: bool = False):
         cmplt = cmplt[:, :col_end_cmplt]
         p_block_rem = cmplt.T @ p_block @ cmplt
         eigvecs = eigh_projector(p_block_rem, verbose=verbose)
+        eigvecs_shape1 = eigvecs.shape[1]  # type: ignore
         if verbose:
-            print(eigvecs.shape[1], "eigenvectors are found.", flush=True)
-        if eigvecs.shape[1] > 0:
-            col_end = col_id + eigvecs.shape[1]
+            print(eigvecs_shape1, "eigenvectors are found.", flush=True)
+        if eigvecs_shape1 > 0:
+            col_end = col_id + eigvecs_shape1
             eigvecs_block[:, col_id:col_end] = cmplt @ eigvecs
             col_id = col_end
 
@@ -308,7 +319,7 @@ def eigsh_projector_sumrule(
 
     Return dense matrix for eigenvectors of matrix p.
     """
-    if p.shape[0] > size_threshold:
+    if p.shape[0] > size_threshold:  # type: ignore
         return eigsh_projector_sumrule_large(p, verbose=verbose)
     return eigsh_projector_sumrule_stable(p, verbose=verbose)
 
@@ -333,7 +344,7 @@ def eigsh_projector_sumrule_stable(p: csr_array, verbose: bool = True) -> np.nda
         print("Use standard normal eigsh solver.", flush=True)
         print("Number of blocks in projector (Sum rule):", len(group), flush=True)
 
-    eigvecs_full = np.zeros(p.shape, dtype="double")
+    eigvecs_full = np.zeros(p.shape, dtype="double")  # type: ignore
     col_id = 0
     for i, ids in enumerate(group.values()):
         if verbose:
@@ -343,7 +354,7 @@ def eigsh_projector_sumrule_stable(p: csr_array, verbose: bool = True) -> np.nda
         rank = int(round(np.trace(p_block)))
         if rank > 0:
             eigvecs = eigh_projector(p_block, verbose=verbose)
-            col_end = col_id + eigvecs.shape[1]
+            col_end = col_id + eigvecs.shape[1]  # type: ignore
             eigvecs_full[ids, col_id:col_end] = eigvecs
             col_id = col_end
     return eigvecs_full[:, :col_id]
@@ -382,7 +393,7 @@ def eigsh_projector_sumrule_large(p: csr_array, verbose: bool = True) -> np.ndar
         print("Use eigsh solver for large matrices.", flush=True)
         print("Number of blocks in projector (Sum rule):", len(group), flush=True)
 
-    eigvecs_full = np.zeros(p.shape, dtype="double")
+    eigvecs_full = np.zeros(p.shape, dtype="double")  # type: ignore
     col_id = 0
     for i, ids in enumerate(group.values()):
         if verbose and len(ids) > 2:

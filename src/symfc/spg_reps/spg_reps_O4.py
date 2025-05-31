@@ -39,7 +39,9 @@ class SpgRepsO4(SpgRepsBase):
         """Return 4th rank tensor rotation matricies."""
         return self._r4_reps
 
-    def get_sigma4_rep(self, i: int, nonzero: np.ndarray = None) -> np.ndarray:
+    def get_sigma4_rep(
+        self, i: int, nonzero: Optional[np.ndarray] = None
+    ) -> np.ndarray:
         """Compute vector representation of i-th atomic pair permutation matrix.
 
         Parameters
@@ -71,7 +73,9 @@ class SpgRepsO4(SpgRepsBase):
             r4_reps.append(csr_array((data, (row, col)), shape=r4_rep.shape))
         self._r4_reps = r4_reps
 
-    def _get_sigma4_rep_data(self, i: int, nonzero: np.ndarray = None) -> np.ndarray:
+    def _get_sigma4_rep_data(
+        self, i: int, nonzero: Optional[np.ndarray] = None
+    ) -> np.ndarray:
         """Compute vector representation of i-th atomic pair permutation matrix.
 
         Operation permutation[self._atom_quadruplets] @ self._coeff is divided

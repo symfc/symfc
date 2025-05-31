@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional, Union
+from typing import Optional, Union, cast
 
 import numpy as np
 
@@ -27,7 +27,7 @@ class Symfc:
         displacements: Optional[np.ndarray] = None,
         forces: Optional[np.ndarray] = None,
         spacegroup_operations: Optional[dict] = None,
-        cutoff: Optional[dict] = None,
+        cutoff: Optional[dict[int, float]] = None,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -48,8 +48,9 @@ class Symfc:
             spglib is used. The following keys and values correspond to spglib
             symmetry dataset:
                 rotations : array_like translations : array_like
-        cutoff : dict, optional
+        cutoff : dict[int, float], optional
             Cutoff radii in angstrom for FC3 and FC4, by default None.
+            For example, {3: 4.0, 4: 4.0}
         use_mkl : bool, optional
             Use MKL library, by default False.
         log_level : int, optional
@@ -63,8 +64,8 @@ class Symfc:
         self._use_mkl = use_mkl
         self._log_level = log_level
 
-        self._basis_set: dict[FCBasisSetBase] = {}
-        self._force_constants: dict[np.ndarray] = {}
+        self._basis_set: dict[int, FCBasisSetBase] = {}
+        self._force_constants: dict[int, np.ndarray] = {}
         self._prepare_cutoff(cutoff)
 
     @property
@@ -81,7 +82,7 @@ class Symfc:
             raise ValueError("No FCBasisSet set is not set.")
 
     @property
-    def basis_set(self) -> dict[FCBasisSetBase]:
+    def basis_set(self) -> dict[int, FCBasisSetBase]:
         """Setter and getter of basis set.
 
         dict[FCBasisSet]
@@ -95,7 +96,7 @@ class Symfc:
         self._basis_set = basis_set
 
     @property
-    def force_constants(self) -> dict[np.ndarray]:
+    def force_constants(self) -> dict[int, np.ndarray]:
         """Return force constants.
 
         Returns
@@ -107,7 +108,7 @@ class Symfc:
         return self._force_constants
 
     @property
-    def displacements(self) -> np.ndarray:
+    def displacements(self) -> Optional[np.ndarray]:
         """Setter and getter of supercell displacements.
 
         ndarray
@@ -121,7 +122,7 @@ class Symfc:
         self._displacements = np.array(displacements, dtype="double", order="C")
 
     @property
-    def forces(self) -> np.ndarray:
+    def forces(self) -> Optional[np.ndarray]:
         """Setter and getter of supercell forces.
 
         ndarray
@@ -185,82 +186,111 @@ class Symfc:
             Batch size in solvers, by default 100.
         """
         self._check_dataset()
-        orders = self._check_orders(max_order, orders)
+        _orders = self._check_orders(max_order, orders)
 
-        if orders == (2,):
-            basis_set: FCBasisSetO2 = self._basis_set[2]
+        if self._displacements is None:
+            raise RuntimeError("Displacements not found.")
+        if self._forces is None:
+            raise RuntimeError("Forces not found.")
+
+        if _orders == (2,):
+            basis_set_o2: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[2])
             solver_o2 = FCSolverO2(
-                basis_set,
+                basis_set_o2,
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
             ).solve(self._displacements, self._forces)
             if is_compact_fc:
-                self._force_constants[2] = solver_o2.compact_fc
+                if solver_o2.compact_fc is not None:
+                    self._force_constants[2] = solver_o2.compact_fc
+                else:
+                    raise RuntimeError("Failed to obtain compact force constants")
             else:
-                self._force_constants[2] = solver_o2.full_fc
-        elif orders == (3,):
-            basis_set: FCBasisSetO3 = self._basis_set[3]
+                if solver_o2.full_fc is not None:
+                    self._force_constants[2] = solver_o2.full_fc
+                else:
+                    raise RuntimeError("Failed to obtain full force constants")
+        elif _orders == (3,):
+            basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
             solver_o3 = FCSolverO3(
-                basis_set,
+                basis_set_o3,
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
             ).solve(self._displacements, self._forces)
             if is_compact_fc:
-                self._force_constants[3] = solver_o3.compact_fc
+                if solver_o3.compact_fc is not None:
+                    self._force_constants[3] = solver_o3.compact_fc
+                else:
+                    raise RuntimeError("Failed to obtain compact force constants")
             else:
-                self._force_constants[3] = solver_o3.full_fc
-        elif orders == (4,):
-            basis_set: FCBasisSetO4 = self._basis_set[4]
+                if solver_o3.full_fc is not None:
+                    self._force_constants[3] = solver_o3.full_fc
+                else:
+                    raise RuntimeError("Failed to obtain full force constants")
+        elif _orders == (4,):
+            basis_set_o4: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[4])
             solver_o4 = FCSolverO4(
-                basis_set,
+                basis_set_o4,
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
             ).solve(self._displacements, self._forces)
             if is_compact_fc:
-                self._force_constants[4] = solver_o4.compact_fc
+                if solver_o4.compact_fc is not None:
+                    self._force_constants[4] = solver_o4.compact_fc
+                else:
+                    raise RuntimeError("Failed to obtain compact force constants")
             else:
-                self._force_constants[4] = solver_o4.full_fc
-        elif orders == (2, 3):
-            basis_set_o2: FCBasisSetO2 = self._basis_set[2]
-            basis_set_o3: FCBasisSetO3 = self._basis_set[3]
+                if solver_o4.full_fc is not None:
+                    self._force_constants[4] = solver_o4.full_fc
+                else:
+                    raise RuntimeError("Failed to obtain full force constants")
+        elif _orders == (2, 3):
+            basis_set_o2: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[2])
+            basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
             solver_o2o3 = FCSolverO2O3(
                 [basis_set_o2, basis_set_o3],
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
             ).solve(self._displacements, self._forces, batch_size=batch_size)
-            if is_compact_fc:
+            if is_compact_fc and solver_o2o3.compact_fc is not None:
                 fc2, fc3 = solver_o2o3.compact_fc
-            else:
+            elif solver_o2o3.full_fc is not None:
                 fc2, fc3 = solver_o2o3.full_fc
+            else:
+                raise RuntimeError("Failed to obtain force constants")
             self._force_constants[2] = fc2
             self._force_constants[3] = fc3
-        elif orders == (3, 4):
-            basis_set_o3: FCBasisSetO3 = self._basis_set[3]
-            basis_set_o4: FCBasisSetO4 = self._basis_set[4]
+        elif _orders == (3, 4):
+            basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
+            basis_set_o4: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[4])
             solver_o3o4 = FCSolverO3O4(
                 [basis_set_o3, basis_set_o4],
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
             ).solve(self._displacements, self._forces, batch_size=batch_size)
-            if is_compact_fc:
+            if is_compact_fc and solver_o3o4.compact_fc is not None:
                 fc3, fc4 = solver_o3o4.compact_fc
-            else:
+            elif solver_o3o4.full_fc is not None:
                 fc3, fc4 = solver_o3o4.full_fc
+            else:
+                raise RuntimeError("Failed to obtain force constants")
             self._force_constants[3] = fc3
             self._force_constants[4] = fc4
-        elif orders == (2, 3, 4):
-            basis_set_o2: FCBasisSetO2 = self._basis_set[2]
-            basis_set_o3: FCBasisSetO3 = self._basis_set[3]
-            basis_set_o4: FCBasisSetO4 = self._basis_set[4]
+        elif _orders == (2, 3, 4):
+            basis_set_o2: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[2])
+            basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
+            basis_set_o4: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[4])
             solver_o2o3o4 = FCSolverO2O3O4(
                 [basis_set_o2, basis_set_o3, basis_set_o4],
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
             ).solve(self._displacements, self._forces, batch_size=batch_size)
-            if is_compact_fc:
+            if is_compact_fc and solver_o2o3o4.compact_fc is not None:
                 fc2, fc3, fc4 = solver_o2o3o4.compact_fc
-            else:
+            elif solver_o2o3o4.full_fc is not None:
                 fc2, fc3, fc4 = solver_o2o3o4.full_fc
+            else:
+                raise RuntimeError("Failed to obtain force constants")
             self._force_constants[2] = fc2
             self._force_constants[3] = fc3
             self._force_constants[4] = fc4
@@ -365,7 +395,7 @@ class Symfc:
 
         return basis_size_estimates
 
-    def _check_orders(self, max_order: int, orders: list) -> tuple:
+    def _check_orders(self, max_order: Optional[int], orders: Optional[list]) -> tuple:
         if max_order is None and orders is None:
             raise RuntimeError("Maximum order and orders not found.")
 
@@ -374,12 +404,12 @@ class Symfc:
                 raise NotImplementedError(
                     "Only fc2, fc3 and fc4 basis sets are implemented."
                 )
-            orders = tuple(list(range(2, max_order + 1)))
-        else:
-            orders = tuple(sorted(orders))
-            if orders not in [(2,), (3,), (4,), (2, 3), (3, 4), (2, 3, 4)]:
+            _orders = tuple(list(range(2, max_order + 1)))
+        elif orders is not None:
+            _orders = tuple(sorted(orders))
+            if _orders not in [(2,), (3,), (4,), (2, 3), (3, 4), (2, 3, 4)]:
                 raise RuntimeError("Invalid FC orders.")
-        return orders
+        return _orders
 
     def _check_dataset(self):
         if self._displacements is None:
@@ -413,7 +443,9 @@ class Symfc:
         if cutoff is None:
             self._cutoff = {2: None, 3: None, 4: None}
         else:
-            self._cutoff = cutoff
+            self._cutoff = {}
             for order in (2, 3, 4):
-                if order not in self._cutoff:
+                if order in cutoff:
+                    self._cutoff[order] = cutoff[order]
+                else:
                     self._cutoff[order] = None
