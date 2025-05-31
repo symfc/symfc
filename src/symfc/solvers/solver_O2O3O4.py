@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Sequence
-from typing import Literal, Optional
+from typing import Literal, Optional, Union, cast
 
 import numpy as np
 from scipy.sparse import csr_array
@@ -23,11 +23,32 @@ class FCSolverO2O3O4(FCSolverBase):
 
     def __init__(
         self,
-        basis_set: Sequence[FCBasisSetO2, FCBasisSetO3, FCBasisSetO4],
+        basis_set: Sequence[Union[FCBasisSetO2, FCBasisSetO3, FCBasisSetO4]],
         use_mkl: bool = False,
         log_level: int = 0,
     ):
-        """Init method."""
+        """Init method.
+
+        Parameters
+        ----------
+        basis_set : Sequence of (FCBasisSetO2, FCBasisSetO3, FCBasisSetO4)
+            First element must be FCBasisSetO2, second must be FCBasisSetO3,
+            and third must be FCBasisSetO4.
+        use_mkl : bool, optional
+            Use MKL if True. Default is False.
+        log_level : int, optional
+            Logging level. Default is 0.
+
+        """
+        if len(basis_set) != 3:
+            raise ValueError("basis_set must contain exactly 3 elements")
+        if not isinstance(basis_set[0], FCBasisSetO2):
+            raise TypeError("First element must be FCBasisSetO2")
+        if not isinstance(basis_set[1], FCBasisSetO3):
+            raise TypeError("Second element must be FCBasisSetO3")
+        if not isinstance(basis_set[2], FCBasisSetO4):
+            raise TypeError("Third element must be FCBasisSetO4")
+        self._basis_set: Sequence[Union[FCBasisSetO2, FCBasisSetO3, FCBasisSetO4]]
         super().__init__(basis_set, use_mkl=use_mkl, log_level=log_level)
 
     def solve(
@@ -62,9 +83,9 @@ class FCSolverO2O3O4(FCSolverBase):
         f = forces.reshape(n_data, -1)
         d = displacements.reshape(n_data, -1)
 
-        fc2_basis: FCBasisSetO2 = self._basis_set[0]
-        fc3_basis: FCBasisSetO3 = self._basis_set[1]
-        fc4_basis: FCBasisSetO4 = self._basis_set[2]
+        fc2_basis: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[0])
+        fc3_basis: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[1])
+        fc4_basis: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[2])
         compress_mat_fc2 = fc2_basis.compact_compression_matrix
         basis_set_fc2 = fc2_basis.basis_set
         compress_mat_fc3 = fc3_basis.compact_compression_matrix
@@ -95,7 +116,7 @@ class FCSolverO2O3O4(FCSolverBase):
         return self
 
     @property
-    def full_fc(self) -> Optional[tuple[np.ndarray, np.ndarray]]:
+    def full_fc(self) -> Optional[tuple[np.ndarray, np.ndarray, np.ndarray]]:
         """Return full force constants.
 
         Returns
@@ -109,7 +130,7 @@ class FCSolverO2O3O4(FCSolverBase):
         return self._recover_fcs("full")
 
     @property
-    def compact_fc(self) -> Optional[tuple[np.ndarray, np.ndarray]]:
+    def compact_fc(self) -> Optional[tuple[np.ndarray, np.ndarray, np.ndarray]]:
         """Return full force constants.
 
         Returns
@@ -123,14 +144,14 @@ class FCSolverO2O3O4(FCSolverBase):
         return self._recover_fcs("compact")
 
     def _recover_fcs(
-        self, comp_mat_type: str = Literal["full", "compact"]
-    ) -> Optional[tuple[np.ndarray, np.ndarray]]:
+        self, comp_mat_type: Literal["full", "compact"]
+    ) -> Optional[tuple[np.ndarray, np.ndarray, np.ndarray]]:
         if self._coefs is None:
             return None
 
-        fc2_basis: FCBasisSetO2 = self._basis_set[0]
-        fc3_basis: FCBasisSetO3 = self._basis_set[1]
-        fc4_basis: FCBasisSetO4 = self._basis_set[2]
+        fc2_basis: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[0])
+        fc3_basis: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[1])
+        fc4_basis: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[2])
         if comp_mat_type == "full":
             comp_mat_fc2 = fc2_basis.compression_matrix
             comp_mat_fc3 = fc3_basis.compression_matrix

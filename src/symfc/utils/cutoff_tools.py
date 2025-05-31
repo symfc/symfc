@@ -234,8 +234,8 @@ class FCCutoff:
         except ImportError as exc:
             raise ModuleNotFoundError("Spglib python module was not found.") from exc
 
-        reduced_bases = spglib.niggli_reduce(self._supercell.cell)
-        trans_mat_float = self._supercell.cell @ np.linalg.inv(reduced_bases)
+        reduced_bases = spglib.niggli_reduce(self._supercell.cell)  # type: ignore
+        trans_mat_float = self._supercell.cell @ np.linalg.inv(reduced_bases)  # type: ignore
         trans_mat = np.rint(trans_mat_float).astype(int)
         assert (np.abs(trans_mat_float - trans_mat) < 1e-8).all()
 

@@ -20,7 +20,7 @@ except ImportError:
     pass
 
 
-def N3N3N3N3_to_NNNNand3333(combs: np.ndarray, N: int) -> np.ndarray:
+def N3N3N3N3_to_NNNNand3333(combs: np.ndarray, N: int) -> tuple[np.ndarray, np.ndarray]:
     """Transform index order."""
     vecNNNN, vec3333 = np.divmod(combs[:, 0], 3)
     vecNNNN *= N**3
@@ -194,11 +194,11 @@ def projector_permutation_lat_trans_O4(
         if len(c_pt.data) > 2147483647 / 4:
             if verbose:
                 print("Executed: proj_pt += c_pt.T @ c_pt", flush=True)
-            proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+            proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)  # type: ignore
             c_pt = None
 
     if c_pt is not None:
-        proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+        proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)  # type: ignore
 
     """FC4 with four distinct indices (ia,jb,kc,ld)"""
     if verbose:
@@ -234,11 +234,11 @@ def projector_permutation_lat_trans_O4(
         if len(c_pt.data) > 2147483647 / 4:
             if verbose:
                 print("Executed: proj_pt += c_pt.T @ c_pt", flush=True)
-            proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+            proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)  # type: ignore
             c_pt = None
 
     if c_pt is not None:
-        proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+        proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)  # type: ignore
     return proj_pt
 
 
@@ -331,7 +331,7 @@ def compressed_projector_sum_rules_O4_stable(
     NNNN = natom**4
     NNN = natom**3
 
-    proj_size = n_a_compress_mat.shape[1]
+    proj_size = n_a_compress_mat.shape[1]  # type: ignore
     proj_cplmt = csr_array((proj_size, proj_size), dtype="double")
 
     if atomic_decompr_idx is None:
@@ -462,7 +462,7 @@ def compressed_projector_sum_rules_O4(
     NNNN = natom**4
     NNN = natom**3
 
-    proj_size = n_a_compress_mat.shape[1]
+    proj_size = n_a_compress_mat.shape[1]  # type: ignore
     proj_cplmt = csr_array((proj_size, proj_size), dtype="double")
 
     if atomic_decompr_idx is None:

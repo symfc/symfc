@@ -3,6 +3,7 @@
 # from typing import Optional
 #
 import itertools
+from typing import Union
 
 import numpy as np
 from scipy.sparse import csr_array
@@ -46,7 +47,7 @@ def _orthogonalize_constraints(positions_cartesian: np.ndarray):
 def complementary_compr_projector_rot_sum_rules_O2(
     supercell: SymfcAtoms,
     trans_perms: np.ndarray,
-    n_a_compress_mat: np.ndarray,
+    n_a_compress_mat: Union[np.ndarray, csr_array],
     use_mkl: bool = False,
 ) -> csr_array:
     """Test function for setting rotational invariants."""

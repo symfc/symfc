@@ -76,7 +76,7 @@ class SpgRepsO1(SpgRepsBase):
             r1_reps.append(csr_array((data, (row, col)), shape=r1_rep.shape))
         self._r1_reps = r1_reps
 
-    def _get_sigma1_rep_data(self, i: int) -> csr_array:
+    def _get_sigma1_rep_data(self, i: int) -> tuple:
         uri = self._unique_rotation_indices
         permutation = self._permutations[uri[i]]
         N = len(self._numbers)

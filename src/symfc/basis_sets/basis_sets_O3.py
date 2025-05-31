@@ -9,7 +9,6 @@ import numpy as np
 from scipy.sparse import coo_array, csr_array
 
 from symfc.spg_reps import SpgRepsO3
-from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.eig_tools import (
     dot_product_sparse,
     eigsh_projector,
@@ -83,14 +82,10 @@ class FCBasisSetO3(FCBasisSetBase):
             Log level. Default is 0.
 
         """
-        super().__init__(supercell, use_mkl=use_mkl, log_level=log_level)
+        super().__init__(supercell, cutoff=cutoff, use_mkl=use_mkl, log_level=log_level)
         self._spg_reps = SpgRepsO3(
             supercell, spacegroup_operations=spacegroup_operations
         )
-        if cutoff is None:
-            self._fc_cutoff = None
-        else:
-            self._fc_cutoff = FCCutoff(supercell, cutoff=cutoff)
 
         trans_perms = self._spg_reps.translation_permutations
         self._atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
@@ -99,21 +94,17 @@ class FCBasisSetO3(FCBasisSetBase):
         self._basis_set: Optional[np.ndarray] = None
 
     @property
-    def basis_set(self) -> Optional[np.ndarray]:
-        """Return compressed basis set.
-
-        shape=(n_c, n_bases), dtype='double'.
-
-        """
-        return self._basis_set
-
-    @property
     def compression_matrix(self) -> Optional[csr_array]:
         """Return compression matrix.
 
         This expands fc basis_sets to (N*N*N*3*3*3, n_bases).
 
         """
+        if self._n_a_compression_matrix is None:
+            raise ValueError(
+                "Compression matrix is not computed yet. "
+                "Call run() method to compute it."
+            )
         trans_perms = self._spg_reps.translation_permutations
         c_trans = get_lat_trans_compr_matrix_O3(trans_perms)
         return dot_product_sparse(
@@ -127,13 +118,13 @@ class FCBasisSetO3(FCBasisSetBase):
         This expands fc basis_sets to (n_a*N*N*3*3*3, n_bases).
 
         """
+        if self._n_a_compression_matrix is None:
+            raise ValueError(
+                "Compression matrix is not computed yet. "
+                "Call run() method to compute it."
+            )
         n_lp = self.translation_permutations.shape[0]
         return self._n_a_compression_matrix / np.sqrt(n_lp)
-
-    @property
-    def atomic_decompr_idx(self) -> np.ndarray:
-        """Return atomic permutations by lattice translations."""
-        return self._atomic_decompr_idx
 
     def run(self) -> FCBasisSetO3:
         """Compute compressed force constants basis set."""
@@ -164,7 +155,7 @@ class FCBasisSetO3(FCBasisSetBase):
         tt2 = time.time()
 
         proj_rpt = get_compr_coset_projector_O3(
-            self._spg_reps,
+            self._spg_reps,  # type: ignore
             fc_cutoff=self._fc_cutoff,
             atomic_decompr_idx=self._atomic_decompr_idx,
             c_pt=c_pt,
@@ -266,5 +257,5 @@ class FCBasisSetO3(FCBasisSetBase):
             verbose=False,
         )
         n_sym_prim = len(self._spg_reps._unique_rotations)
-        basis_size_estimates = c_pt.shape[1] / n_sym_prim
+        basis_size_estimates = c_pt.shape[1] / n_sym_prim  # type: ignore
         return int(np.round(basis_size_estimates).astype(int))

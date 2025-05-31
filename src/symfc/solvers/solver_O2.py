@@ -6,6 +6,7 @@ import time
 from typing import Literal, Optional
 
 import numpy as np
+from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2
 from symfc.utils.eig_tools import dot_product_sparse
@@ -24,6 +25,7 @@ class FCSolverO2(FCSolverBase):
         log_level: int = 0,
     ):
         """Init method."""
+        self._basis_set: FCBasisSetO2
         super().__init__(basis_set, use_mkl=use_mkl, log_level=log_level)
 
     def solve(
@@ -52,7 +54,7 @@ class FCSolverO2(FCSolverBase):
         f = forces.reshape(n_data, -1)
         d = displacements.reshape(n_data, -1)
 
-        fc2_basis: FCBasisSetO2 = self._basis_set
+        fc2_basis = self._basis_set
         compress_mat_fc2 = fc2_basis.compact_compression_matrix
         basis_set_fc2 = fc2_basis.basis_set
 
@@ -95,12 +97,13 @@ class FCSolverO2(FCSolverBase):
         return self._recover_fcs("compact")
 
     def _recover_fcs(
-        self, comp_mat_type: str = Literal["full", "compact"]
+        self, comp_mat_type: Literal["full", "compact"]
     ) -> Optional[np.ndarray]:
-        if self._coefs is None:
+        fc2_basis = self._basis_set
+
+        if self._coefs is None or fc2_basis.basis_set is None:
             return None
 
-        fc2_basis: FCBasisSetO2 = self._basis_set
         if comp_mat_type == "full":
             comp_mat_fc2 = fc2_basis.compression_matrix
         elif comp_mat_type == "compact":
@@ -116,8 +119,10 @@ class FCSolverO2(FCSolverBase):
         return fc2
 
 
-def reshape_nN33_nx_to_N3_n3nx(mat, N, n, n_batch=1):
+def reshape_nN33_nx_to_N3_n3nx(mat, N: int, n: int, n_batch: int = 1) -> csr_array:
     """Reorder and reshape a sparse matrix (nN33,nx)->(N3,n3nx).
+
+    mat : csr_array
 
     Return reordered csr_matrix used for FC2.
     """
@@ -218,10 +223,12 @@ def prepare_normal_equation_O2(
             if verbose:
                 print("Solver_block:", end, "/", disps.shape[0], flush=True)
                 print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
+            del X2
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
-    XTX = compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2
+    mat22 = mat22 @ compress_eigvecs_fc2
+    XTX = compress_eigvecs_fc2.T @ mat22
     XTy = compress_eigvecs_fc2.T @ mat2y
 
     compact_compress_mat_fc2 /= const_fc2
