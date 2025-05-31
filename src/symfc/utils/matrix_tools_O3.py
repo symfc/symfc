@@ -1,6 +1,6 @@
 """Matrix utility functions for 3rd order force constants."""
 
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 import scipy
@@ -19,7 +19,7 @@ except ImportError:
     pass
 
 
-def _N3N3N3_to_NNNand333(combs: np.ndarray, N: int) -> np.ndarray:
+def _N3N3N3_to_NNNand333(combs: np.ndarray, N: int) -> tuple[np.ndarray, np.ndarray]:
     """Transform index order."""
     vecNNN, vec333 = np.divmod(combs[:, 0], 3)
     vecNNN *= N**2
@@ -35,10 +35,10 @@ def _N3N3N3_to_NNNand333(combs: np.ndarray, N: int) -> np.ndarray:
 
 def _construct_projector_permutation_lat_trans_from_combinations(
     combinations: np.ndarray,
-    permutations: np.ndarray,
+    permutations: Union[np.ndarray, list],
     atomic_decompr_idx: np.ndarray,
     trans_perms: np.ndarray,
-    included_indices: np.ndarray = None,
+    included_indices: Optional[np.ndarray] = None,
     n_perms_group: int = 1,
     use_mkl: bool = False,
     n_batch: int = 1,
@@ -73,16 +73,16 @@ def _construct_projector_permutation_lat_trans_from_combinations(
             if verbose:
                 print("Executed: proj_pt += c_pt.T @ c_pt", flush=True)
             if proj_pt is None:
-                proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+                proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)  # type: ignore
             else:
-                proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+                proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)  # type: ignore
             c_pt = None
 
     if c_pt is not None:
         if proj_pt is None:
-            proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+            proj_pt = dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)  # type: ignore
         else:
-            proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)
+            proj_pt += dot_product_sparse(c_pt.T, c_pt, use_mkl=use_mkl)  # type: ignore
     return proj_pt
 
 
@@ -289,7 +289,7 @@ def projector_permutation_lat_trans_O3(
         proj_pt += _projector_not_reduced(
             atomic_decompr_idx,
             trans_perms,
-            included_indices,
+            included_indices,  # type: ignore
             use_mkl=use_mkl,
         )
     return proj_pt
@@ -385,7 +385,7 @@ def compressed_projector_sum_rules_O3(
     NNN = natom**3
     NN = natom**2
 
-    proj_size = n_a_compress_mat.shape[1]
+    proj_size = n_a_compress_mat.shape[1]  # type: ignore
     proj_cplmt = csr_array((proj_size, proj_size), dtype="double")
 
     if atomic_decompr_idx is None:
@@ -510,7 +510,7 @@ def compressed_projector_sum_rules_O3_stable(
     NNN = natom**3
     NN = natom**2
 
-    proj_size = n_a_compress_mat.shape[1]
+    proj_size = n_a_compress_mat.shape[1]  # type: ignore
     proj_cplmt = csr_array((proj_size, proj_size), dtype="double")
 
     if atomic_decompr_idx is None:

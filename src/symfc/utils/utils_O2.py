@@ -26,7 +26,7 @@ def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
     trans_perms : ndarray
         Permutation of atomic indices by lattice translational symmetry.
         dtype='intc'.
-        shape=(n_l, N), where n_l and N are the numbers of lattce points and
+        shape=(n_l, N), where n_l and N are the numbers of lattice points and
         atoms in supercell.
 
     Returns
@@ -68,7 +68,7 @@ def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
     ----------
     trans_perms : ndarray
         Permutation of atomic indices by lattice translational symmetry.
-        dtype='intc'. shape=(n_l, N), where n_l and N are the numbers of lattce
+        dtype='intc'. shape=(n_l, N), where n_l and N are the numbers of lattice
         points and atoms in supercell.
 
     Returns
@@ -180,7 +180,7 @@ def _get_atomic_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray
     trans_perms : ndarray
         Permutation of atomic indices by lattice translational symmetry.
         dtype='intc'.
-        shape=(n_l, N), where n_l and N are the numbers of lattce points and
+        shape=(n_l, N), where n_l and N are the numbers of lattice points and
         atoms in supercell.
 
     Returns
@@ -283,20 +283,22 @@ def get_compr_coset_projector_O2(
     """Return compr matrix of sum of coset reps."""
     trans_perms = spg_reps.translation_permutations
     n_lp, N = trans_perms.shape
-    size = N**2 * 9 // n_lp if c_pt is None else c_pt.shape[1]
+    size = N**2 * 9 // n_lp if c_pt is None else c_pt.shape[1]  # type: ignore
     coset_reps_sum = csr_array((size, size), dtype="double")
 
     if atomic_decompr_idx is None:
-        atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
+        _atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
+    else:
+        _atomic_decompr_idx = atomic_decompr_idx
 
     if fc_cutoff is None:
         nonzero = None
         size_data = N**2
-        col = atomic_decompr_idx
+        col = _atomic_decompr_idx
     else:
         nonzero = fc_cutoff.nonzero_atomic_indices_fc2()
         size_data = np.count_nonzero(nonzero)
-        col = atomic_decompr_idx[nonzero]
+        col = _atomic_decompr_idx[nonzero]
 
     factor = 1 / n_lp / len(spg_reps.unique_rotation_indices)
     for i, _ in enumerate(spg_reps.unique_rotation_indices):
@@ -304,7 +306,7 @@ def get_compr_coset_projector_O2(
         mat = csr_array(
             (
                 np.ones(size_data, dtype="int_"),
-                (atomic_decompr_idx[permutation], col),
+                (_atomic_decompr_idx[permutation], col),  # type: ignore
             ),
             shape=(N**2 // n_lp, N**2 // n_lp),
             dtype="int_",

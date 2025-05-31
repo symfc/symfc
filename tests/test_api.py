@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from symfc import Symfc
+from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.utils import SymfcAtoms
 
 cwd = Path(__file__).parent
@@ -19,9 +20,11 @@ def test_api_NaCl_222(ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
     symfc = Symfc(supercell)
     symfc.compute_basis_set(2)
     symfc.displacements = displacements
-    np.testing.assert_array_almost_equal(symfc.displacements, displacements)
+    assert symfc.displacements is not None
+    np.testing.assert_array_almost_equal(symfc.displacements, displacements)  # type: ignore
     symfc.forces = forces
-    np.testing.assert_array_almost_equal(symfc.forces, forces)
+    assert symfc.forces is not None
+    np.testing.assert_array_almost_equal(symfc.forces, forces)  # type: ignore
     symfc.solve(2)
     fc = symfc.force_constants[2]
     fc_ref = np.loadtxt(cwd / "compact_fc_NaCl_222.xz").reshape(fc.shape)
@@ -181,3 +184,12 @@ def test_api_estimate_basis_size_NaCl_222(
 
     assert symfc.estimate_basis_size(orders=[2, 3, 4]) == ref_estimates
     assert symfc.estimate_basis_size(max_order=4) == ref_estimates
+
+
+def test_api_NaCl_222_cutoff_attribute(cell_nacl_222: SymfcAtoms):
+    """Test accessing FCCutoff via Symfc class."""
+    symfc = Symfc(cell_nacl_222, cutoff={3: 4.0})
+    symfc.compute_basis_set(3)
+    fc_cutoff = symfc.basis_set[3].fc_cutoff
+    assert isinstance(fc_cutoff, FCCutoff)
+    assert fc_cutoff.nonzero_atomic_indices_fc3().shape[0] == len(cell_nacl_222) ** 3
