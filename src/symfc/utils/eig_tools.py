@@ -197,7 +197,7 @@ def eigh_projector(
     if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
         raise ValueError("Eigenvalue error: e > 1 or e < 0.")
 
-    nonzero = np.isclose(eigvals, 1.0)
+    nonzero = np.isclose(eigvals, 1.0, atol=1e-13, rtol=0.0)
     if return_complement:
         compr_bool = np.logical_not(nonzero)
         return (
@@ -255,11 +255,11 @@ def eigsh_projector(p: csr_array, verbose: bool = True) -> csr_array:
     return c_p
 
 
-def _block_eigh_projector(p_block: np.ndarray, verbose: bool = False):
-    """Solve eigenvalue problem using block divisions."""
+def eigh_projector_submatrix_division(p_block: np.ndarray, verbose: bool = False):
+    """Solve eigenvalue problem using submatrix division algorithm."""
     eigvecs_block = np.zeros(p_block.shape, dtype="double")
-    cmplt = np.zeros((p_block.shape[0], p_block.shape[0]), dtype="double")
     # TODO: memory allocation of cmlpt should be more efficient
+    cmplt = np.zeros(p_block.shape, dtype="double")
     # cmplt = np.zeros((p_block.shape[0], p_block.shape[0] // 2), dtype="double")
 
     p_size = p_block.shape[0]
@@ -403,7 +403,7 @@ def eigsh_projector_sumrule_large(p: csr_array, verbose: bool = True) -> np.ndar
         p_block = p[np.ix_(ids, ids)].toarray()
         rank = int(round(np.trace(p_block)))
         if rank > 0:
-            eigvecs = _block_eigh_projector(p_block, verbose=verbose)
+            eigvecs = eigh_projector_submatrix_division(p_block, verbose=verbose)
             if eigvecs is not None:
                 col_end = col_id + eigvecs.shape[1]
                 eigvecs_full[ids, col_id:col_end] = eigvecs
