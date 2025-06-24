@@ -331,7 +331,7 @@ def eigh_projector_submatrix_division(p_block: np.ndarray, verbose: bool = False
 
 def eigsh_projector_sumrule(
     p: csr_array,
-    size_threshold: int = 100000,
+    size_threshold: int = 1000,
     verbose: bool = True,
 ) -> np.ndarray:
     """Solve eigenvalue problem for matrix p.
@@ -344,8 +344,8 @@ def eigsh_projector_sumrule(
     are solutions.
 
     If p.shape[0] < size_threshold, this function solves numpy.eigh for all block
-    matrices. Otherwise, this functions use a submatrix division algorithm
-    to solve each block matrix.
+    matrices. Otherwise, this function use a submatrix division algorithm
+    to solve the eigenvalue problem of each block matrix.
     """
     if p.shape[0] > size_threshold:  # type: ignore
         eigh = eigh_projector_submatrix_division
@@ -366,6 +366,7 @@ def eigsh_projector_sumrule(
         if verbose and len(ids) > 2:
             print("Eigsh_solver_block:", i + 1, "/", len(group), flush=True)
             print(" - Block_size:", len(ids), flush=True)
+        ids = np.array(ids)
         p_block = p[np.ix_(ids, ids)].toarray()
         rank = int(round(np.trace(p_block)))
         if rank > 0:
