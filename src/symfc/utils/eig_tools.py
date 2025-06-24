@@ -171,6 +171,8 @@ def _extract_sparse_projector_data(p: csr_array, group: dict) -> DataCSR:
 def eigh_projector(
     p: np.ndarray,
     return_complement: bool = False,
+    atol: float = 1e-8,
+    rtol: float = 0.0,
     verbose: bool = True,
 ) -> Union[
     np.ndarray,
@@ -197,7 +199,7 @@ def eigh_projector(
     if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
         raise ValueError("Eigenvalue error: e > 1 or e < 0.")
 
-    nonzero = np.isclose(eigvals, 1.0, atol=1e-13, rtol=0.0)
+    nonzero = np.isclose(eigvals, 1.0, atol=atol, rtol=rtol)
     if return_complement:
         compr_bool = np.logical_not(nonzero)
         return (
@@ -294,6 +296,8 @@ def eigh_projector_submatrix_division(p_block: np.ndarray, verbose: bool = False
             result = eigh_projector(
                 p_small,
                 return_complement=True,
+                atol=1e-12,
+                rtol=0.0,
                 verbose=verbose,
             )
             assert result is not None
