@@ -1,4 +1,4 @@
-"""Matrix utility functions for 1st order force constants."""
+"""Functions for introducing translational invariance in 1st order force constants."""
 
 import numpy as np
 import scipy

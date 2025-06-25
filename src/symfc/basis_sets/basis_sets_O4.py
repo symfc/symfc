@@ -14,11 +14,8 @@ from symfc.utils.eig_tools import (
     eigsh_projector,
     eigsh_projector_sumrule,
 )
-from symfc.utils.matrix_tools_O4 import (
-    compressed_projector_sum_rules_O4,
-    projector_permutation_lat_trans_O4,
-)
 from symfc.utils.permutation_tools_O4 import compr_permutation_lat_trans_O4
+from symfc.utils.translation_tools_O4 import compressed_projector_sum_rules_O4
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O4 import (
     get_atomic_lat_trans_decompr_indices_O4,
@@ -125,25 +122,13 @@ class FCBasisSetO4(FCBasisSetBase):
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
 
-        direct_permutation = True
         tt0 = time.time()
-        if direct_permutation:
-            c_pt = compr_permutation_lat_trans_O4(
-                trans_perms,
-                atomic_decompr_idx=self._atomic_decompr_idx,
-                fc_cutoff=self._fc_cutoff,
-                verbose=self._log_level > 0,
-            )
-        else:
-            proj_pt = projector_permutation_lat_trans_O4(
-                trans_perms,
-                atomic_decompr_idx=self._atomic_decompr_idx,
-                fc_cutoff=self._fc_cutoff,
-                use_mkl=self._use_mkl,
-                verbose=self._log_level > 0,
-            )
-            tt1 = time.time()
-            c_pt = eigsh_projector(proj_pt, verbose=self._log_level > 0)
+        c_pt = compr_permutation_lat_trans_O4(
+            trans_perms,
+            atomic_decompr_idx=self._atomic_decompr_idx,
+            fc_cutoff=self._fc_cutoff,
+            verbose=self._log_level > 0,
+        )
 
         if self._log_level:
             print(" c_pt (size) :", c_pt.shape, flush=True)
@@ -183,23 +168,11 @@ class FCBasisSetO4(FCBasisSetBase):
         tt7 = time.time()
 
         if self._log_level:
-            if direct_permutation:
-                print(
-                    "Time (perm @ ltrans)               :",
-                    "{:.3f}".format(tt2 - tt0),
-                    flush=True,
-                )
-            else:
-                print(
-                    "Time (proj(perm @ lattice trans.)  :",
-                    "{:.3f}".format(tt1 - tt0),
-                    flush=True,
-                )
-                print(
-                    "Time (eigh(perm @ ltrans))         :",
-                    "{:.3f}".format(tt2 - tt1),
-                    flush=True,
-                )
+            print(
+                "Time (perm @ ltrans)               :",
+                "{:.3f}".format(tt2 - tt0),
+                flush=True,
+            )
             print(
                 "Time (coset)                       :",
                 "{:.3f}".format(tt3 - tt2),

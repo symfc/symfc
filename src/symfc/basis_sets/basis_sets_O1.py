@@ -9,7 +9,7 @@ from scipy.sparse import csr_array
 
 from symfc.spg_reps import SpgRepsO1
 from symfc.utils.eig_tools import eigsh_projector
-from symfc.utils.matrix_tools_O1 import compressed_projector_sum_rules
+from symfc.utils.translation_tools_O1 import compressed_projector_sum_rules
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O1 import (
     get_compr_coset_reps_sum,
