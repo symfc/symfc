@@ -1,20 +1,16 @@
-"""Tests of functions in matrix_tools_O2."""
+"""Tests of functions in permutation_tools_O2."""
 
 import numpy as np
 import pytest
-import scipy
 
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.cutoff_tools import FCCutoff
-from symfc.utils.matrix_tools_O2 import (
-    N3N3_to_NNand33,
-    compressed_projector_sum_rules_O2,
-    projector_permutation_lat_trans_O2,
+from symfc.utils.permutation_tools_O2 import (
+    _N3N3_to_NNand33,
+    compr_permutation_lat_trans_O2,
 )
 from symfc.utils.utils import SymfcAtoms
-from symfc.utils.utils_O2 import (
-    _get_atomic_lat_trans_decompr_indices,
-)
+from symfc.utils.utils_O2 import _get_atomic_lat_trans_decompr_indices
 
 
 def structure_bcc():
@@ -36,7 +32,7 @@ def test_N3N3_to_NNand33():
     """Test N3N3_to_NNand33."""
     N = 3
     combs = np.array([[0, 1], [2, 4], [5, 8]])
-    vecNN, vec33 = N3N3_to_NNand33(combs, N)
+    vecNN, vec33 = _N3N3_to_NNand33(combs, N)
     np.testing.assert_allclose(vecNN, [0, 1, 5])
     np.testing.assert_allclose(vec33, [1, 7, 8])
 
@@ -44,11 +40,12 @@ def test_N3N3_to_NNand33():
 def test_projector_permutation_lat_trans_O2():
     """Test projector_permutation_lat_trans_O2."""
     atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
-    proj = projector_permutation_lat_trans_O2(
+    c_pt = compr_permutation_lat_trans_O2(
         trans_perms,
-        atomic_decompr_idx,
+        atomic_decompr_idx=atomic_decompr_idx,
         fc_cutoff=None,
     )
+    proj = c_pt @ c_pt.T
     assert proj.trace() == pytest.approx(12.0)
     assert proj.shape == (18, 18)
     proj_ref = np.zeros(proj.shape)
@@ -60,38 +57,14 @@ def test_projector_permutation_lat_trans_O2():
         proj_ref[(row, col)] = 0.5
     np.testing.assert_allclose(proj.toarray(), proj_ref)
 
-    proj = projector_permutation_lat_trans_O2(
+    c_pt = compr_permutation_lat_trans_O2(
         trans_perms,
-        atomic_decompr_idx,
+        atomic_decompr_idx=atomic_decompr_idx,
         fc_cutoff=FCCutoff(supercell, cutoff=1),
     )
+    proj = c_pt @ c_pt.T
     proj_ref_cutoff = np.zeros_like(proj_ref)
     proj_ref_cutoff[0:9, 0:9] = proj_ref[0:9, 0:9]
     assert proj.trace() == pytest.approx(6.0)
     assert proj.shape == (18, 18)
     np.testing.assert_allclose(proj.toarray(), proj_ref_cutoff)
-
-
-def test_compressed_projector_sum_rules_O2():
-    """Test compressed_projector_sum_rules_O2."""
-    atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
-    n_a_compress_mat = scipy.sparse.identity(18)
-    proj = compressed_projector_sum_rules_O2(
-        trans_perms,
-        n_a_compress_mat,
-        atomic_decompr_idx,
-        fc_cutoff=None,
-    )
-    eigvals, _ = np.linalg.eigh(proj.toarray())
-    assert proj.shape == (18, 18)
-    assert np.count_nonzero(np.isclose(eigvals, 1.0)) == 9
-
-    proj = compressed_projector_sum_rules_O2(
-        trans_perms,
-        n_a_compress_mat,
-        atomic_decompr_idx,
-        fc_cutoff=FCCutoff(supercell, cutoff=1),
-    )
-    """If the cutoff implementation is changed, the trace value may also change."""
-    assert proj.trace() == pytest.approx(13.5)
-    assert len(proj.data) == 18
