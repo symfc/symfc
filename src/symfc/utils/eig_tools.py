@@ -209,7 +209,12 @@ def eigh_projector(
     return eigvecs[:, nonzero]
 
 
-def eigsh_projector(p: csr_array, verbose: bool = True) -> csr_array:
+def eigsh_projector(
+    p: csr_array,
+    atol: float = 1e-8,
+    rtol: float = 0.0,
+    verbose: bool = True,
+) -> csr_array:
     """Solve eigenvalue problem for matrix p.
 
     Return sparse matrix for eigenvectors of matrix p.
@@ -242,7 +247,7 @@ def eigsh_projector(p: csr_array, verbose: bool = True) -> csr_array:
                 uniq_eigvecs[key][1].append(block_label)
             except KeyError:
                 p_np = p_block.reshape((block_size, block_size))
-                eigvecs = eigh_projector(p_np, verbose=verbose)
+                eigvecs = eigh_projector(p_np, atol=atol, rtol=rtol, verbose=verbose)
                 uniq_eigvecs[key] = [eigvecs, [block_label]]
         else:
             if not np.isclose(p_block[0], 0.0):
@@ -257,7 +262,12 @@ def eigsh_projector(p: csr_array, verbose: bool = True) -> csr_array:
     return c_p
 
 
-def eigh_projector_submatrix_division(p_block: np.ndarray, verbose: bool = False):
+def eigh_projector_submatrix_division(
+    p_block: np.ndarray,
+    atol: float = 1e-8,
+    rtol: float = 0.0,
+    verbose: bool = False,
+):
     r"""Solve eigenvalue problem using submatrix division algorithm.
 
     This algorithm is optimized to solve an eigenvalue problem for
@@ -319,7 +329,7 @@ def eigh_projector_submatrix_division(p_block: np.ndarray, verbose: bool = False
             print("Solving complementary projector.", flush=True)
         cmplt = cmplt[:, :col_end_cmplt]
         p_block_rem = cmplt.T @ p_block @ cmplt
-        eigvecs = eigh_projector(p_block_rem, verbose=verbose)
+        eigvecs = eigh_projector(p_block_rem, atol=atol, rtol=rtol, verbose=verbose)
         eigvecs_shape1 = eigvecs.shape[1]  # type: ignore
         if verbose:
             print(eigvecs_shape1, "eigenvectors are found.", flush=True)
@@ -335,6 +345,8 @@ def eigh_projector_submatrix_division(p_block: np.ndarray, verbose: bool = False
 
 def eigsh_projector_sumrule(
     p: csr_array,
+    atol: float = 1e-8,
+    rtol: float = 0.0,
     size_threshold: int = 1000,
     verbose: bool = True,
 ) -> np.ndarray:
@@ -374,7 +386,7 @@ def eigsh_projector_sumrule(
         p_block = p[np.ix_(ids, ids)].toarray()
         rank = int(round(np.trace(p_block)))
         if rank > 0:
-            eigvecs = eigh(p_block, verbose=verbose)
+            eigvecs = eigh(p_block, atol=atol, rtol=rtol, verbose=verbose)
             if eigvecs is not None:
                 col_end = col_id + eigvecs.shape[1]  # type: ignore
                 eigvecs_full[ids, col_id:col_end] = eigvecs
