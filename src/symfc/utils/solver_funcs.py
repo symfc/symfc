@@ -25,9 +25,7 @@ def fit(X: np.ndarray, y: np.ndarray):
     n_samples, n_features = X.shape
 
     """
-    A = np.dot(X.T, X)
-    Xy = np.dot(X.T, y)
-    coefs = solve_linear_equation(A, Xy)
+    coefs = solve_linear_equation(X.T @ X, X.T @ y)
     return coefs
 
 
