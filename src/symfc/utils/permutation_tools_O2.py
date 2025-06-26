@@ -1,4 +1,4 @@
-"""Permutation utility functions for 3rd order force constants."""
+"""Permutation utility functions for 2nd order force constants."""
 
 from typing import Optional, Union
 

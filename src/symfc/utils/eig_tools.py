@@ -171,6 +171,8 @@ def _extract_sparse_projector_data(p: csr_array, group: dict) -> DataCSR:
 def eigh_projector(
     p: np.ndarray,
     return_complement: bool = False,
+    atol: float = 1e-8,
+    rtol: float = 0.0,
     verbose: bool = True,
 ) -> Union[
     np.ndarray,
@@ -197,7 +199,7 @@ def eigh_projector(
     if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
         raise ValueError("Eigenvalue error: e > 1 or e < 0.")
 
-    nonzero = np.isclose(eigvals, 1.0)
+    nonzero = np.isclose(eigvals, 1.0, atol=atol, rtol=rtol)
     if return_complement:
         compr_bool = np.logical_not(nonzero)
         return (
@@ -207,7 +209,12 @@ def eigh_projector(
     return eigvecs[:, nonzero]
 
 
-def eigsh_projector(p: csr_array, verbose: bool = True) -> csr_array:
+def eigsh_projector(
+    p: csr_array,
+    atol: float = 1e-8,
+    rtol: float = 0.0,
+    verbose: bool = True,
+) -> csr_array:
     """Solve eigenvalue problem for matrix p.
 
     Return sparse matrix for eigenvectors of matrix p.
@@ -240,7 +247,7 @@ def eigsh_projector(p: csr_array, verbose: bool = True) -> csr_array:
                 uniq_eigvecs[key][1].append(block_label)
             except KeyError:
                 p_np = p_block.reshape((block_size, block_size))
-                eigvecs = eigh_projector(p_np, verbose=verbose)
+                eigvecs = eigh_projector(p_np, atol=atol, rtol=rtol, verbose=verbose)
                 uniq_eigvecs[key] = [eigvecs, [block_label]]
         else:
             if not np.isclose(p_block[0], 0.0):
@@ -255,11 +262,35 @@ def eigsh_projector(p: csr_array, verbose: bool = True) -> csr_array:
     return c_p
 
 
-def _block_eigh_projector(p_block: np.ndarray, verbose: bool = False):
-    """Solve eigenvalue problem using block divisions."""
+def eigh_projector_submatrix_division(
+    p_block: np.ndarray,
+    atol: float = 1e-8,
+    rtol: float = 0.0,
+    verbose: bool = False,
+):
+    r"""Solve eigenvalue problem using submatrix division algorithm.
+
+    This algorithm is optimized to solve an eigenvalue problem for
+    projection matrix p with large block submatrices.
+    The algorithm for solving each block submatrix is as follows.
+    1. Divide each block submatrix into reasonable sizes of submatrices,
+       not projectors.
+    2. Solve eigenvalue problems for these submatrices and eigenvectors
+       with eigenvalues of one are extracted. The eigenvectors with
+       eigenvalues e < 1 are used for compressing the complementary matrix
+       in the next step.
+    3. Calculate the complementary matrix, which corresponds to the complement
+       of the vector space spanned by the eigenvectors. The complementary matrix
+       is compressed using the eigenvectors with e < 1.
+    4. Solve eigenvalue problem for the complementary matrix and eigenvectors
+       with e = 1 are calculated. The eigenvalue problems are efficiently solved
+       using the compressed complementary matrix and the eigenvectors are recovered by
+       the compression matrix.
+    5. Collect all eigenvectors with e = 1.
+    """
     eigvecs_block = np.zeros(p_block.shape, dtype="double")
-    cmplt = np.zeros((p_block.shape[0], p_block.shape[0]), dtype="double")
     # TODO: memory allocation of cmlpt should be more efficient
+    cmplt = np.zeros(p_block.shape, dtype="double")
     # cmplt = np.zeros((p_block.shape[0], p_block.shape[0] // 2), dtype="double")
 
     p_size = p_block.shape[0]
@@ -275,6 +306,8 @@ def _block_eigh_projector(p_block: np.ndarray, verbose: bool = False):
             result = eigh_projector(
                 p_small,
                 return_complement=True,
+                atol=1e-12,
+                rtol=0.0,
                 verbose=verbose,
             )
             assert result is not None
@@ -296,7 +329,7 @@ def _block_eigh_projector(p_block: np.ndarray, verbose: bool = False):
             print("Solving complementary projector.", flush=True)
         cmplt = cmplt[:, :col_end_cmplt]
         p_block_rem = cmplt.T @ p_block @ cmplt
-        eigvecs = eigh_projector(p_block_rem, verbose=verbose)
+        eigvecs = eigh_projector(p_block_rem, atol=atol, rtol=rtol, verbose=verbose)
         eigvecs_shape1 = eigvecs.shape[1]  # type: ignore
         if verbose:
             print(eigvecs_shape1, "eigenvectors are found.", flush=True)
@@ -312,85 +345,35 @@ def _block_eigh_projector(p_block: np.ndarray, verbose: bool = False):
 
 def eigsh_projector_sumrule(
     p: csr_array,
+    atol: float = 1e-8,
+    rtol: float = 0.0,
     size_threshold: int = 1000,
     verbose: bool = True,
 ) -> np.ndarray:
     """Solve eigenvalue problem for matrix p.
 
     Return dense matrix for eigenvectors of matrix p.
+
+    This algorithm begins with finding block diagonal structures in matrix p.
+    For each block submatrix, eigenvectors are solved.
+    When p = diag(A,B), Av = v, and Bw = w, p[v,0] = [v,0] and p[0,w] = [0,w]
+    are solutions.
+
+    If p.shape[0] < size_threshold, this function solves numpy.eigh for all block
+    matrices. Otherwise, this function use a submatrix division algorithm
+    to solve the eigenvalue problem of each block matrix.
     """
     if p.shape[0] > size_threshold:  # type: ignore
-        return eigsh_projector_sumrule_large(p, verbose=verbose)
-    return eigsh_projector_sumrule_stable(p, verbose=verbose)
-
-
-def eigsh_projector_sumrule_stable(p: csr_array, verbose: bool = True) -> np.ndarray:
-    """Solve eigenvalue problem for matrix p.
-
-    Return dense matrix for eigenvectors of matrix p.
-
-    This algorithm begins with finding block diagonal structures in matrix p.
-    For each block submatrix, eigenvectors are solved.
-    When p = diag(A,B), Av = v, and Bw = w, p[v,0] = [v,0] and p[0,w] = [0,w]
-    are solutions.
-
-    This function solves numpy.eigh for all block matrices.
-    This function is efficient for matrix p composed of nonequivalent
-    block matrices.
-
-    """
-    group = _find_projector_blocks(p)
-    if verbose:
-        print("Use standard normal eigsh solver.", flush=True)
-        print("Number of blocks in projector (Sum rule):", len(group), flush=True)
-
-    eigvecs_full = np.zeros(p.shape, dtype="double")  # type: ignore
-    col_id = 0
-    for i, ids in enumerate(group.values()):
+        eigh = eigh_projector_submatrix_division
         if verbose:
-            print("Eigsh_solver_block:", i + 1, "/", len(group), flush=True)
-            print(" - Block_size:", len(ids), flush=True)
-        p_block = p[np.ix_(ids, ids)].toarray()
-        rank = int(round(np.trace(p_block)))
-        if rank > 0:
-            eigvecs = eigh_projector(p_block, verbose=verbose)
-            col_end = col_id + eigvecs.shape[1]  # type: ignore
-            eigvecs_full[ids, col_id:col_end] = eigvecs
-            col_id = col_end
-    return eigvecs_full[:, :col_id]
+            print("Use eigsh solver for large matrices.", flush=True)
+    else:
+        eigh = eigh_projector
+        if verbose:
+            print("Use standard normal eigsh solver.", flush=True)
 
-
-def eigsh_projector_sumrule_large(p: csr_array, verbose: bool = True) -> np.ndarray:
-    """Solve eigenvalue problem for matrix p.
-
-    Return dense matrix for eigenvectors of matrix p.
-
-    This algorithm begins with finding block diagonal structures in matrix p.
-    For each block submatrix, eigenvectors are solved.
-    When p = diag(A,B), Av = v, and Bw = w, p[v,0] = [v,0] and p[0,w] = [0,w]
-    are solutions.
-
-    This algorithm is optimized to solve an eigenvalue problem for
-    projection matrix p with large block submatrices.
-    The algorithm for solving each block submatrix is as follows.
-    1. Divide each block submatrix into reasonable sizes of submatrices,
-       not projectors.
-    2. Solve eigenvalue problems for these submatrices and eigenvectors
-       with eigenvalues of one are extracted. The eigenvectors with
-       eigenvalues e < 1 are used for compressing the complementary matrix
-       in the next step.
-    3. Calculate the complementary matrix, which corresponds to the complement
-       of the vector space spanned by the eigenvectors. The complementary matrix
-       is compressed using the eigenvectors with e < 1.
-    4. Solve eigenvalue problem for the complementary matrix and eigenvectors
-       with e = 1 are calculated. The eigenvalue problems are efficiently solved
-       using the compressed complementary matrix and the eigenvectors are recovered by
-       the compression matrix.
-    5. Collect all eigenvectors with e = 1.
-    """
     group = _find_projector_blocks(p)
     if verbose:
-        print("Use eigsh solver for large matrices.", flush=True)
         print("Number of blocks in projector (Sum rule):", len(group), flush=True)
 
     eigvecs_full = np.zeros(p.shape, dtype="double")  # type: ignore
@@ -403,9 +386,9 @@ def eigsh_projector_sumrule_large(p: csr_array, verbose: bool = True) -> np.ndar
         p_block = p[np.ix_(ids, ids)].toarray()
         rank = int(round(np.trace(p_block)))
         if rank > 0:
-            eigvecs = _block_eigh_projector(p_block, verbose=verbose)
+            eigvecs = eigh(p_block, atol=atol, rtol=rtol, verbose=verbose)
             if eigvecs is not None:
-                col_end = col_id + eigvecs.shape[1]
+                col_end = col_id + eigvecs.shape[1]  # type: ignore
                 eigvecs_full[ids, col_id:col_end] = eigvecs
                 col_id = col_end
     return eigvecs_full[:, :col_id]

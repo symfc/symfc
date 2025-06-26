@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Optional, Union, cast
 
 import numpy as np
+from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetBase, FCBasisSetO2, FCBasisSetO3, FCBasisSetO4
 from symfc.solvers import (
@@ -14,6 +15,11 @@ from symfc.solvers import (
     FCSolverO3,
     FCSolverO3O4,
     FCSolverO4,
+)
+from symfc.utils.eig_tools import (
+    eigh_projector,
+    eigsh_projector,
+    eigsh_projector_sumrule,
 )
 from symfc.utils.utils import SymfcAtoms
 
@@ -449,3 +455,64 @@ class Symfc:
                     self._cutoff[order] = cutoff[order]
                 else:
                     self._cutoff[order] = None
+
+
+def eigh(
+    p: np.ndarray,
+    atol: float = 1e-8,
+    rtol: float = 0.0,
+    log_level: int = 0,
+) -> np.ndarray:
+    """Solve eigenvalue problem for projector in numpy ndarray.
+
+    Parameters
+    ----------
+    p: np.ndarray
+        Projection matrix to be solved.
+    atol : float, optional
+        atol used in np.isclose.
+    rtol : float, optional
+        rtol used in np.isclose.
+    log_level : int, optional
+        Log level, by default 0.
+
+    Return
+    ------
+    Eigenvectors with eigenvalues = 1.0 in np.ndarray format.
+    Eigenvectors with eigenvalues < 1.0 are eliminated.
+    """
+    return eigh_projector(p, atol=atol, rtol=rtol, verbose=log_level > 0)
+
+
+def eigsh(
+    p: csr_array,
+    atol: float = 1e-8,
+    rtol: float = 0.0,
+    is_large_block: bool = False,
+    log_level: int = 0,
+) -> Union[csr_array, np.ndarray]:
+    """Solve eigenvalue problem for projector in scipy sparse csr_array.
+
+    Parameters
+    ----------
+    p: csr_array
+        Projection matrix to be solved.
+    atol : float, optional
+        atol used in np.isclose.
+    rtol : float, optional
+        rtol used in np.isclose.
+    is_large_block: bool, optional
+        Use an algorithm for solving projector with large block matrices.
+    log_level : int, optional
+        Log level, by default 0.
+
+    Return
+    ------
+    Eigenvectors with eigenvalues = 1.0.
+    If is_large_block is True, eigenvectors in np.ndarray are returned.
+    Otherwise, eigenvectors in csr_array are returned.
+    Eigenvectors with eigenvalues < 1.0 are eliminated.
+    """
+    if is_large_block:
+        return eigsh_projector_sumrule(p, atol=atol, rtol=rtol, verbose=log_level > 0)
+    return eigsh_projector(p, atol=atol, rtol=rtol, verbose=log_level > 0)
