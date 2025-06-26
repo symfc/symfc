@@ -178,13 +178,9 @@ def get_compr_coset_projector_O4(
     factor = 1 / len(spg_reps.unique_rotation_indices)
     for i, _ in enumerate(spg_reps.unique_rotation_indices):
         if verbose:
-            print(
-                "Coset sum:",
-                i + 1,
-                "/",
-                len(spg_reps.unique_rotation_indices),
-                flush=True,
-            )
+            n_rot = len(spg_reps.unique_rotation_indices)
+            print("Coset sum:", i + 1, "/", n_rot, flush=True)
+
         permutation = spg_reps.get_sigma4_rep(i, nonzero=nonzero)
         """Equivalent to mat = C.T @ spg_reps.get_sigma4_rep(i) @ C
         C: atomic_lat_trans_compr_mat, shape=(NNNN, NNNN/n_lp)"""
@@ -236,13 +232,9 @@ def get_compr_coset_projector_O4_stable(
     factor = 1 / n_lp / len(spg_reps.unique_rotation_indices)
     for i, _ in enumerate(spg_reps.unique_rotation_indices):
         if verbose:
-            print(
-                "Coset sum:",
-                i + 1,
-                "/",
-                len(spg_reps.unique_rotation_indices),
-                flush=True,
-            )
+            n_rot = len(spg_reps.unique_rotation_indices)
+            print("Coset sum:", i + 1, "/", n_rot, flush=True)
+
         permutation = spg_reps.get_sigma4_rep(i, nonzero=nonzero)
         """Equivalent to mat = C.T @ spg_reps.get_sigma4_rep(i) @ C
         C: atomic_lat_trans_compr_mat, shape=(NNNN, NNNN/n_lp)"""

@@ -2,6 +2,10 @@
 
 # Change Log
 
+## Jul-26-2025: Version 1.4.1
+
+- Small fix for specific case
+
 ## May-31-2025: Version 1.4.0
 
 - Maintenance release after refactoring
