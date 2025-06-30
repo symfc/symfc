@@ -389,7 +389,7 @@ class BlockedEigenvectors:
             dot_matrix[b.col_begin : b.col_end] = b.transpose_dot(mat)
         return dot_matrix
 
-    def reconver_full_eigenvectors(self):
+    def recover_full_eigenvectors(self):
         """Recover full blocked eigenvectors."""
         if self.eigvecs_full is None:
             self.eigvecs_full = np.zeros(self.shape, dtype="double")  # type: ignore
