@@ -9,6 +9,7 @@ import numpy as np
 
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.cutoff_tools import FCCutoff
+from symfc.utils.eig_tools import BlockedEigenvectors
 from symfc.utils.utils import SymfcAtoms
 
 
@@ -43,6 +44,7 @@ class FCBasisSetBase(ABC):
         self._spg_reps: SpgRepsBase
         self._atomic_decompr_idx: np.ndarray
         self._basis_set: np.ndarray
+        self._blocked_basis_set: BlockedEigenvectors
 
         if cutoff is None:
             self._fc_cutoff = None
@@ -69,6 +71,11 @@ class FCBasisSetBase(ABC):
 
         """
         return self._basis_set
+
+    @property
+    def blocked_basis_set(self) -> Optional[BlockedEigenvectors]:
+        """Return compressed basis set in blocked format."""
+        return self._blocked_basis_set
 
     @property
     def atomic_decompr_idx(self) -> np.ndarray:

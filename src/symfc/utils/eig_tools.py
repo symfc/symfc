@@ -343,11 +343,67 @@ def eigh_projector_submatrix_division(
     return eigvecs_block[:, :col_id]
 
 
+@dataclass
+class BlockedEigenvectorsComponent:
+    """Dataclass for each component of blocked eigenvectors."""
+
+    eigvecs: np.ndarray
+    rows: np.ndarray
+    col_begin: int
+    col_end: int
+
+    def dot(self, mat: np.ndarray):
+        """Dot product eigvecs @ mat."""
+        return self.eigvecs @ mat[self.col_begin : self.col_end]
+
+    def transpose_dot(self, mat: np.ndarray):
+        """Dot product eigvecs.T @ mat."""
+        return self.eigvecs.T @ mat[self.rows]
+
+
+@dataclass
+class BlockedEigenvectors:
+    """Dataclass for blocked eigenvectors."""
+
+    blocks: list[BlockedEigenvectorsComponent]
+    shape: tuple[int, int]
+    eigvecs_full: Optional[np.ndarray] = None
+
+    def dot(self, mat: np.ndarray):
+        """Dot product eigvecs @ mat."""
+        try:
+            dot_matrix = np.zeros((self.shape[0], mat.shape[1]))
+        except IndexError:
+            dot_matrix = np.zeros(self.shape[0])
+        for b in self.blocks:
+            dot_matrix[b.rows] = b.dot(mat)
+        return dot_matrix
+
+    def transpose_dot(self, mat: np.ndarray):
+        """Dot product eigvecs.T @ mat."""
+        try:
+            dot_matrix = np.zeros((self.shape[1], mat.shape[1]))
+        except IndexError:
+            dot_matrix = np.zeros(self.shape[1])
+        for b in self.blocks:
+            dot_matrix[b.col_begin : b.col_end] = b.transpose_dot(mat)
+        return dot_matrix
+
+    def recover_full_eigenvectors(self):
+        """Recover full blocked eigenvectors."""
+        if self.eigvecs_full is None:
+            self.eigvecs_full = np.zeros(self.shape, dtype="double")  # type: ignore
+            for b in self.blocks:
+                self.eigvecs_full[b.rows, b.col_begin : b.col_end] = b.eigvecs
+        return self.eigvecs_full
+
+
 def eigsh_projector_sumrule(
     p: csr_array,
     atol: float = 1e-8,
     rtol: float = 0.0,
     size_threshold: int = 1000,
+    return_blocks: bool = False,
     verbose: bool = True,
 ) -> np.ndarray:
     """Solve eigenvalue problem for matrix p.
@@ -376,19 +432,45 @@ def eigsh_projector_sumrule(
     if verbose:
         print("Number of blocks in projector (Sum rule):", len(group), flush=True)
 
-    eigvecs_full = np.zeros(p.shape, dtype="double")  # type: ignore
-    col_id = 0
-    for i, ids in enumerate(group.values()):
-        if verbose and len(ids) > 2:
-            print("Eigsh_solver_block:", i + 1, "/", len(group), flush=True)
-            print(" - Block_size:", len(ids), flush=True)
-        ids = np.array(ids)
-        p_block = p[np.ix_(ids, ids)].toarray()
-        rank = int(round(np.trace(p_block)))
-        if rank > 0:
-            eigvecs = eigh(p_block, atol=atol, rtol=rtol, verbose=verbose)
-            if eigvecs is not None:
-                col_end = col_id + eigvecs.shape[1]  # type: ignore
-                eigvecs_full[ids, col_id:col_end] = eigvecs
-                col_id = col_end
-    return eigvecs_full[:, :col_id]
+    if return_blocks:
+        col_id = 0
+        eigvecs_blocks = []
+        for i, ids in enumerate(group.values()):
+            if verbose and len(ids) > 2:
+                print("Eigsh_solver_block:", i + 1, "/", len(group), flush=True)
+                print(" - Block_size:", len(ids), flush=True)
+            ids = np.array(ids)
+            p_block = p[np.ix_(ids, ids)].toarray()
+            rank = int(round(np.trace(p_block)))
+            if rank > 0:
+                eigvecs = eigh(p_block, atol=atol, rtol=rtol, verbose=verbose)
+                if eigvecs is not None:
+                    col_end = col_id + eigvecs.shape[1]  # type: ignore
+                    block = BlockedEigenvectorsComponent(
+                        eigvecs=eigvecs,
+                        rows=ids,
+                        col_begin=col_id,
+                        col_end=col_end,
+                    )
+                    eigvecs_blocks.append(block)
+                    col_id = col_end
+
+        blocks = BlockedEigenvectors(blocks=eigvecs_blocks, shape=(p.shape[0], col_id))
+        return blocks
+    else:
+        eigvecs_full = np.zeros(p.shape, dtype="double")  # type: ignore
+        col_id = 0
+        for i, ids in enumerate(group.values()):
+            if verbose and len(ids) > 2:
+                print("Eigsh_solver_block:", i + 1, "/", len(group), flush=True)
+                print(" - Block_size:", len(ids), flush=True)
+            ids = np.array(ids)
+            p_block = p[np.ix_(ids, ids)].toarray()
+            rank = int(round(np.trace(p_block)))
+            if rank > 0:
+                eigvecs = eigh(p_block, atol=atol, rtol=rtol, verbose=verbose)
+                if eigvecs is not None:
+                    col_end = col_id + eigvecs.shape[1]  # type: ignore
+                    eigvecs_full[ids, col_id:col_end] = eigvecs
+                    col_id = col_end
+        return eigvecs_full[:, :col_id]
