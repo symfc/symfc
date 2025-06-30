@@ -10,7 +10,7 @@ from scipy.sparse import csr_array
 
 from symfc.spg_reps import SpgRepsO4
 from symfc.utils.eig_tools import (
-    BlockedEigenvectors,
+    BlockedMatrix,
     dot_product_sparse,
     eigsh_projector,
     eigsh_projector_sumrule,
@@ -85,7 +85,7 @@ class FCBasisSetO4(FCBasisSetBase):
 
         self._n_a_compression_matrix: Optional[csr_array] = None
         self._basis_set: Optional[np.ndarray] = None
-        self._blocked_basis_set: Optional[BlockedEigenvectors] = None
+        self._blocked_basis_set: Optional[BlockedMatrix] = None
 
     @property
     def compression_matrix(self) -> Optional[csr_array]:
@@ -120,7 +120,7 @@ class FCBasisSetO4(FCBasisSetBase):
         n_lp = self.translation_permutations.shape[0]
         return self._n_a_compression_matrix / np.sqrt(n_lp)
 
-    def run(self, return_blocks: bool = False) -> FCBasisSetO4:
+    def run(self) -> FCBasisSetO4:
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
 
@@ -163,11 +163,7 @@ class FCBasisSetO4(FCBasisSetBase):
             verbose=self._log_level > 0,
         )
         tt6 = time.time()
-        eigvecs = eigsh_projector_sumrule(
-            proj,
-            return_blocks=return_blocks,
-            verbose=self._log_level > 0,
-        )
+        eigvecs = eigsh_projector_sumrule(proj, verbose=self._log_level > 0)
 
         if self._log_level:
             print("Final size of basis set:", eigvecs.shape, flush=True)
@@ -211,10 +207,7 @@ class FCBasisSetO4(FCBasisSetBase):
                 flush=True,
             )
 
-        if return_blocks:
-            self._blocked_basis_set = eigvecs
-        else:
-            self._basis_set = eigvecs
+        self._blocked_basis_set = eigvecs
         self._n_a_compression_matrix = n_a_compress_mat
 
         return self

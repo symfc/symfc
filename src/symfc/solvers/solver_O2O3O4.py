@@ -87,11 +87,11 @@ class FCSolverO2O3O4(FCSolverBase):
         fc3_basis: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[1])
         fc4_basis: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[2])
         compress_mat_fc2 = fc2_basis.compact_compression_matrix
-        basis_set_fc2 = fc2_basis.basis_set
+        basis_set_fc2 = fc2_basis.blocked_basis_set
         compress_mat_fc3 = fc3_basis.compact_compression_matrix
-        basis_set_fc3 = fc3_basis.basis_set
+        basis_set_fc3 = fc3_basis.blocked_basis_set
         compress_mat_fc4 = fc4_basis.compact_compression_matrix
-        basis_set_fc4 = fc4_basis.basis_set
+        basis_set_fc4 = fc4_basis.blocked_basis_set
 
         atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
         atomic_decompr_idx_fc3 = fc3_basis.atomic_decompr_idx
@@ -164,17 +164,17 @@ class FCSolverO2O3O4(FCSolverBase):
             raise ValueError("Invalid comp_mat_type.")
 
         N = self._natom
-        fc2 = fc2_basis.basis_set @ self._coefs[0]
+        fc2 = fc2_basis.blocked_basis_set.dot(self._coefs[0])
         fc2 = np.array(
             (comp_mat_fc2 @ fc2).reshape((-1, N, 3, 3)), dtype="double", order="C"
         )
-        fc3 = fc3_basis.basis_set @ self._coefs[1]
+        fc3 = fc3_basis.blocked_basis_set.dot(self._coefs[1])
         fc3 = np.array(
             (comp_mat_fc3 @ fc3).reshape((-1, N, N, 3, 3, 3)),
             dtype="double",
             order="C",
         )
-        fc4 = fc4_basis.basis_set @ self._coefs[2]
+        fc4 = fc4_basis.blocked_basis_set.dot(self._coefs[2])
         fc4 = np.array(
             (comp_mat_fc4 @ fc4).reshape((-1, N, N, N, 3, 3, 3, 3)),
             dtype="double",
@@ -397,47 +397,42 @@ def prepare_normal_equation_O2O3O4(
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
 
-    mat22 = compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2
-    mat23 = compress_eigvecs_fc2.T @ mat23 @ compress_eigvecs_fc3
-    mat24 = compress_eigvecs_fc2.T @ mat24 @ compress_eigvecs_fc4
-    mat33 = compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
-    mat34 = compress_eigvecs_fc3.T @ mat34 @ compress_eigvecs_fc4
-    mat44 = compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
-    mat2y = compress_eigvecs_fc2.T @ mat2y
-    mat3y = compress_eigvecs_fc3.T @ mat3y
-    mat4y = compress_eigvecs_fc4.T @ mat4y
+    mat22 = compress_eigvecs_fc2.dot(
+        compress_eigvecs_fc2.transpose_dot(mat22), left=True
+    )
+    mat23 = compress_eigvecs_fc3.dot(
+        compress_eigvecs_fc2.transpose_dot(mat23), left=True
+    )
+    mat24 = compress_eigvecs_fc4.dot(
+        compress_eigvecs_fc2.transpose_dot(mat24), left=True
+    )
+    mat33 = compress_eigvecs_fc3.dot(
+        compress_eigvecs_fc3.transpose_dot(mat33), left=True
+    )
+    mat34 = compress_eigvecs_fc4.dot(
+        compress_eigvecs_fc3.transpose_dot(mat34), left=True
+    )
+    mat44 = compress_eigvecs_fc4.dot(
+        compress_eigvecs_fc4.transpose_dot(mat44), left=True
+    )
+    mat2y = compress_eigvecs_fc2.transpose_dot(mat2y)
+    mat3y = compress_eigvecs_fc3.transpose_dot(mat3y)
+    mat4y = compress_eigvecs_fc4.transpose_dot(mat4y)
+
+    # mat22 = compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2
+    # mat23 = compress_eigvecs_fc2.T @ mat23 @ compress_eigvecs_fc3
+    # mat24 = compress_eigvecs_fc2.T @ mat24 @ compress_eigvecs_fc4
+    # mat33 = compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
+    # mat34 = compress_eigvecs_fc3.T @ mat34 @ compress_eigvecs_fc4
+    # mat44 = compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
+    # mat2y = compress_eigvecs_fc2.T @ mat2y
+    # mat3y = compress_eigvecs_fc3.T @ mat3y
+    # mat4y = compress_eigvecs_fc4.T @ mat4y
+
     XTX = np.block(
         [[mat22, mat23, mat24], [mat23.T, mat33, mat34], [mat24.T, mat34.T, mat44]]
     )
     XTy = np.hstack([mat2y, mat3y, mat4y])
-
-    # XTX = np.zeros((n_basis, n_basis), dtype=float)
-    # XTy = np.zeros(n_basis, dtype=float)
-    # XTX[:n_basis_fc2, :n_basis_fc2] = (
-    #     compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2
-    # )
-    # XTX[:n_basis_fc2, n_basis_fc2:n_basis_fc23] = (
-    #     compress_eigvecs_fc2.T @ mat23 @ compress_eigvecs_fc3
-    # )
-    # XTX[:n_basis_fc2, n_basis_fc23:] = (
-    #     compress_eigvecs_fc2.T @ mat24 @ compress_eigvecs_fc4
-    # )
-    # XTX[n_basis_fc2:, :n_basis_fc2] = XTX[:n_basis_fc2, n_basis_fc2:].T
-    # XTX[n_basis_fc2:n_basis_fc23, n_basis_fc2:n_basis_fc23] = (
-    #     compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
-    # )
-    # XTX[n_basis_fc2:n_basis_fc23, n_basis_fc23:] = (
-    #     compress_eigvecs_fc3.T @ mat34 @ compress_eigvecs_fc4
-    # )
-    # XTX[n_basis_fc23:, n_basis_fc2:n_basis_fc23] = XTX[
-    #     n_basis_fc2:n_basis_fc23, n_basis_fc23:
-    # ].T
-    # XTX[n_basis_fc23:, n_basis_fc23:] = (
-    #     compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
-    # )
-    # XTy[:n_basis_fc2] = compress_eigvecs_fc2.T @ mat2y
-    # XTy[n_basis_fc2:n_basis_fc23] = compress_eigvecs_fc3.T @ mat3y
-    # XTy[n_basis_fc23:] = compress_eigvecs_fc4.T @ mat4y
 
     compact_compress_mat_fc2 /= const_fc2
     compact_compress_mat_fc3 /= const_fc3
