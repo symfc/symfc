@@ -294,7 +294,7 @@ def eigh_projector_submatrix_division(
     # cmplt = np.zeros((p_block.shape[0], p_block.shape[0] // 2), dtype="double")
 
     p_size = p_block.shape[0]
-    target_size = min(max(p_size // 10, 1000), 10000)
+    target_size = min(max(p_size // 10, 1000), 20000)
 
     col_id, col_id_cmplt = 0, 0
     for begin, end in zip(*get_batch_slice(p_size, target_size)):
