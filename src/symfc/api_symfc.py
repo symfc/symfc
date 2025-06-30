@@ -162,7 +162,9 @@ class Symfc:
             Batch size in solvers, by default 100.
         """
         if self._displacements is not None and self._forces is not None:
-            self.compute_basis_set(max_order=max_order, orders=orders)
+            self.compute_basis_set(
+                max_order=max_order, orders=orders, return_blocks=True
+            )
             self.solve(
                 max_order=max_order,
                 orders=orders,
