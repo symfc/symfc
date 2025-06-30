@@ -162,9 +162,7 @@ class Symfc:
             Batch size in solvers, by default 100.
         """
         if self._displacements is not None and self._forces is not None:
-            self.compute_basis_set(
-                max_order=max_order, orders=orders, return_blocks=True
-            )
+            self.compute_basis_set(max_order=max_order, orders=orders)
             self.solve(
                 max_order=max_order,
                 orders=orders,
@@ -309,7 +307,6 @@ class Symfc:
         self,
         max_order: Optional[int] = None,
         orders: Optional[list] = None,
-        return_blocks: bool = False,
     ) -> Symfc:
         """Run basis set calculations.
 
@@ -328,7 +325,7 @@ class Symfc:
                     cutoff=self._cutoff[2],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
-                ).run(return_blocks=return_blocks)
+                ).run()
                 self._basis_set[2] = basis_set_o2
             elif order == 3:
                 basis_set_o3 = FCBasisSetO3(
@@ -337,7 +334,7 @@ class Symfc:
                     cutoff=self._cutoff[3],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
-                ).run(return_blocks=return_blocks)
+                ).run()
                 self._basis_set[3] = basis_set_o3
             elif order == 4:
                 basis_set_o4 = FCBasisSetO4(
@@ -346,7 +343,7 @@ class Symfc:
                     cutoff=self._cutoff[4],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
-                ).run(return_blocks=return_blocks)
+                ).run()
                 self._basis_set[4] = basis_set_o4
         return self
 

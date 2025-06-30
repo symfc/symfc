@@ -36,6 +36,7 @@ def test_eigsh_and_eigh():
     _assert_four_atoms_eigvecs(eigvecs)
 
     eigvecs = eigsh(proj, is_large_block=True, log_level=0)
+    eigvecs = eigvecs.recover_full_matrix()
     _assert_four_atoms_eigvecs(eigvecs)
 
     eigvecs = eigh(proj.toarray(), log_level=0)
