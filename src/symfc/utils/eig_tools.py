@@ -262,87 +262,6 @@ def eigsh_projector(
     return c_p
 
 
-def eigh_projector_submatrix_division(
-    p_block: np.ndarray,
-    atol: float = 1e-8,
-    rtol: float = 0.0,
-    verbose: bool = False,
-):
-    r"""Solve eigenvalue problem using submatrix division algorithm.
-
-    This algorithm is optimized to solve an eigenvalue problem for
-    projection matrix p with large block submatrices.
-    The algorithm for solving each block submatrix is as follows.
-    1. Divide each block submatrix into reasonable sizes of submatrices,
-       not projectors.
-    2. Solve eigenvalue problems for these submatrices and eigenvectors
-       with eigenvalues of one are extracted. The eigenvectors with
-       eigenvalues e < 1 are used for compressing the complementary matrix
-       in the next step.
-    3. Calculate the complementary matrix, which corresponds to the complement
-       of the vector space spanned by the eigenvectors. The complementary matrix
-       is compressed using the eigenvectors with e < 1.
-    4. Solve eigenvalue problem for the complementary matrix and eigenvectors
-       with e = 1 are calculated. The eigenvalue problems are efficiently solved
-       using the compressed complementary matrix and the eigenvectors are recovered by
-       the compression matrix.
-    5. Collect all eigenvectors with e = 1.
-    """
-    eigvecs_block = np.zeros(p_block.shape, dtype="double")
-    # TODO: memory allocation of cmlpt should be more efficient
-    cmplt = np.zeros(p_block.shape, dtype="double")
-    # cmplt = np.zeros((p_block.shape[0], p_block.shape[0] // 2), dtype="double")
-
-    p_size = p_block.shape[0]
-    target_size = min(max(p_size // 10, 1000), 20000)
-
-    col_id, col_id_cmplt = 0, 0
-    for begin, end in zip(*get_batch_slice(p_size, target_size)):
-        if verbose:
-            print("Block:", end, "/", p_size, flush=True)
-        p_small = p_block[begin:end, begin:end]
-        rank = int(round(np.trace(p_small)))
-        if rank > 0:
-            result = eigh_projector(
-                p_small,
-                return_complement=True,
-                atol=1e-12,
-                rtol=0.0,
-                verbose=verbose,
-            )
-            assert result is not None
-            assert result[0] is not None
-            eigvecs, (cmplt_eigvals, cmplt_small) = result
-            col_end = col_id + eigvecs.shape[1]
-            col_end_cmplt = col_id_cmplt + cmplt_small.shape[1]
-            eigvecs_block[begin:end, col_id:col_end] = eigvecs
-            cmplt[begin:end, col_id_cmplt:col_end_cmplt] = cmplt_small
-            p_block[begin:end, begin:end] -= eigvecs @ eigvecs.T
-            col_id = col_end
-            col_id_cmplt = col_end_cmplt
-            if verbose:
-                print(eigvecs.shape[1], "eigenvectors are found.", flush=True)
-
-    rank = int(round(np.trace(p_block)))
-    if rank > 0:
-        if verbose:
-            print("Solving complementary projector.", flush=True)
-        cmplt = cmplt[:, :col_end_cmplt]
-        p_block_rem = cmplt.T @ p_block @ cmplt
-        eigvecs = eigh_projector(p_block_rem, atol=atol, rtol=rtol, verbose=verbose)
-        eigvecs_shape1 = eigvecs.shape[1]  # type: ignore
-        if verbose:
-            print(eigvecs_shape1, "eigenvectors are found.", flush=True)
-        if eigvecs_shape1 > 0:
-            col_end = col_id + eigvecs_shape1
-            eigvecs_block[:, col_id:col_end] = cmplt @ eigvecs
-            col_id = col_end
-
-    if col_id == 0:
-        return None
-    return eigvecs_block[:, :col_id]
-
-
 @dataclass
 class BlockedMatrixComponent:
     """Dataclass for each component of blocked matrix."""
@@ -436,6 +355,88 @@ class BlockedMatrix:
             for b in self.blocks:
                 self.data_full[b.rows, b.col_begin : b.col_end] = b.data
         return self.data_full
+
+
+def eigh_projector_submatrix_division(
+    p_block: np.ndarray,
+    atol: float = 1e-8,
+    rtol: float = 0.0,
+    verbose: bool = False,
+):
+    r"""Solve eigenvalue problem using submatrix division algorithm.
+
+    This algorithm is optimized to solve an eigenvalue problem for
+    projection matrix p with large block submatrices.
+    The algorithm for solving each block submatrix is as follows.
+    1. Divide each block submatrix into reasonable sizes of submatrices,
+       not projectors.
+    2. Solve eigenvalue problems for these submatrices and eigenvectors
+       with eigenvalues of one are extracted. The eigenvectors with
+       eigenvalues e < 1 are used for compressing the complementary matrix
+       in the next step.
+    3. Calculate the complementary matrix, which corresponds to the complement
+       of the vector space spanned by the eigenvectors. The complementary matrix
+       is compressed using the eigenvectors with e < 1.
+    4. Solve eigenvalue problem for the complementary matrix and eigenvectors
+       with e = 1 are calculated. The eigenvalue problems are efficiently solved
+       using the compressed complementary matrix and the eigenvectors are recovered by
+       the compression matrix.
+    5. Collect all eigenvectors with e = 1.
+    """
+    eigvecs_block = np.zeros(p_block.shape, dtype="double")
+    # TODO: memory allocation of cmlpt should be more efficient
+    cmplt = np.zeros(p_block.shape, dtype="double")
+    # cmplt = np.zeros((p_block.shape[0], p_block.shape[0] // 2), dtype="double")
+
+    p_size = p_block.shape[0]
+    target_size = min(max(p_size // 10, 1000), 20000)
+
+    # TODO: Use BlockedMatrix.
+    col_id, col_id_cmplt = 0, 0
+    for begin, end in zip(*get_batch_slice(p_size, target_size)):
+        if verbose:
+            print("Block:", end, "/", p_size, flush=True)
+        p_small = p_block[begin:end, begin:end]
+        rank = int(round(np.trace(p_small)))
+        if rank > 0:
+            result = eigh_projector(
+                p_small,
+                return_complement=True,
+                atol=1e-12,
+                rtol=0.0,
+                verbose=verbose,
+            )
+            assert result is not None
+            assert result[0] is not None
+            eigvecs, (cmplt_eigvals, cmplt_small) = result
+            col_end = col_id + eigvecs.shape[1]
+            col_end_cmplt = col_id_cmplt + cmplt_small.shape[1]
+            eigvecs_block[begin:end, col_id:col_end] = eigvecs
+            cmplt[begin:end, col_id_cmplt:col_end_cmplt] = cmplt_small
+            p_block[begin:end, begin:end] -= eigvecs @ eigvecs.T
+            col_id = col_end
+            col_id_cmplt = col_end_cmplt
+            if verbose:
+                print(eigvecs.shape[1], "eigenvectors are found.", flush=True)
+
+    rank = int(round(np.trace(p_block)))
+    if rank > 0:
+        if verbose:
+            print("Solving complementary projector.", flush=True)
+        cmplt = cmplt[:, :col_end_cmplt]
+        p_block_rem = cmplt.T @ p_block @ cmplt
+        eigvecs = eigh_projector(p_block_rem, atol=atol, rtol=rtol, verbose=verbose)
+        eigvecs_shape1 = eigvecs.shape[1]  # type: ignore
+        if verbose:
+            print(eigvecs_shape1, "eigenvectors are found.", flush=True)
+        if eigvecs_shape1 > 0:
+            col_end = col_id + eigvecs_shape1
+            eigvecs_block[:, col_id:col_end] = cmplt @ eigvecs
+            col_id = col_end
+
+    if col_id == 0:
+        return None
+    return eigvecs_block[:, :col_id]
 
 
 def eigsh_projector_sumrule(
