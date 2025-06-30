@@ -56,7 +56,7 @@ class FCSolverO2(FCSolverBase):
 
         fc2_basis = self._basis_set
         compress_mat_fc2 = fc2_basis.compact_compression_matrix
-        basis_set_fc2 = fc2_basis.basis_set
+        basis_set_fc2 = fc2_basis.blocked_basis_set
 
         atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
 
@@ -112,7 +112,7 @@ class FCSolverO2(FCSolverBase):
             raise ValueError("Invalid comp_mat_type.")
 
         N = self._natom
-        fc2 = fc2_basis.basis_set @ self._coefs
+        fc2 = fc2_basis.blocked_basis_set.dot(self._coefs)
         fc2 = np.array(
             (comp_mat_fc2 @ fc2).reshape((-1, N, 3, 3)), dtype="double", order="C"
         )
@@ -227,9 +227,9 @@ def prepare_normal_equation_O2(
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
-    mat22 = mat22 @ compress_eigvecs_fc2
-    XTX = compress_eigvecs_fc2.T @ mat22
-    XTy = compress_eigvecs_fc2.T @ mat2y
+    mat22 = compress_eigvecs_fc2.dot(mat22, left=True)
+    XTX = compress_eigvecs_fc2.transpose_dot(mat22)
+    XTy = compress_eigvecs_fc2.transpose_dot(mat2y)
 
     compact_compress_mat_fc2 /= const_fc2
     t_all2 = time.time()
