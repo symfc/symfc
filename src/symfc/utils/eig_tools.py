@@ -445,7 +445,7 @@ def eigsh_projector_sumrule(
     rtol: float = 0.0,
     size_threshold: int = 1000,
     verbose: bool = True,
-) -> np.ndarray:
+) -> BlockedMatrix:
     """Solve eigenvalue problem for matrix p.
 
     Return dense matrix for eigenvectors of matrix p.
