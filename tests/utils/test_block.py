@@ -48,3 +48,6 @@ def test_block_matrix():
         bm.transpose_dot(mat2.T, left=True),
         mat2.T @ mat.T,
     )
+
+    mat3 = np.array([[3, 1, 4, 3], [5, 7, 3, 1], [2, 8, 7, 4], [5, 9, 0, 2]])
+    np.testing.assert_array_equal(bm.compress_matrix(mat3), mat.T @ mat3 @ mat)
