@@ -453,6 +453,7 @@ def eigh_projector_submatrix_division(
                     col_begin=col_id,
                     col_end=col_end,
                 )
+                del cmplt
                 eigvecs_blocks.append(block)
                 col_id = col_end
 
@@ -468,6 +469,7 @@ def eigsh_projector_sumrule(
     atol: float = 1e-8,
     rtol: float = 0.0,
     size_threshold: int = 1000,
+    use_submatrix: bool = False,
     verbose: bool = True,
 ) -> BlockedMatrix:
     """Solve eigenvalue problem for matrix p.
@@ -484,13 +486,14 @@ def eigsh_projector_sumrule(
     to solve the eigenvalue problem of each block matrix.
     """
     if p.shape[0] > size_threshold:  # type: ignore
-        eigh = eigh_projector_submatrix_division
         use_submatrix = True
+
+    if use_submatrix:
+        eigh = eigh_projector_submatrix_division
         if verbose:
             print("Use eigsh solver for large matrices.", flush=True)
     else:
         eigh = eigh_projector
-        use_submatrix = False
         if verbose:
             print("Use standard normal eigsh solver.", flush=True)
 
