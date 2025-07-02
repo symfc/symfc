@@ -356,9 +356,23 @@ class BlockedMatrix:
 
     def compress_matrix(self, mat: np.ndarray):
         """Calculate block_mat.T @ mat @ block_mat."""
+        # TODO: Consider more efficient algorithm
+        # import time
+        # t1 = time.time()
+        # res = np.zeros((self.shape[1], self.shape[1]))
+        # for b in self.blocks:
+        #     res[b.col_begin : b.col_end] += self.dot_from_left(b.data.T @ mat[b.rows])
+
+        # t2 = time.time()
         res = np.zeros((self.shape[1], self.shape[1]))
         for b in self.blocks:
-            res[b.col_begin : b.col_end] += self.dot_from_left(b.data.T @ mat[b.rows])
+            prod = b.data.T @ mat[b.rows]
+            for b2 in self.blocks:
+                res[b.col_begin : b.col_end, b2.col_begin : b2.col_end] += (
+                    prod[:, b2.rows] @ b2.data
+                )
+        # t3 = time.time()
+        # print(t2-t1, t3-t2)
         return res
 
     def recover_full_matrix(self):
