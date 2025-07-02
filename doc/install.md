@@ -2,7 +2,7 @@
 
 PyPI and conda-forge packages are available.
 
-- https://pypi.org/project/sympy/
+- https://pypi.org/project/symfc
 - https://anaconda.org/conda-forge/symfc
 
 ## Requirement
