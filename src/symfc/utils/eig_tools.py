@@ -501,13 +501,16 @@ def eigsh_projector_sumrule(
     if verbose:
         print("Number of blocks in projector (Sum rule):", len(group), flush=True)
 
+    lengths = [-len(ids) for ids in group.values()]
+    keys = [list(group.keys())[i] for i in np.argsort(lengths)]
+
     col_id = 0
     eigvecs_blocks = []
-    for i, ids in enumerate(group.values()):
+    for i in keys:
+        ids = np.array(group[i])
         if verbose and len(ids) > 2:
             print("Eigsh_solver_block:", i + 1, "/", len(group), flush=True)
             print(" - Block_size:", len(ids), flush=True)
-        ids = np.array(ids)
         p_block = p[np.ix_(ids, ids)].toarray()
         rank = int(round(np.trace(p_block)))
         if rank > 0:
