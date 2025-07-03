@@ -201,7 +201,7 @@ def eigh_projector(
 
     nonzero = np.isclose(eigvals, 1.0, atol=atol, rtol=rtol)
     if return_complement:
-        compr_bool = np.logical_not(nonzero)
+        compr_bool = np.logical_and(np.logical_not(nonzero), eigvals > 1e-12)
         return (
             eigvecs[:, nonzero],
             (eigvals[compr_bool], eigvecs[:, compr_bool]),
@@ -376,8 +376,6 @@ class BlockedMatrix:
             res[b.col_begin : b.col_end] += self.dot_from_left(
                 dot_product_sparse(b.data.T, mat[b.rows], use_mkl=use_mkl, dense=True)
             )
-            # res[b.col_begin : b.col_end] += self.dot_from_left(prod)
-
         return res
 
     def recover_full_matrix(self):
@@ -435,9 +433,6 @@ def _solve_submatrices(
             del eigvecs
 
             if return_cmplt:
-                nonzero_ids = cmplt_eigvals > 1e-12
-                cmplt_small = cmplt_small[:, nonzero_ids]
-
                 col_end_cmplt = col_id_cmplt + cmplt_small.shape[1]
                 block = BlockedMatrixComponent(
                     data=cmplt_small,
@@ -459,6 +454,7 @@ def eigh_projector_submatrix_division(
     p_block: np.ndarray,
     atol: float = 1e-8,
     rtol: float = 0.0,
+    use_mkl: bool = False,
     verbose: bool = False,
 ) -> BlockedMatrix:
     r"""Solve eigenvalue problem using submatrix division algorithm.
@@ -486,16 +482,6 @@ def eigh_projector_submatrix_division(
 
     p_size = p_block.shape[0]
     target_size = min(max(p_size // 10, 1000), 20000)
-    # if p_size > 50000:
-    #    eigvecs_blocks, col_id = _solve_submatrices(
-    #        p_block,
-    #        eigvecs_blocks,
-    #        col_id=col_id,
-    #        target_size=target_size // 5,
-    #        return_cmplt=False,
-    #        verbose=verbose,
-    #    )
-
     eigvecs_blocks, col_id, cmplt = _solve_submatrices(
         p_block,
         eigvecs_blocks,
@@ -509,7 +495,7 @@ def eigh_projector_submatrix_division(
         if verbose:
             print("Solving complementary projector.", flush=True)
 
-        p_block = cmplt.compress_matrix_sparse(p_block, use_mkl=True)
+        p_block = cmplt.compress_matrix_sparse(p_block, use_mkl=use_mkl)
         if verbose:
             print("Complementary compressed block size:", p_block.shape[0], flush=True)
 
@@ -545,6 +531,7 @@ def eigsh_projector_sumrule(
     rtol: float = 0.0,
     size_threshold: int = 1000,
     use_submatrix: bool = False,
+    use_mkl: bool = False,
     verbose: bool = True,
 ) -> BlockedMatrix:
     """Solve eigenvalue problem for matrix p.
@@ -563,13 +550,10 @@ def eigsh_projector_sumrule(
     if p.shape[0] > size_threshold:  # type: ignore
         use_submatrix = True
 
-    if use_submatrix:
-        eigh = eigh_projector_submatrix_division
-        if verbose:
+    if verbose:
+        if use_submatrix:
             print("Use eigsh solver for large matrices.", flush=True)
-    else:
-        eigh = eigh_projector
-        if verbose:
+        else:
             print("Use standard normal eigsh solver.", flush=True)
 
     group = _find_projector_blocks(p)
@@ -589,9 +573,13 @@ def eigsh_projector_sumrule(
         p_block = p[np.ix_(ids, ids)]
         rank = int(round(p_block.trace()))
         if rank > 0:
-            if not use_submatrix:
+            if use_submatrix:
+                eigvecs = eigh_projector_submatrix_division(
+                    p_block, atol=atol, rtol=rtol, use_mkl=use_mkl, verbose=verbose
+                )
+            else:
                 p_block = p_block.toarray()
-            eigvecs = eigh(p_block, atol=atol, rtol=rtol, verbose=verbose)
+                eigvecs = eigh_projector(p_block, atol=atol, rtol=rtol, verbose=verbose)
             del p_block
 
             if eigvecs is not None:
