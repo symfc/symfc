@@ -368,6 +368,16 @@ class BlockedMatrix:
         #         res[b1.col_begin : b1.col_end, b2.col_begin : b2.col_end] += (
         #             prod[:, b2.rows] @ b2.data
         #         )
+
+    def compress_matrix_sparse(self, mat: csr_array, use_mkl: bool = False):
+        """Calculate block_mat.T @ mat @ block_mat."""
+        res = np.zeros((self.shape[1], self.shape[1]))
+        for b in self.blocks:
+            res[b.col_begin : b.col_end] += self.dot_from_left(
+                dot_product_sparse(b.data.T, mat[b.rows], use_mkl=use_mkl, dense=True)
+            )
+            # res[b.col_begin : b.col_end] += self.dot_from_left(prod)
+
         return res
 
     def recover_full_matrix(self):
@@ -394,10 +404,11 @@ def _solve_submatrices(
     cmplt_blocks = []
     col_id_cmplt = 0
     p_size = p_block.shape[0]
+
     for begin, end in zip(*get_batch_slice(p_size, target_size)):
         if verbose:
             print("Block:", end, "/", p_size, flush=True)
-        p_small = p_block[begin:end, begin:end]
+        p_small = p_block[begin:end, begin:end].toarray()
         rank = int(round(np.trace(p_small)))
         if rank > 0:
             result = eigh_projector(
@@ -410,6 +421,8 @@ def _solve_submatrices(
             assert result is not None
             assert result[0] is not None
             eigvecs, (cmplt_eigvals, cmplt_small) = result
+            if verbose:
+                print(eigvecs.shape[1], "eigenvectors are found.", flush=True)
             col_end = col_id + eigvecs.shape[1]
             block = BlockedMatrixComponent(
                 data=eigvecs,
@@ -419,6 +432,7 @@ def _solve_submatrices(
             )
             eigvecs_blocks.append(block)
             col_id = col_end
+            del eigvecs
 
             if return_cmplt:
                 nonzero_ids = cmplt_eigvals > 1e-12
@@ -433,15 +447,12 @@ def _solve_submatrices(
                 )
                 cmplt_blocks.append(block)
                 col_id_cmplt = col_end_cmplt
-
-            p_block[begin:end, begin:end] -= eigvecs @ eigvecs.T
-            if verbose:
-                print(eigvecs.shape[1], "eigenvectors are found.", flush=True)
+                del cmplt_small
 
     if return_cmplt:
         cmplt = BlockedMatrix(blocks=cmplt_blocks, shape=(p_size, col_end_cmplt))
-        return p_block, eigvecs_blocks, col_id, cmplt
-    return p_block, eigvecs_blocks, col_id
+        return eigvecs_blocks, col_id, cmplt
+    return eigvecs_blocks, col_id
 
 
 def eigh_projector_submatrix_division(
@@ -474,18 +485,18 @@ def eigh_projector_submatrix_division(
     col_id = 0
 
     p_size = p_block.shape[0]
-    target_size = min(max(p_size // 9, 1000), 20000)
-    if p_size > 50000:
-        p_block, eigvecs_blocks, col_id = _solve_submatrices(
-            p_block,
-            eigvecs_blocks,
-            col_id=col_id,
-            target_size=target_size // 5,
-            return_cmplt=False,
-            verbose=verbose,
-        )
+    target_size = min(max(p_size // 10, 1000), 20000)
+    # if p_size > 50000:
+    #    eigvecs_blocks, col_id = _solve_submatrices(
+    #        p_block,
+    #        eigvecs_blocks,
+    #        col_id=col_id,
+    #        target_size=target_size // 5,
+    #        return_cmplt=False,
+    #        verbose=verbose,
+    #    )
 
-    p_block, eigvecs_blocks, col_id, cmplt = _solve_submatrices(
+    eigvecs_blocks, col_id, cmplt = _solve_submatrices(
         p_block,
         eigvecs_blocks,
         col_id=col_id,
@@ -494,14 +505,16 @@ def eigh_projector_submatrix_division(
         verbose=verbose,
     )
 
-    rank = int(round(np.trace(p_block)))
-    if rank > 0:
+    if len(cmplt.blocks) > 0:
         if verbose:
             print("Solving complementary projector.", flush=True)
-        p_block = cmplt.compress_matrix(p_block)
+
+        p_block = cmplt.compress_matrix_sparse(p_block, use_mkl=True)
         if verbose:
             print("Complementary compressed block size:", p_block.shape[0], flush=True)
+
         eigvecs = eigh_projector(p_block, atol=atol, rtol=rtol, verbose=verbose)
+        del p_block
         if eigvecs is not None:
             if verbose:
                 print(eigvecs.shape[1], "eigenvectors are found.", flush=True)
@@ -513,9 +526,11 @@ def eigh_projector_submatrix_division(
                     col_begin=col_id,
                     col_end=col_end,
                 )
-                del cmplt
                 eigvecs_blocks.append(block)
                 col_id = col_end
+                del cmplt
+                del eigvecs
+                del block
 
     if col_id == 0:
         return None
@@ -570,11 +585,15 @@ def eigsh_projector_sumrule(
         if verbose and len(ids) > 2:
             print("Eigsh_solver_block:", i + 1, "/", len(group), flush=True)
             print(" - Block_size:", len(ids), flush=True)
-        p_block = p[np.ix_(ids, ids)].toarray()
-        rank = int(round(np.trace(p_block)))
+
+        p_block = p[np.ix_(ids, ids)]
+        rank = int(round(p_block.trace()))
         if rank > 0:
+            if not use_submatrix:
+                p_block = p_block.toarray()
             eigvecs = eigh(p_block, atol=atol, rtol=rtol, verbose=verbose)
             del p_block
+
             if eigvecs is not None:
                 col_end = col_id + eigvecs.shape[1]  # type: ignore
                 if use_submatrix:
@@ -589,6 +608,7 @@ def eigsh_projector_sumrule(
                         col_end=col_end,
                     )
                     eigvecs_blocks.append(block)
+                del eigvecs
                 col_id = col_end
 
     blocks = BlockedMatrix(blocks=eigvecs_blocks, shape=(p.shape[0], col_id))
