@@ -10,8 +10,8 @@ project = "symfc"
 copyright = "2024, symfc project"
 author = "Atsuto Seko"
 
-version = "1.4"
-release = "1.4.1"
+version = "1.5"
+release = "1.5.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
