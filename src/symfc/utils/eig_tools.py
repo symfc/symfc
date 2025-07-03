@@ -287,19 +287,19 @@ class BlockedMatrix:
     data_full: Optional[np.ndarray] = None
 
     def dot(self, mat: np.ndarray, left: bool = False):
-        """Dot product eigvecs @ mat or mat @ eigvecs."""
+        """Dot product block_mat @ mat or mat @ block_mat."""
         if left:
             return self.dot_from_left(mat)
         return self.dot_from_right(mat)
 
     def transpose_dot(self, mat: np.ndarray, left: bool = False):
-        """Dot product eigvecs.T @ mat or mat @ eigvecs.T."""
+        """Dot product block_mat.T @ mat or mat @ block_mat.T."""
         if left:
             return self.transpose_dot_from_left(mat)
         return self.transpose_dot_from_right(mat)
 
     def dot_from_right(self, mat: np.ndarray):
-        """Dot product eigvecs @ mat."""
+        """Dot product block_mat @ mat."""
         if len(mat.shape) == 1:
             dot_matrix = np.zeros(self.shape[0])
         elif len(mat.shape) == 2:
@@ -312,7 +312,7 @@ class BlockedMatrix:
         return dot_matrix
 
     def dot_from_left(self, mat: np.ndarray):
-        """Dot product mat @ eigvecs."""
+        """Dot product mat @ block_mat."""
         if len(mat.shape) == 1:
             dot_matrix = np.zeros(self.shape[1])
             for b in self.blocks:
@@ -327,7 +327,7 @@ class BlockedMatrix:
         return dot_matrix
 
     def transpose_dot_from_right(self, mat: np.ndarray):
-        """Dot product eigvecs.T @ mat."""
+        """Dot product block_mat.T @ mat."""
         if len(mat.shape) == 1:
             dot_matrix = np.zeros(self.shape[1])
         elif len(mat.shape) == 2:
@@ -340,7 +340,7 @@ class BlockedMatrix:
         return dot_matrix
 
     def transpose_dot_from_left(self, mat: np.ndarray):
-        """Dot product mat @ eigvecs.T."""
+        """Dot product mat @ block_mat.T."""
         if len(mat.shape) == 1:
             dot_matrix = np.zeros(self.shape[0])
             for b in self.blocks:
@@ -354,8 +354,15 @@ class BlockedMatrix:
 
         return dot_matrix
 
+    def compress_matrix(self, mat: np.ndarray):
+        """Calculate block_mat.T @ mat @ block_mat."""
+        res = np.zeros((self.shape[1], self.shape[1]))
+        for b in self.blocks:
+            res[b.col_begin : b.col_end] += self.dot_from_left(b.data.T @ mat[b.rows])
+        return res
+
     def recover_full_matrix(self):
-        """Recover full blocked eigenvectors."""
+        """Recover full blocked matrix."""
         if self.data_full is None:
             self.data_full = np.zeros(self.shape, dtype="double")  # type: ignore
             for b in self.blocks:
@@ -440,7 +447,8 @@ def eigh_projector_submatrix_division(
     if rank > 0:
         if verbose:
             print("Solving complementary projector.", flush=True)
-        p_block_rem = cmplt.dot(cmplt.transpose_dot(p_block), left=True)
+        # p_block_rem = cmplt.dot(cmplt.transpose_dot(p_block), left=True)
+        p_block_rem = cmplt.compress_matrix(p_block)
         eigvecs = eigh_projector(p_block_rem, atol=atol, rtol=rtol, verbose=verbose)
         if eigvecs is not None:
             if verbose:
@@ -498,16 +506,18 @@ def eigsh_projector_sumrule(
             print("Use standard normal eigsh solver.", flush=True)
 
     group = _find_projector_blocks(p)
+    lengths = [-len(ids) for ids in group.values()]
+    order = np.array(list(group.keys()))[np.argsort(lengths)]
     if verbose:
         print("Number of blocks in projector (Sum rule):", len(group), flush=True)
 
     col_id = 0
     eigvecs_blocks = []
-    for i, ids in enumerate(group.values()):
+    for i, key in enumerate(order):
+        ids = np.array(group[key])
         if verbose and len(ids) > 2:
             print("Eigsh_solver_block:", i + 1, "/", len(group), flush=True)
             print(" - Block_size:", len(ids), flush=True)
-        ids = np.array(ids)
         p_block = p[np.ix_(ids, ids)].toarray()
         rank = int(round(np.trace(p_block)))
         if rank > 0:
