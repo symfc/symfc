@@ -9,6 +9,7 @@ from scipy.sparse import csr_array
 
 from symfc.spg_reps import SpgRepsO2
 from symfc.utils.eig_tools import (
+    BlockedMatrix,
     dot_product_sparse,
     eigsh_projector,
     eigsh_projector_sumrule,
@@ -84,6 +85,7 @@ class FCBasisSetO2(FCBasisSetBase):
 
         self._n_a_compression_matrix: Optional[csr_array] = None
         self._basis_set: Optional[np.ndarray] = None
+        self._blocked_basis_set: Optional[BlockedMatrix] = None
 
     @property
     def compression_matrix(self) -> Optional[csr_array]:
@@ -156,7 +158,7 @@ class FCBasisSetO2(FCBasisSetBase):
 
         eigvecs = eigsh_projector_sumrule(proj, verbose=self._log_level > 0)
 
-        self._basis_set = eigvecs
+        self._blocked_basis_set = eigvecs
         self._n_a_compression_matrix = n_a_compress_mat
 
         return self
