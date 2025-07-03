@@ -83,9 +83,9 @@ class FCSolverO3O4(FCSolverBase):
         fc3_basis: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[0])
         fc4_basis: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[1])
         compress_mat_fc3 = fc3_basis.compact_compression_matrix
-        basis_set_fc3 = fc3_basis.basis_set
+        basis_set_fc3 = fc3_basis.blocked_basis_set
         compress_mat_fc4 = fc4_basis.compact_compression_matrix
-        basis_set_fc4 = fc4_basis.basis_set
+        basis_set_fc4 = fc4_basis.blocked_basis_set
 
         atomic_decompr_idx_fc3 = fc3_basis.atomic_decompr_idx
         atomic_decompr_idx_fc4 = fc4_basis.atomic_decompr_idx
@@ -149,13 +149,13 @@ class FCSolverO3O4(FCSolverBase):
             raise ValueError("Invalid comp_mat_type.")
 
         N = self._natom
-        fc3 = fc3_basis.basis_set @ self._coefs[0]
+        fc3 = fc3_basis.blocked_basis_set.dot(self._coefs[0])
         fc3 = np.array(
             (comp_mat_fc3 @ fc3).reshape((-1, N, N, 3, 3, 3)),
             dtype="double",
             order="C",
         )
-        fc4 = fc4_basis.basis_set @ self._coefs[1]
+        fc4 = fc4_basis.blocked_basis_set.dot(self._coefs[1])
         fc4 = np.array(
             (comp_mat_fc4 @ fc4).reshape((-1, N, N, N, 3, 3, 3, 3)),
             dtype="double",
@@ -284,11 +284,23 @@ def prepare_normal_equation_O3O4(
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
 
-    mat33 = compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
-    mat34 = compress_eigvecs_fc3.T @ mat34 @ compress_eigvecs_fc4
-    mat44 = compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
-    mat3y = compress_eigvecs_fc3.T @ mat3y
-    mat4y = compress_eigvecs_fc4.T @ mat4y
+    mat33 = compress_eigvecs_fc3.dot(
+        compress_eigvecs_fc3.transpose_dot(mat33), left=True
+    )
+    mat34 = compress_eigvecs_fc4.dot(
+        compress_eigvecs_fc3.transpose_dot(mat34), left=True
+    )
+    mat44 = compress_eigvecs_fc4.dot(
+        compress_eigvecs_fc4.transpose_dot(mat44), left=True
+    )
+    mat3y = compress_eigvecs_fc3.transpose_dot(mat3y)
+    mat4y = compress_eigvecs_fc4.transpose_dot(mat4y)
+
+    # mat33 = compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
+    # mat34 = compress_eigvecs_fc3.T @ mat34 @ compress_eigvecs_fc4
+    # mat44 = compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
+    # mat3y = compress_eigvecs_fc3.T @ mat3y
+    # mat4y = compress_eigvecs_fc4.T @ mat4y
 
     XTX = np.block([[mat33, mat34], [mat34.T, mat44]])
     XTy = np.hstack([mat3y, mat4y])

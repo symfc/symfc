@@ -11,7 +11,7 @@ from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3
 from symfc.solvers.solver_O2 import reshape_nN33_nx_to_N3_n3nx
-from symfc.utils.eig_tools import dot_product_sparse
+from symfc.utils.eig_tools import BlockedMatrix, dot_product_sparse
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
 from .solver_base import FCSolverBase
@@ -82,9 +82,9 @@ class FCSolverO2O3(FCSolverBase):
         fc2_basis: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[0])
         fc3_basis: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[1])
         compress_mat_fc2 = fc2_basis.compact_compression_matrix
-        basis_set_fc2 = fc2_basis.basis_set
+        basis_set_fc2 = fc2_basis.blocked_basis_set
         compress_mat_fc3 = fc3_basis.compact_compression_matrix
-        basis_set_fc3 = fc3_basis.basis_set
+        basis_set_fc3 = fc3_basis.blocked_basis_set
 
         atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
         atomic_decompr_idx_fc3 = fc3_basis.atomic_decompr_idx
@@ -159,11 +159,11 @@ class FCSolverO2O3(FCSolverBase):
             raise ValueError("Invalid comp_mat_type.")
 
         N = self._natom
-        fc2 = fc2_basis.basis_set @ self._coefs[0]
+        fc2 = fc2_basis.blocked_basis_set.dot(self._coefs[0])
         fc2 = np.array(
             (comp_mat_fc2 @ fc2).reshape((-1, N, 3, 3)), dtype="double", order="C"
         )
-        fc3 = fc3_basis.basis_set @ self._coefs[1]
+        fc3 = fc3_basis.blocked_basis_set.dot(self._coefs[1])
         fc3 = np.array(
             (comp_mat_fc3 @ fc3).reshape((-1, N, N, 3, 3, 3)),
             dtype="double",
@@ -226,8 +226,8 @@ def prepare_normal_equation_O2O3(
     forces: np.ndarray,
     compact_compress_mat_fc2: csr_array,
     compact_compress_mat_fc3: csr_array,
-    compress_eigvecs_fc2: np.ndarray,
-    compress_eigvecs_fc3: np.ndarray,
+    compress_eigvecs_fc2: BlockedMatrix,
+    compress_eigvecs_fc3: BlockedMatrix,
     atomic_decompr_idx_fc2: np.ndarray,
     atomic_decompr_idx_fc3: np.ndarray,
     batch_size: int = 100,
@@ -341,11 +341,18 @@ def prepare_normal_equation_O2O3(
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
 
-    mat22 = compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2
-    mat23 = compress_eigvecs_fc2.T @ mat23 @ compress_eigvecs_fc3
-    mat33 = compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
-    mat2y = compress_eigvecs_fc2.T @ mat2y
-    mat3y = compress_eigvecs_fc3.T @ mat3y
+    mat22 = compress_eigvecs_fc2.dot(
+        compress_eigvecs_fc2.transpose_dot(mat22), left=True
+    )
+    mat23 = compress_eigvecs_fc3.dot(
+        compress_eigvecs_fc2.transpose_dot(mat23), left=True
+    )
+    mat33 = compress_eigvecs_fc3.dot(
+        compress_eigvecs_fc3.transpose_dot(mat33), left=True
+    )
+    mat2y = compress_eigvecs_fc2.transpose_dot(mat2y)
+    mat3y = compress_eigvecs_fc3.transpose_dot(mat3y)
+
     XTX = np.block([[mat22, mat23], [mat23.T, mat33]])
     XTy = np.hstack([mat2y, mat3y])
 
@@ -366,8 +373,8 @@ def run_solver_O2O3(
     forces: np.ndarray,
     compact_compress_mat_fc2: csr_array,
     compact_compress_mat_fc3: csr_array,
-    compress_eigvecs_fc2: np.ndarray,
-    compress_eigvecs_fc3: np.ndarray,
+    compress_eigvecs_fc2: BlockedMatrix,
+    compress_eigvecs_fc3: BlockedMatrix,
     atomic_decompr_idx_fc2: np.ndarray,
     atomic_decompr_idx_fc3: np.ndarray,
     batch_size: int = 100,
