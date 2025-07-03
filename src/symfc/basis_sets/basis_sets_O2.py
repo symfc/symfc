@@ -158,7 +158,7 @@ class FCBasisSetO2(FCBasisSetBase):
 
         eigvecs = eigsh_projector_sumrule(
             proj,
-            use_mkl=self._use_mkl,
+            # use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )
 

@@ -360,6 +360,7 @@ class BlockedMatrix:
         res = np.zeros((self.shape[1], self.shape[1]))
         for b in self.blocks:
             res[b.col_begin : b.col_end] += self.dot_from_left(b.data.T @ mat[b.rows])
+        return res
 
         # res = np.zeros((self.shape[1], self.shape[1]))
         # for b1 in self.blocks:
