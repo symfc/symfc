@@ -63,7 +63,7 @@ class FCSolverO4(FCSolverBase):
 
         fc4_basis = self._basis_set
         compress_mat_fc4 = fc4_basis.compact_compression_matrix
-        basis_set_fc4 = fc4_basis.basis_set
+        basis_set_fc4 = fc4_basis.blocked_basis_set
 
         atomic_decompr_idx_fc4 = fc4_basis.atomic_decompr_idx
 
@@ -119,7 +119,7 @@ class FCSolverO4(FCSolverBase):
             raise ValueError("Invalid comp_mat_type.")
 
         N = self._natom
-        fc4 = fc4_basis.basis_set @ self._coefs
+        fc4 = fc4_basis.blocked_basis_set.dot(self._coefs)
         fc4 = np.array(
             (comp_mat_fc4 @ fc4).reshape((-1, N, N, N, 3, 3, 3, 3)),
             dtype="double",
@@ -211,8 +211,11 @@ def prepare_normal_equation_O4(
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
-    XTX = compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
-    XTy = compress_eigvecs_fc4.T @ mat4y
+
+    XTX = compress_eigvecs_fc4.dot(compress_eigvecs_fc4.transpose_dot(mat44), left=True)
+    XTy = compress_eigvecs_fc4.transpose_dot(mat4y)
+    # XTX = compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
+    # XTy = compress_eigvecs_fc4.T @ mat4y
 
     compact_compress_mat_fc4 /= const_fc4
     t_all2 = time.time()
