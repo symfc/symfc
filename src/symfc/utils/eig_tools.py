@@ -518,7 +518,7 @@ def eigh_projector_submatrix_division(
                     del cmplt
                     del block
         else:
-            size_cmplt = min(max(p_block.shape[0] // 3, size), 10000)
+            size_cmplt = min(max(p_block.shape[0] // 3, size), 20000)
             if verbose:
                 print("Use submatrix algorithm for solving complement.", flush=True)
                 print("Submatrix size:", size_cmplt, flush=True)
@@ -529,7 +529,7 @@ def eigh_projector_submatrix_division(
                 size=size_cmplt,
                 repeat=False,
                 use_mkl=use_mkl,
-                verbose=False,
+                verbose=verbose,
             )
             if eigvecs is not None:
                 if verbose:
