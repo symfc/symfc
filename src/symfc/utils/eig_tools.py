@@ -486,8 +486,7 @@ def _solve_use_submatrix(p_block: csr_array, verbose: bool = False):
     eigvecs_blocks, col_id = [], 0
     cmplt_blocks, col_id_cmplt = [], 0
     p_size = p_block.shape[0]
-    # target_size = min(max(p_size // 10, 500), 30000)
-    target_size = min(max(p_size // 15, 500), 30000)
+    target_size = min(max(p_size // 10, 500), 30000)
     if verbose:
         print("Submatrix size:", target_size, flush=True)
 
@@ -498,21 +497,14 @@ def _solve_use_submatrix(p_block: csr_array, verbose: bool = False):
         p_small = p_block[begin:end, begin:end].toarray()
         rank = int(round(np.trace(p_small)))
         if rank > 0:
-            # result = eigh_projector_use_submatrix(
-            #     p_small,
-            #     return_cmplt=True,
-            #     atol=1e-12,
-            #     rtol=0.0,
-            #     verbose=verbose,
-            # )
-            result = eigh_projector(
+            # Numerical noise may increase in eigh_projector_use_submatrix.
+            result = eigh_projector_use_submatrix(
                 p_small,
                 return_cmplt=True,
                 atol=1e-12,
                 rtol=0.0,
                 verbose=verbose,
             )
-
             assert result is not None
             assert result[0] is not None
             eigvecs, (cmplt_eigvals, cmplt_small) = result
