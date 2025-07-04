@@ -486,7 +486,8 @@ def _solve_use_submatrix(p_block: csr_array, verbose: bool = False):
     eigvecs_blocks, col_id = [], 0
     cmplt_blocks, col_id_cmplt = [], 0
     p_size = p_block.shape[0]
-    target_size = min(max(p_size // 10, 500), 30000)
+    # target_size = min(max(p_size // 10, 500), 30000)
+    target_size = min(max(p_size // 15, 500), 30000)
     if verbose:
         print("Submatrix size:", target_size, flush=True)
 
@@ -497,13 +498,21 @@ def _solve_use_submatrix(p_block: csr_array, verbose: bool = False):
         p_small = p_block[begin:end, begin:end].toarray()
         rank = int(round(np.trace(p_small)))
         if rank > 0:
-            result = eigh_projector_use_submatrix(
+            # result = eigh_projector_use_submatrix(
+            #     p_small,
+            #     return_cmplt=True,
+            #     atol=1e-12,
+            #     rtol=0.0,
+            #     verbose=verbose,
+            # )
+            result = eigh_projector(
                 p_small,
                 return_cmplt=True,
                 atol=1e-12,
                 rtol=0.0,
                 verbose=verbose,
             )
+
             assert result is not None
             assert result[0] is not None
             eigvecs, (cmplt_eigvals, cmplt_small) = result
@@ -570,7 +579,7 @@ def eigsh_projector_use_submatrix(
         p_block_cmr = cmplt.compress_csr_matrix(p_block, use_mkl=use_mkl)
         if verbose:
             print("Complementary block size:", p_block_cmr.shape[0], flush=True)
-            size_cmplt = min(max(p_block_cmr.shape[0] // 3, p_size // 10), 20000)
+            size_cmplt = min(max(p_block_cmr.shape[0] // 3, p_size // 15), 20000)
             eigvecs = eigh_projector_use_submatrix(
                 p_block_cmr,
                 atol=atol,
