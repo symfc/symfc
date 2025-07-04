@@ -452,6 +452,7 @@ def eigh_projector_submatrix_division(
     atol: float = 1e-8,
     rtol: float = 0.0,
     size: Optional[int] = None,
+    repeat: bool = True,
     use_mkl: bool = False,
     verbose: bool = False,
 ) -> BlockedMatrix:
@@ -479,9 +480,8 @@ def eigh_projector_submatrix_division(
     col_id = 0
 
     p_size = p_block.shape[0]
-    max_size = 8000
     if size is None:
-        size = min(max(p_size // 10, 500), max_size)
+        size = min(max(p_size // 15, 500), 20000)
 
     eigvecs_blocks, col_id, cmplt = _solve_submatrices(
         p_block,
@@ -500,7 +500,7 @@ def eigh_projector_submatrix_division(
         if verbose:
             print("Complementary compressed block size:", p_block.shape[0], flush=True)
 
-        if p_block.shape[0] < max_size:
+        if p_block.shape[0] < 10000 or not repeat:
             eigvecs = eigh_projector(p_block, atol=atol, rtol=rtol, verbose=verbose)
             if eigvecs is not None:
                 if verbose:
@@ -518,13 +518,16 @@ def eigh_projector_submatrix_division(
                     del cmplt
                     del block
         else:
+            size_cmplt = min(max(p_block.shape[0] // 3, size), 10000)
             if verbose:
                 print("Use submatrix algorithm for solving complement.", flush=True)
+                print("Submatrix size:", size_cmplt, flush=True)
             eigvecs = eigh_projector_submatrix_division(
                 p_block,
                 atol=atol,
                 rtol=rtol,
-                size=size,
+                size=size_cmplt,
+                repeat=False,
                 use_mkl=use_mkl,
                 verbose=False,
             )
