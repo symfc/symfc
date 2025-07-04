@@ -156,7 +156,11 @@ class FCBasisSetO2(FCBasisSetBase):
             )
             proj -= proj_rot_cmplt
 
-        eigvecs = eigsh_projector_sumrule(proj, verbose=self._log_level > 0)
+        eigvecs = eigsh_projector_sumrule(
+            proj,
+            use_mkl=self._use_mkl,
+            verbose=self._log_level > 0,
+        )
 
         self._blocked_basis_set = eigvecs
         self._n_a_compression_matrix = n_a_compress_mat
