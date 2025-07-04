@@ -172,7 +172,7 @@ class FCBasisSetO3(FCBasisSetBase):
             proj,
             verbose=self._log_level > 0,
             use_submatrix=use_submatrix,
-            # use_mkl=self._use_mkl,
+            use_mkl=self._use_mkl,
         )
 
         if self._log_level:
