@@ -125,7 +125,7 @@ class FCBasisSetO3(FCBasisSetBase):
         n_lp = self.translation_permutations.shape[0]
         return self._n_a_compression_matrix / np.sqrt(n_lp)
 
-    def run(self, use_submatrix: bool = False) -> FCBasisSetO3:
+    def run(self) -> FCBasisSetO3:
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
 
@@ -171,7 +171,6 @@ class FCBasisSetO3(FCBasisSetBase):
         eigvecs = eigsh_projector_sumrule(
             proj,
             verbose=self._log_level > 0,
-            use_submatrix=use_submatrix,
             use_mkl=self._use_mkl,
         )
 
