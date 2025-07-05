@@ -2,36 +2,36 @@
 
 import numpy as np
 
-from symfc.utils.eig_tools import BlockedMatrix, BlockedMatrixComponent
+from symfc.utils.matrix import BlockMatrix, BlockMatrixComponent
 
 
 def test_block_matrix():
-    """Test BlockedMatrix."""
+    """Test BlockMatrix."""
     A = np.array([[2, 1], [4, 3]])
     B = np.array([[5, 4], [6, 2]])
     C = np.array([[3, 5], [7, 11]])
     mat = np.block([[A, B], [np.zeros((2, 2)), C]])
 
-    block_A = BlockedMatrixComponent(
+    block_A = BlockMatrixComponent(
         data=A,
         rows=[0, 1],
         col_begin=0,
         col_end=2,
     )
-    block_B = BlockedMatrixComponent(
+    block_B = BlockMatrixComponent(
         data=B,
         rows=[0, 1],
         col_begin=2,
         col_end=4,
     )
-    block_C = BlockedMatrixComponent(
+    block_C = BlockMatrixComponent(
         data=C,
         rows=[2, 3],
         col_begin=2,
         col_end=4,
     )
     blocks = [block_A, block_B, block_C]
-    bm = BlockedMatrix(blocks=blocks, shape=(4, 4))
+    bm = BlockMatrix(blocks=blocks, shape=(4, 4))
 
     mat2 = np.array([[3, 1], [5, 7], [2, 8], [5, 9]])
     vec2 = np.array([3, 1, 5, 7])
