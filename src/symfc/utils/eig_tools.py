@@ -8,10 +8,7 @@ import numpy as np
 import scipy
 from scipy.sparse import csr_array
 
-from symfc.utils.matrix import (
-    BlockMatrix,
-    append_block,
-)
+from symfc.utils.matrix import BlockMatrix, append_block
 from symfc.utils.solver_funcs import get_batch_slice
 
 # try:
