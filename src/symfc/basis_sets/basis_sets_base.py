@@ -9,7 +9,7 @@ import numpy as np
 
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.cutoff_tools import FCCutoff
-from symfc.utils.eig_tools import BlockedMatrix
+from symfc.utils.matrix import BlockMatrix
 from symfc.utils.utils import SymfcAtoms
 
 
@@ -44,7 +44,7 @@ class FCBasisSetBase(ABC):
         self._spg_reps: SpgRepsBase
         self._atomic_decompr_idx: np.ndarray
         self._basis_set: np.ndarray
-        self._blocked_basis_set: BlockedMatrix
+        self._blocked_basis_set: BlockMatrix
 
         if cutoff is None:
             self._fc_cutoff = None
@@ -73,7 +73,7 @@ class FCBasisSetBase(ABC):
         return self._blocked_basis_set.recover_full_matrix()
 
     @property
-    def blocked_basis_set(self) -> Optional[BlockedMatrix]:
+    def blocked_basis_set(self) -> Optional[BlockMatrix]:
         """Return compressed basis set in blocked format."""
         return self._blocked_basis_set
 
