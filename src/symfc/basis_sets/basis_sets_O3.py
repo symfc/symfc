@@ -10,11 +10,16 @@ from scipy.sparse import coo_array, csr_array
 
 from symfc.spg_reps import SpgRepsO3
 from symfc.utils.eig_tools import (
-    BlockedMatrix,
-    dot_product_sparse,
     eigsh_projector,
     eigsh_projector_sumrule,
 )
+from symfc.utils.matrix import BlockMatrix
+
+try:
+    from symfc.utils.matrix import dot_product_sparse
+except ImportError:
+    pass
+
 from symfc.utils.permutation_tools_O3 import compr_permutation_lat_trans_O3
 from symfc.utils.translation_tools_O3 import compressed_projector_sum_rules_O3
 from symfc.utils.utils import SymfcAtoms
@@ -90,7 +95,7 @@ class FCBasisSetO3(FCBasisSetBase):
 
         self._n_a_compression_matrix: Optional[csr_array] = None
         self._basis_set: Optional[np.ndarray] = None
-        self._blocked_basis_set: Optional[BlockedMatrix] = None
+        self._blocked_basis_set: Optional[BlockMatrix] = None
 
     @property
     def compression_matrix(self) -> Optional[csr_array]:
