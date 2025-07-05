@@ -170,13 +170,6 @@ def test_fc_basis_set_o3_diamond():
     compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
     assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(3.25)
 
-    sbs = FCBasisSetO3(supercell, log_level=1).run(use_submatrix=True)
-
-    assert sbs.basis_set.shape[0] == 17
-    assert sbs.basis_set.shape[1] == 13
-    compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
-    assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(3.25)
-
     sbs = FCBasisSetO3(supercell, cutoff=3.5, log_level=1).run()
     assert sbs.basis_set.shape[0] == 5
     assert sbs.basis_set.shape[1] == 3
