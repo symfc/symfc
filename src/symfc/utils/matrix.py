@@ -118,21 +118,24 @@ class BlockMatrix:
 
     def compress_matrix(self, mat: np.ndarray):
         """Calculate block_mat.T @ mat @ block_mat."""
-        # TODO: Consider more efficient algorithm
         res = np.zeros((self.shape[1], self.shape[1]))
-        for b in self.blocks:
-            res[b.col_begin : b.col_end] += self.dot_from_left(b.data.T @ mat[b.rows])
+        for b1 in self.blocks:
+            for b2 in self.blocks:
+                prod = b1.data.T @ mat[np.ix_(b1.rows, b2.rows)] @ b2.data
+                res[b1.col_begin : b1.col_end, b2.col_begin : b2.col_end] += prod
         return res
 
     def compress_csr_matrix(self, mat: csr_array, use_mkl: bool = False):
-        """Calculate block_mat.T @ mat @ block_mat."""
+        """Calculate block_mat.T @ mat(csr) @ block_mat for csr_array."""
         if mat.shape[0] < 10000:
             use_mkl = False
         res = np.zeros((self.shape[1], self.shape[1]))
-        for b in self.blocks:
-            res[b.col_begin : b.col_end] += self.dot_from_left(
-                dot_product_sparse(b.data.T, mat[b.rows], use_mkl=use_mkl, dense=True)
-            )
+        for b1 in self.blocks:
+            for b2 in self.blocks:
+                prod = b1.data.T @ dot_product_sparse(
+                    mat[np.ix_(b1.rows, b2.rows)], b2.data, use_mkl=use_mkl, dense=True
+                )
+                res[b1.col_begin : b1.col_end, b2.col_begin : b2.col_end] += prod
         return res
 
     def recover_full_matrix(self):
