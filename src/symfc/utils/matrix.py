@@ -44,8 +44,7 @@ class BlockMatrixComponent:
         """Recover block from compression."""
         if self.compress is not None:
             return self.compress.dot(self.data)
-        else:
-            return self.data
+        return self.data
 
 
 @dataclass
