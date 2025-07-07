@@ -457,9 +457,10 @@ def eigsh_projector_use_submatrix(
                 print(eigvecs.shape[1], "eigenvectors are found.", flush=True)
             eigvecs_blocks = append_block(
                 eigvecs_blocks,
-                cmplt.dot(eigvecs),
+                eigvecs,
                 rows=np.arange(p_size),
                 col_begin=col_id,
+                compress=cmplt,
             )
             col_id += eigvecs.shape[1]
 
