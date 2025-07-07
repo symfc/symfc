@@ -1,6 +1,7 @@
 """Tests of block matrix functions."""
 
 import numpy as np
+from scipy.sparse import csr_array
 
 from symfc.utils.matrix import BlockMatrix, BlockMatrixComponent
 
@@ -51,3 +52,7 @@ def test_block_matrix():
 
     mat3 = np.array([[3, 1, 4, 3], [5, 7, 3, 1], [2, 8, 7, 4], [5, 9, 0, 2]])
     np.testing.assert_array_equal(bm.compress_matrix(mat3), mat.T @ mat3 @ mat)
+    np.testing.assert_array_equal(
+        bm.compress_csr_matrix(csr_array(mat3)),
+        mat.T @ mat3 @ mat,
+    )

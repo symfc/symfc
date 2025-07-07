@@ -71,6 +71,8 @@ def _compr_projector(p: csr_array) -> tuple[csr_array, Optional[csr_array]]:
 
 def _find_projector_blocks(p: csr_array):
     """Find block structures in projection matrix."""
+    # from symfc.utils.graph import connected_components
+    # n_components, labels = connected_components(p, verbose=True)
     n_components, labels = scipy.sparse.csgraph.connected_components(p)
     group = defaultdict(list)
     for i, ll in enumerate(labels):
@@ -248,6 +250,7 @@ def eigh_projector_use_submatrix(
     atol: float = 1e-8,
     rtol: float = 0.0,
     target_size: Optional[int] = None,
+    repeat: bool = True,
     verbose: bool = False,
 ):
     """Solve eigenvalue problem for numpy array."""
@@ -264,7 +267,7 @@ def eigh_projector_use_submatrix(
     eigvecs_blocks, cmplt_blocks = [], []
     col_id, col_id_cmplt = 0, 0
     if target_size is None:
-        target_size = p_size // 5
+        target_size = min(p_size // 5, 10000)
 
     for begin, end in zip(*get_batch_slice(p_size, target_size)):
         if verbose:
@@ -281,6 +284,8 @@ def eigh_projector_use_submatrix(
             )
             eigvecs, (cmplt_eigvals, cmplt_small) = result
             if eigvecs is not None:
+                if verbose:
+                    print("  eigenvectors:", eigvecs.shape[1], flush=True)
                 eigvecs_blocks = append_block(
                     eigvecs_blocks,
                     eigvecs,
@@ -301,17 +306,33 @@ def eigh_projector_use_submatrix(
         if verbose:
             print("- Block_complement_size:", col_id_cmplt, flush=True)
         cmplt = BlockMatrix(blocks=cmplt_blocks, shape=(p_size, col_id_cmplt))
-        result = eigh_projector(
-            cmplt.compress_matrix(p),
-            atol=atol,
-            rtol=rtol,
-            return_cmplt=True,
-            verbose=verbose,
-        )
+        if not repeat or cmplt.shape[1] < 20000:
+            result = eigh_projector(
+                cmplt.compress_matrix(p),
+                atol=atol,
+                rtol=rtol,
+                return_cmplt=True,
+                verbose=verbose,
+            )
+        else:
+            target_size = min(cmplt.shape[1] // 2, 20000)
+            result = eigh_projector_use_submatrix(
+                cmplt.compress_matrix(p),
+                atol=atol,
+                rtol=rtol,
+                target_size=target_size,
+                repeat=False,
+                return_cmplt=True,
+                verbose=verbose,
+            )
+
         assert result is not None
         assert result[0] is not None
         eigvecs, (cmplt_eigvals, cmplt_small) = result
+
         if eigvecs is not None:
+            if verbose:
+                print("  eigenvectors:", eigvecs.shape[1], flush=True)
             eigvecs_blocks = append_block(
                 eigvecs_blocks,
                 cmplt.dot(eigvecs),
@@ -342,7 +363,7 @@ def _solve_use_submatrix(p_block: csr_array, verbose: bool = False):
     eigvecs_blocks, cmplt_blocks = [], []
     col_id, col_id_cmplt = 0, 0
     p_size = p_block.shape[0]
-    target_size = min(max(p_size // 10, 500), 30000)
+    target_size = max(p_size // 10, 500)
 
     for begin, end in zip(*get_batch_slice(p_size, target_size)):
         if verbose:
@@ -418,11 +439,12 @@ def eigsh_projector_use_submatrix(
     if len(cmplt.blocks) > 0:
         if verbose:
             print("Solve complementary projector.", flush=True)
+            print("Complementary block size:", cmplt.shape[1], flush=True)
 
         p_block_cmr = cmplt.compress_csr_matrix(p_block, use_mkl=use_mkl)
-        if verbose:
-            print("Complementary block size:", p_block_cmr.shape[0], flush=True)
         size_cmplt = min(max(p_block_cmr.shape[0] // 3, p_size // 15), 20000)
+        if verbose:
+            print("Submatrix size for complementary block:", size_cmplt, flush=True)
         eigvecs = eigh_projector_use_submatrix(
             p_block_cmr,
             atol=atol,
