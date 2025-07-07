@@ -232,8 +232,7 @@ def prepare_normal_equation_O2(
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
-    mat22 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
-    XTX = compress_eigvecs_fc2.transpose_dot(mat22)
+    XTX = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
     XTy = compress_eigvecs_fc2.transpose_dot(mat2y)
 
     compact_compress_mat_fc2 /= const_fc2
