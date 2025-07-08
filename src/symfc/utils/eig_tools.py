@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Optional, Union
 
 import numpy as np
-import scipy
 from scipy.sparse import csr_array
 
 from symfc.utils.matrix import BlockMatrix, append_block
@@ -71,9 +70,10 @@ def _compr_projector(p: csr_array) -> tuple[csr_array, Optional[csr_array]]:
 
 def _find_projector_blocks(p: csr_array):
     """Find block structures in projection matrix."""
-    # from symfc.utils.graph import connected_components
-    # n_components, labels = connected_components(p, verbose=True)
-    n_components, labels = scipy.sparse.csgraph.connected_components(p)
+    from symfc.utils.graph import connected_components
+
+    n_components, labels = connected_components(p, verbose=True)
+    # n_components, labels = scipy.sparse.csgraph.connected_components(p)
     group = defaultdict(list)
     for i, ll in enumerate(labels):
         group[ll].append(i)
@@ -335,9 +335,10 @@ def eigh_projector_use_submatrix(
                 print("  eigenvectors:", eigvecs.shape[1], flush=True)
             eigvecs_blocks = append_block(
                 eigvecs_blocks,
-                cmplt.dot(eigvecs),
+                eigvecs,
                 rows=np.arange(p_size),
                 col_begin=col_id,
+                compress=cmplt,
             )
             col_id += eigvecs.shape[1]
 

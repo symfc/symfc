@@ -34,6 +34,17 @@ class BlockMatrixComponent:
     col_end: int
     compress: Optional[Any] = None
 
+    def __post_init__(self):
+        """Post init method."""
+        if self.data.shape[1] != (self.col_end - self.col_begin):
+            raise RuntimeError("Data shape and col size are inconsistent")
+        if self.compress is None:
+            if self.data.shape[0] != len(self.rows):
+                raise RuntimeError("Data shape and row size are inconsistent")
+        else:
+            if self.compress.shape[0] != len(self.rows):
+                raise RuntimeError("Compression shape and row size are inconsistent")
+
     def change_indices(self, rows: np.ndarray, col_shift: int):
         """Change indices."""
         self.rows = rows[self.rows]
@@ -180,11 +191,7 @@ class BlockMatrix:
         if self.data_full is None:
             self.data_full = np.zeros(self.shape, dtype="double")  # type: ignore
             for b in self.blocks:
-                if b.compress is not None:
-                    mat = b.compress.dot_from_right(b.data)
-                else:
-                    mat = b.data
-                self.data_full[b.rows, b.col_begin : b.col_end] = mat
+                self.data_full[b.rows, b.col_begin : b.col_end] = b.recover()
         return self.data_full
 
 
