@@ -14,6 +14,7 @@ from symfc.solvers.solver_O2O3O4 import (
     reshape_nNNN3333_nx_to_N3N3N3_n3nx,
     set_disps_N3N3N3,
 )
+from symfc.utils.matrix import block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
 try:
@@ -288,23 +289,11 @@ def prepare_normal_equation_O3O4(
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
 
-    mat33 = compress_eigvecs_fc3.dot(
-        compress_eigvecs_fc3.transpose_dot(mat33), left=True
-    )
-    mat34 = compress_eigvecs_fc4.dot(
-        compress_eigvecs_fc3.transpose_dot(mat34), left=True
-    )
-    mat44 = compress_eigvecs_fc4.dot(
-        compress_eigvecs_fc4.transpose_dot(mat44), left=True
-    )
+    mat33 = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc3, mat33)
+    mat34 = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc4, mat34)
+    mat44 = block_matrix_sandwich(compress_eigvecs_fc4, compress_eigvecs_fc4, mat44)
     mat3y = compress_eigvecs_fc3.transpose_dot(mat3y)
     mat4y = compress_eigvecs_fc4.transpose_dot(mat4y)
-
-    # mat33 = compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
-    # mat34 = compress_eigvecs_fc3.T @ mat34 @ compress_eigvecs_fc4
-    # mat44 = compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
-    # mat3y = compress_eigvecs_fc3.T @ mat3y
-    # mat4y = compress_eigvecs_fc4.T @ mat4y
 
     XTX = np.block([[mat33, mat34], [mat34.T, mat44]])
     XTy = np.hstack([mat3y, mat4y])

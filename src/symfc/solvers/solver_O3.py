@@ -9,6 +9,7 @@ import numpy as np
 
 from symfc.basis_sets import FCBasisSetO3
 from symfc.solvers.solver_O2O3 import reshape_nNN333_nx_to_N3N3_n3nx, set_disps_N3N3
+from symfc.utils.matrix import block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
 try:
@@ -211,11 +212,9 @@ def prepare_normal_equation_O3(
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
-    XTX = compress_eigvecs_fc3.dot(compress_eigvecs_fc3.transpose_dot(mat33), left=True)
-    XTy = compress_eigvecs_fc3.transpose_dot(mat3y)
 
-    # XTX = compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
-    # XTy = compress_eigvecs_fc3.T @ mat3y
+    XTX = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc3, mat33)
+    XTy = compress_eigvecs_fc3.transpose_dot(mat3y)
 
     compact_compress_mat_fc3 /= const_fc3
     t_all2 = time.time()

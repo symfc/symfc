@@ -12,6 +12,7 @@ from scipy.sparse import csr_array
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3, FCBasisSetO4
 from symfc.solvers.solver_O2 import reshape_nN33_nx_to_N3_n3nx
 from symfc.solvers.solver_O2O3 import reshape_nNN333_nx_to_N3N3_n3nx, set_disps_N3N3
+from symfc.utils.matrix import block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
 try:
@@ -401,37 +402,15 @@ def prepare_normal_equation_O2O3O4(
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
 
-    mat22 = compress_eigvecs_fc2.dot(
-        compress_eigvecs_fc2.transpose_dot(mat22), left=True
-    )
-    mat23 = compress_eigvecs_fc3.dot(
-        compress_eigvecs_fc2.transpose_dot(mat23), left=True
-    )
-    mat24 = compress_eigvecs_fc4.dot(
-        compress_eigvecs_fc2.transpose_dot(mat24), left=True
-    )
-    mat33 = compress_eigvecs_fc3.dot(
-        compress_eigvecs_fc3.transpose_dot(mat33), left=True
-    )
-    mat34 = compress_eigvecs_fc4.dot(
-        compress_eigvecs_fc3.transpose_dot(mat34), left=True
-    )
-    mat44 = compress_eigvecs_fc4.dot(
-        compress_eigvecs_fc4.transpose_dot(mat44), left=True
-    )
+    mat22 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
+    mat23 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc3, mat23)
+    mat24 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc4, mat24)
+    mat33 = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc3, mat33)
+    mat34 = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc4, mat34)
+    mat44 = block_matrix_sandwich(compress_eigvecs_fc4, compress_eigvecs_fc4, mat44)
     mat2y = compress_eigvecs_fc2.transpose_dot(mat2y)
     mat3y = compress_eigvecs_fc3.transpose_dot(mat3y)
     mat4y = compress_eigvecs_fc4.transpose_dot(mat4y)
-
-    # mat22 = compress_eigvecs_fc2.T @ mat22 @ compress_eigvecs_fc2
-    # mat23 = compress_eigvecs_fc2.T @ mat23 @ compress_eigvecs_fc3
-    # mat24 = compress_eigvecs_fc2.T @ mat24 @ compress_eigvecs_fc4
-    # mat33 = compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
-    # mat34 = compress_eigvecs_fc3.T @ mat34 @ compress_eigvecs_fc4
-    # mat44 = compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
-    # mat2y = compress_eigvecs_fc2.T @ mat2y
-    # mat3y = compress_eigvecs_fc3.T @ mat3y
-    # mat4y = compress_eigvecs_fc4.T @ mat4y
 
     XTX = np.block(
         [[mat22, mat23, mat24], [mat23.T, mat33, mat34], [mat24.T, mat34.T, mat44]]
