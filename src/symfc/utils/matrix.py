@@ -26,16 +26,17 @@ def dot_product_sparse(
 
 @dataclass
 class BlockMatrixNode:
-    """Dataclass for block matrix node."""
+    """Dataclass for node in block matrix tree."""
 
     rows: np.ndarray
     col_begin: int
     col_end: int
+    root: bool = False
     data: Optional[np.ndarray] = None
     first_child: Optional[Self] = None
     next_sibling: Optional[Self] = None
     compress: Optional[Self] = None
-    root: bool = False
+    data_full: Optional[np.ndarray] = None
 
     def __post_init__(self):
         """Post init method."""
@@ -68,8 +69,10 @@ class BlockMatrixNode:
                 mat[self.col_begin : self.col_end],
                 prod[self.rows],
             )
+
         if self.next_sibling is not None:
             prod = self.next_sibling.dot(mat, prod)
+
         if self.data is not None:
             res = self.data @ mat[self.col_begin : self.col_end]
             if self.compress is not None:
@@ -77,28 +80,29 @@ class BlockMatrixNode:
             prod[self.rows] += res
         return prod
 
+    def recover_full_matrix(self, full: Optional[np.ndarray] = None):
+        """Recover full block matrix."""
+        if self.root:
+            full = np.zeros(self.shape, dtype="double")  # type: ignore
 
-def dot(root: BlockMatrixNode, mat: np.array, res: Optional[np.ndarray] = None):
-    """Calculate dot product."""
-    if root.root:
-        if len(mat.shape) == 1:
-            res = np.zeros(root.shape[0])
-        elif len(mat.shape) == 2:
-            res = np.zeros((root.shape[0], mat.shape[1]))
-        else:
-            raise RuntimeError("Dimension of input numpy array must be one or two.")
+        if self.first_child is not None:
+            full[self.rows, self.col_begin : self.col_end] = (
+                self.first_child.recover_full_matrix(
+                    full[self.rows, self.col_begin : self.col_end]
+                )
+            )
 
-    if root.first_child is not None:
-        res[root.rows] = dot(
-            root.first_child,
-            mat[root.col_begin : root.col_end],
-            res[root.rows],
-        )
-    if root.next_sibling is not None:
-        res = dot(root.next_sibling, mat, res)
-    if root.data is not None:
-        res[root.rows] += root.data @ mat[root.col_begin : root.col_end]
-    return res
+        if self.next_sibling is not None:
+            full = self.next_sibling.recover_full_matrix(full)
+
+        if self.data is not None:
+            if self.compress is None:
+                full[self.rows, self.col_begin : self.col_end] = self.data
+            else:
+                full[self.rows, self.col_begin : self.col_end] = self.compress.dot(
+                    self.data
+                )
+        return full
 
 
 @dataclass

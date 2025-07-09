@@ -142,7 +142,7 @@ def test_block_matrix():
         compress=cmplt,
     )
 
-    root_block = BlockMatrixNode(
+    bm = BlockMatrixNode(
         rows=[0, 1, 2, 3, 4, 5, 6, 7],
         col_begin=0,
         col_end=8,
@@ -153,8 +153,8 @@ def test_block_matrix():
     mat2 = np.array([[3, 1], [5, 7], [2, 8], [5, 9], [3, 2], [4, 5], [7, 2], [2, 1]])
     # vec2 = np.array([3, 1, 5, 7])
 
-    print(mat @ mat2)
-    np.testing.assert_array_equal(root_block.dot(mat2), mat @ mat2)
+    np.testing.assert_array_equal(bm.dot(mat2), mat @ mat2)
+    np.testing.assert_array_equal(bm.recover_full_matrix(), mat)
 
 
 #     np.testing.assert_array_equal(bm.dot(vec2), mat @ vec2)
