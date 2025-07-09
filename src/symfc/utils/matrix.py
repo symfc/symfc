@@ -41,10 +41,10 @@ class BlockMatrixNode:
     rows_full: Optional[np.ndarray] = None
     col_begin_full: Optional[int] = None
     col_end_full: Optional[int] = None
+    full: bool = False
 
     def __post_init__(self):
         """Post init method."""
-        self.rows = np.array(self.rows)
         if self.data is None and self.first_child is None:
             raise RuntimeError("No data and first child.")
         self.shape = (len(self.rows), self.col_end - self.col_begin)
@@ -59,6 +59,11 @@ class BlockMatrixNode:
             if self.data.shape[1] != self.shape[1]:
                 raise RuntimeError("Data shape is inconsistent with columns.")
 
+        self.rows = np.array(self.rows)
+        if self.root:
+            self.set_full_indices()
+            self.full = True
+
     def traverse(self):
         """Traverse all nodes."""
         if self.first_child is not None:
@@ -70,49 +75,43 @@ class BlockMatrixNode:
 
     def recover(self, full: Optional[np.ndarray] = None):
         """Recover full block matrix."""
-        if full is None:
-            full = np.zeros(self.shape, dtype="double")  # type: ignore
+        if not self.root:
+            raise RuntimeError("This node must be root of tree.")
 
-        if self.first_child is not None:
-            full[self.rows, self.col_begin : self.col_end] = self.first_child.recover(
-                full[self.rows, self.col_begin : self.col_end]
-            )
+        full = np.zeros(self.shape, dtype="double")  # type: ignore
+        if not self.full:
+            self.set_full_indices()
 
-        if self.next_sibling is not None:
-            full = self.next_sibling.recover(full)
-
-        if self.data is not None:
-            if self.compress is None:
-                data = self.data
+        for b in self.traverse():
+            if b.compress is None:
+                full[b.rows_full, b.col_begin_full : b.col_end_full] = b.data
             else:
-                data = self.compress.dot(self.data)
-            full[self.rows, self.col_begin : self.col_end] = data
+                data = b.compress.dot(b.data)
+                full[b.rows_full, b.col_begin_full : b.col_end_full] = data
+
         return full
 
-    def dot(self, mat: np.ndarray, prod: Optional[np.ndarray] = None):
+    def dot(self, mat: np.ndarray):
         """Calculate dot product."""
-        if self.root:
-            if len(mat.shape) == 1:
-                prod = np.zeros(self.shape[0])
-            elif len(mat.shape) == 2:
-                prod = np.zeros((self.shape[0], mat.shape[1]))
-            else:
-                raise RuntimeError("Dimension of input numpy array must be one or two.")
+        if not self.root:
+            raise RuntimeError("This node must be root of tree.")
 
-        if self.first_child is not None:
-            prod[self.rows] = self.first_child.dot(
-                mat[self.col_begin : self.col_end],
-                prod[self.rows],
-            )
+        if len(mat.shape) == 1:
+            prod = np.zeros(self.shape[0])
+        elif len(mat.shape) == 2:
+            prod = np.zeros((self.shape[0], mat.shape[1]))
+        else:
+            raise RuntimeError("Dimension of input numpy array must be one or two.")
 
-        if self.next_sibling is not None:
-            prod = self.next_sibling.dot(mat, prod)
+        if not self.full:
+            self.set_full_indices()
 
-        if self.data is not None:
-            res = self.data @ mat[self.col_begin : self.col_end]
-            if self.compress is not None:
-                res = self.compress.dot(res)
-            prod[self.rows] += res
+        for b in self.traverse():
+            res = b.data @ mat[b.col_begin_full : b.col_end_full]
+            if b.compress is not None:
+                res = b.compress.dot(res)
+            prod[b.rows_full] += res
+
         return prod
 
     def set_full_indices(
@@ -145,9 +144,10 @@ class BlockMatrixNode:
 
     def compress_matrix(self, mat: np.ndarray):
         """Calculate block_mat.T @ mat @ block_mat for csr_array."""
-        res = np.zeros((self.shape[1], self.shape[1]))
+        if not self.full:
+            self.set_full_indices()
 
-        self.set_full_indices()
+        res = np.zeros((self.shape[1], self.shape[1]))
         for b1 in self.traverse():
             col_begin1 = b1.col_begin_full
             col_end1 = b1.col_end_full
@@ -171,10 +171,10 @@ class BlockMatrixNode:
         """Calculate block_mat.T @ mat(csr) @ block_mat for csr_array."""
         if mat.shape[0] < 10000:
             use_mkl = False
+        if not self.full:
+            self.set_full_indices()
 
         res = np.zeros((self.shape[1], self.shape[1]))
-
-        self.set_full_indices()
         for b1 in self.traverse():
             col_begin1 = b1.col_begin_full
             col_end1 = b1.col_end_full
