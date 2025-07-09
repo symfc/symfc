@@ -12,7 +12,7 @@ from symfc.utils.eig_tools import (
     eigsh_projector,
     eigsh_projector_sumrule,
 )
-from symfc.utils.matrix import BlockMatrix
+from symfc.utils.matrix import BlockMatrixNode
 
 try:
     from symfc.utils.matrix import dot_product_sparse
@@ -90,7 +90,7 @@ class FCBasisSetO2(FCBasisSetBase):
 
         self._n_a_compression_matrix: Optional[csr_array] = None
         self._basis_set: Optional[np.ndarray] = None
-        self._blocked_basis_set: Optional[BlockMatrix] = None
+        self._blocked_basis_set: Optional[BlockMatrixNode] = None
 
     @property
     def compression_matrix(self) -> Optional[csr_array]:

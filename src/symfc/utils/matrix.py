@@ -145,8 +145,7 @@ class BlockMatrixNode:
 
     def compress_matrix(self, mat: np.ndarray):
         """Calculate block_mat.T @ mat @ block_mat for csr_array."""
-        if self.root:
-            res = np.zeros((self.shape[1], self.shape[1]))
+        res = np.zeros((self.shape[1], self.shape[1]))
 
         self.set_full_indices()
         for b1 in self.traverse():
@@ -172,8 +171,8 @@ class BlockMatrixNode:
         """Calculate block_mat.T @ mat(csr) @ block_mat for csr_array."""
         if mat.shape[0] < 10000:
             use_mkl = False
-        if self.root:
-            res = np.zeros((self.shape[1], self.shape[1]))
+
+        res = np.zeros((self.shape[1], self.shape[1]))
 
         self.set_full_indices()
         for b1 in self.traverse():
@@ -201,6 +200,28 @@ class BlockMatrixNode:
                 )
                 res[col_begin1:col_end1, col_begin2:col_end2] += prod
         return res
+
+
+def append_node(
+    eigvecs: np.ndarray,
+    next_sibling: BlockMatrixNode,
+    rows: Optional[np.ndarray] = None,
+    col_begin: Optional[int] = None,
+    compress: Optional[BlockMatrixNode] = None,
+):
+    """Add eigenvectors to block matrix node."""
+    if eigvecs is not None and eigvecs.shape[1] > 0:
+        col_end = col_begin + eigvecs.shape[1]  # type: ignore
+        block = BlockMatrixNode(
+            rows=rows,
+            col_begin=col_begin,
+            col_end=col_end,
+            data=eigvecs,
+            next_sibling=next_sibling,
+            compress=compress,
+        )
+        next_sibling = block
+    return next_sibling
 
 
 # def block_matrix_sandwich(
