@@ -59,6 +59,36 @@ class BlockMatrixNode:
             if self.data.shape[1] != self.shape[1]:
                 raise RuntimeError("Data shape is inconsistent with columns.")
 
+    def traverse(self):
+        """Traverse all nodes."""
+        if self.first_child is not None:
+            yield from self.first_child.traverse()
+        if self.next_sibling is not None:
+            yield from self.next_sibling.traverse()
+        if self.data is not None:
+            yield self
+
+    def recover(self, full: Optional[np.ndarray] = None):
+        """Recover full block matrix."""
+        if full is None:
+            full = np.zeros(self.shape, dtype="double")  # type: ignore
+
+        if self.first_child is not None:
+            full[self.rows, self.col_begin : self.col_end] = self.first_child.recover(
+                full[self.rows, self.col_begin : self.col_end]
+            )
+
+        if self.next_sibling is not None:
+            full = self.next_sibling.recover(full)
+
+        if self.data is not None:
+            if self.compress is None:
+                data = self.data
+            else:
+                data = self.compress.dot(self.data)
+            full[self.rows, self.col_begin : self.col_end] = data
+        return full
+
     def dot(self, mat: np.ndarray, prod: Optional[np.ndarray] = None):
         """Calculate dot product."""
         if self.root:
@@ -84,29 +114,6 @@ class BlockMatrixNode:
                 res = self.compress.dot(res)
             prod[self.rows] += res
         return prod
-
-    def recover_full_matrix(self, full: Optional[np.ndarray] = None):
-        """Recover full block matrix."""
-        if self.root:
-            full = np.zeros(self.shape, dtype="double")  # type: ignore
-
-        if self.first_child is not None:
-            full[self.rows, self.col_begin : self.col_end] = (
-                self.first_child.recover_full_matrix(
-                    full[self.rows, self.col_begin : self.col_end]
-                )
-            )
-
-        if self.next_sibling is not None:
-            full = self.next_sibling.recover_full_matrix(full)
-
-        if self.data is not None:
-            if self.compress is None:
-                data = self.data
-            else:
-                data = self.compress.dot(self.data)
-            full[self.rows, self.col_begin : self.col_end] = data
-        return full
 
     def set_full_indices(
         self,
@@ -136,14 +143,30 @@ class BlockMatrixNode:
             self.col_end_full = parent_col_begin + self.col_end
         return self
 
-    def traverse(self):
-        """Traverse all nodes."""
-        if self.first_child is not None:
-            yield from self.first_child.traverse()
-        if self.next_sibling is not None:
-            yield from self.next_sibling.traverse()
-        if self.data is not None:
-            yield self
+    def compress_matrix(self, mat: np.ndarray):
+        """Calculate block_mat.T @ mat @ block_mat for csr_array."""
+        if self.root:
+            res = np.zeros((self.shape[1], self.shape[1]))
+
+        self.set_full_indices()
+        for b1 in self.traverse():
+            col_begin1 = b1.col_begin_full
+            col_end1 = b1.col_end_full
+            if b1.compress is not None:
+                data1 = b1.compress.dot(b1.data)
+            else:
+                data1 = b1.data
+
+            for b2 in self.traverse():
+                col_begin2 = b2.col_begin_full
+                col_end2 = b2.col_end_full
+                if b2.compress is not None:
+                    data2 = b2.compress.dot(b2.data)
+                else:
+                    data2 = b2.data
+                prod = data1.T @ mat[np.ix_(b1.rows_full, b2.rows_full)] @ data2
+                res[col_begin1:col_end1, col_begin2:col_end2] += prod
+        return res
 
     def compress_csr_matrix(self, mat: csr_array, use_mkl: bool = False):
         """Calculate block_mat.T @ mat(csr) @ block_mat for csr_array."""
@@ -156,18 +179,46 @@ class BlockMatrixNode:
         for b1 in self.traverse():
             col_begin1 = b1.col_begin_full
             col_end1 = b1.col_end_full
+            # efficient?
+            if b1.compress is not None:
+                data1 = b1.compress.dot(b1.data)
+            else:
+                data1 = b1.data
+
             for b2 in self.traverse():
                 col_begin2 = b2.col_begin_full
                 col_end2 = b2.col_end_full
+                if b2.compress is not None:
+                    data2 = b2.compress.dot(b2.data)
+                else:
+                    data2 = b2.data
 
-                prod = b1.data.T @ dot_product_sparse(
+                prod = data1.T @ dot_product_sparse(
                     mat[np.ix_(b1.rows_full, b2.rows_full)],
-                    b2.data,
+                    data2,
                     use_mkl=use_mkl,
                     dense=True,
                 )
                 res[col_begin1:col_end1, col_begin2:col_end2] += prod
         return res
+
+
+# def block_matrix_sandwich(
+#     bm1: BlockMatrixNode,
+#     bm2: BlockMatrixNode,
+#     mat: np.ndarray,
+# ):
+#     """Calculate block1.T @ mat @ block2."""
+#     bm1.set_full_indices()
+#     bm2.set_full_indices()
+#     res = np.zeros((bm1.shape[1], bm2.shape[1]))
+#     for b1 in bm1.traverse():
+#         b1_full = b1.recover()
+#         for b2 in bm2.traverse():
+#             b2_full = b2.recover()
+#             prod = b1_full.T @ mat[np.ix_(b1.rows, b2.rows)] @ b2_full
+#             res[b1.col_begin : b1.col_end, b2.col_begin : b2.col_end] += prod
+#     return res
 
 
 @dataclass

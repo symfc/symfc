@@ -7,7 +7,7 @@ from typing import Optional, Union
 import numpy as np
 from scipy.sparse import csr_array
 
-from symfc.utils.matrix import BlockMatrix, append_block
+from symfc.utils.matrix import BlockMatrix, BlockMatrixNode, append_block
 from symfc.utils.solver_funcs import get_batch_slice
 
 
@@ -264,7 +264,8 @@ def eigh_projector_use_submatrix(
             verbose=verbose,
         )
 
-    eigvecs_blocks, cmplt_blocks = [], []
+    next_sibling, next_sibling_c = None, None
+    # eigvecs_blocks, cmplt_blocks = [], []
     col_id, col_id_cmplt = 0, 0
     if target_size is None:
         target_size = min(p_size // 5, 10000)
@@ -286,26 +287,53 @@ def eigh_projector_use_submatrix(
             if eigvecs is not None:
                 if verbose:
                     print("  eigenvectors:", eigvecs.shape[1], flush=True)
-                eigvecs_blocks = append_block(
-                    eigvecs_blocks,
-                    eigvecs,
+
+                block = BlockMatrixNode(
                     rows=np.arange(begin, end),
                     col_begin=col_id,
+                    col_end=col_id + eigvecs.shape[1],
+                    data=eigvecs,
+                    next_sibling=next_sibling,
                 )
+                next_sibling = block
+
+                # eigvecs_blocks = append_block(
+                #     eigvecs_blocks,
+                #     eigvecs,
+                #     rows=np.arange(begin, end),
+                #     col_begin=col_id,
+                # )
                 col_id += eigvecs.shape[1]
             if cmplt_small is not None:
-                cmplt_blocks = append_block(
-                    cmplt_blocks,
-                    cmplt_small,
+                cmplt_block = BlockMatrixNode(
                     rows=np.arange(begin, end),
                     col_begin=col_id_cmplt,
+                    col_end=col_id_cmplt + cmplt_small.shape[1],
+                    data=cmplt_small,
+                    next_sibling=next_sibling_c,
                 )
+                next_sibling_c = cmplt_block
+
+                # cmplt_blocks = append_block(
+                #     cmplt_blocks,
+                #     cmplt_small,
+                #     rows=np.arange(begin, end),
+                #     col_begin=col_id_cmplt,
+                # )
                 col_id_cmplt += cmplt_small.shape[1]
 
-    if len(cmplt_blocks) > 0:
+    if col_id_cmplt > 0:
         if verbose:
             print("- Block_complement_size:", col_id_cmplt, flush=True)
-        cmplt = BlockMatrix(blocks=cmplt_blocks, shape=(p_size, col_id_cmplt))
+
+        cmplt = BlockMatrixNode(
+            rows=np.arange(p_size),
+            col_begin=0,
+            col_end=col_id_cmplt,
+            first_child=next_sibling_c,
+        )
+
+        # cmplt = BlockMatrix(blocks=cmplt_blocks, shape=(p_size, col_id_cmplt))
         if not repeat or cmplt.shape[1] < 20000:
             result = eigh_projector(
                 cmplt.compress_matrix(p),
@@ -333,13 +361,23 @@ def eigh_projector_use_submatrix(
         if eigvecs is not None:
             if verbose:
                 print("  eigenvectors:", eigvecs.shape[1], flush=True)
-            eigvecs_blocks = append_block(
-                eigvecs_blocks,
-                eigvecs,
+            block = BlockMatrixNode(
                 rows=np.arange(p_size),
                 col_begin=col_id,
+                col_end=col_id + eigvecs.shape[1],
+                data=eigvecs,
+                next_sibling=next_sibling,
                 compress=cmplt,
             )
+            next_sibling = block
+
+            # eigvecs_blocks = append_block(
+            #     eigvecs_blocks,
+            #     eigvecs,
+            #     rows=np.arange(p_size),
+            #     col_begin=col_id,
+            #     compress=cmplt,
+            # )
             col_id += eigvecs.shape[1]
 
         if return_cmplt:
@@ -351,8 +389,16 @@ def eigh_projector_use_submatrix(
         if return_cmplt:
             cmplt_eigvals, cmplt_eigvecs = None, None
 
-    blocks = BlockMatrix(blocks=eigvecs_blocks, shape=(p_size, col_id))
-    eigvecs = blocks.recover_full_matrix()
+    blocks = BlockMatrixNode(
+        rows=np.arange(p_size),
+        col_begin=0,
+        col_end=col_id,
+        first_child=next_sibling,
+    )
+    eigvecs = blocks.recover()
+
+    # blocks = BlockMatrix(blocks=eigvecs_blocks, shape=(p_size, col_id))
+    # eigvecs = blocks.recover_full_matrix()
 
     if return_cmplt:
         return eigvecs, (cmplt_eigvals, cmplt_eigvecs)
