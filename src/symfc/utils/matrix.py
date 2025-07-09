@@ -36,10 +36,15 @@ class BlockMatrixNode:
     first_child: Optional[Self] = None
     next_sibling: Optional[Self] = None
     compress: Optional[Self] = None
-    data_full: Optional[np.ndarray] = None
+    index: Optional[int] = None
+
+    rows_full: Optional[np.ndarray] = None
+    col_begin_full: Optional[int] = None
+    col_end_full: Optional[int] = None
 
     def __post_init__(self):
         """Post init method."""
+        self.rows = np.array(self.rows)
         if self.data is None and self.first_child is None:
             raise RuntimeError("No data and first child.")
         self.shape = (len(self.rows), self.col_end - self.col_begin)
@@ -97,12 +102,72 @@ class BlockMatrixNode:
 
         if self.data is not None:
             if self.compress is None:
-                full[self.rows, self.col_begin : self.col_end] = self.data
+                data = self.data
             else:
-                full[self.rows, self.col_begin : self.col_end] = self.compress.dot(
-                    self.data
-                )
+                data = self.compress.dot(self.data)
+            full[self.rows, self.col_begin : self.col_end] = data
         return full
+
+    def set_full_indices(
+        self,
+        parent_rows: Optional[np.ndarray] = None,
+        parent_col_begin: Optional[int] = None,
+    ):
+        """Set row and columns indices for root full matrix."""
+        if self.first_child is not None:
+            if parent_rows is None:
+                parent_rows_ref = self.rows
+            else:
+                parent_rows_ref = parent_rows[self.rows]
+
+            if parent_col_begin is None:
+                parent_col_begin_ref = self.col_begin
+            else:
+                parent_col_begin_ref = parent_col_begin + self.col_begin
+
+            self.first_child.set_full_indices(parent_rows_ref, parent_col_begin_ref)
+
+        if self.next_sibling is not None:
+            self.next_sibling.set_full_indices(parent_rows, parent_col_begin)
+
+        if self.data is not None:
+            self.rows_full = parent_rows[self.rows]
+            self.col_begin_full = parent_col_begin + self.col_begin
+            self.col_end_full = parent_col_begin + self.col_end
+        return self
+
+    def traverse(self):
+        """Traverse all nodes."""
+        if self.first_child is not None:
+            yield from self.first_child.traverse()
+        if self.next_sibling is not None:
+            yield from self.next_sibling.traverse()
+        if self.data is not None:
+            yield self
+
+    def compress_csr_matrix(self, mat: csr_array, use_mkl: bool = False):
+        """Calculate block_mat.T @ mat(csr) @ block_mat for csr_array."""
+        if mat.shape[0] < 10000:
+            use_mkl = False
+        if self.root:
+            res = np.zeros((self.shape[1], self.shape[1]))
+
+        self.set_full_indices()
+        for b1 in self.traverse():
+            col_begin1 = b1.col_begin_full
+            col_end1 = b1.col_end_full
+            for b2 in self.traverse():
+                col_begin2 = b2.col_begin_full
+                col_end2 = b2.col_end_full
+
+                prod = b1.data.T @ dot_product_sparse(
+                    mat[np.ix_(b1.rows_full, b2.rows_full)],
+                    b2.data,
+                    use_mkl=use_mkl,
+                    dense=True,
+                )
+                res[col_begin1:col_end1, col_begin2:col_end2] += prod
+        return res
 
 
 @dataclass
