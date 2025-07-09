@@ -1,7 +1,7 @@
 """Utility functions for matrices."""
 
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Any, Optional, Self, Union
 
 import numpy as np
 from scipy.sparse import csr_array
@@ -22,6 +22,83 @@ def dot_product_sparse(
     if use_mkl:
         return dot_product_mkl(A, B, dense=dense)
     return A @ B
+
+
+@dataclass
+class BlockMatrixNode:
+    """Dataclass for block matrix node."""
+
+    rows: np.ndarray
+    col_begin: int
+    col_end: int
+    data: Optional[np.ndarray] = None
+    first_child: Optional[Self] = None
+    next_sibling: Optional[Self] = None
+    compress: Optional[Self] = None
+    root: bool = False
+
+    def __post_init__(self):
+        """Post init method."""
+        if self.data is None and self.first_child is None:
+            raise RuntimeError("No data and first child.")
+        self.shape = (len(self.rows), self.col_end - self.col_begin)
+        if self.compress is None:
+            if self.data is not None and self.data.shape != self.shape:
+                raise RuntimeError("Data shape is inconsistent with rows and columns.")
+        else:
+            if self.data is None:
+                raise RuntimeError("Data is required with compress matrix.")
+            if self.compress.shape[0] != self.shape[0]:
+                raise RuntimeError("Data shape is inconsistent with rows.")
+            if self.data.shape[1] != self.shape[1]:
+                raise RuntimeError("Data shape is inconsistent with columns.")
+
+    def dot(self, mat: np.ndarray, prod: Optional[np.ndarray] = None):
+        """Calculate dot product."""
+        if self.root:
+            if len(mat.shape) == 1:
+                prod = np.zeros(self.shape[0])
+            elif len(mat.shape) == 2:
+                prod = np.zeros((self.shape[0], mat.shape[1]))
+            else:
+                raise RuntimeError("Dimension of input numpy array must be one or two.")
+
+        if self.first_child is not None:
+            prod[self.rows] = self.first_child.dot(
+                mat[self.col_begin : self.col_end],
+                prod[self.rows],
+            )
+        if self.next_sibling is not None:
+            prod = self.next_sibling.dot(mat, prod)
+        if self.data is not None:
+            res = self.data @ mat[self.col_begin : self.col_end]
+            if self.compress is not None:
+                res = self.compress.dot(res)
+            prod[self.rows] += res
+        return prod
+
+
+def dot(root: BlockMatrixNode, mat: np.array, res: Optional[np.ndarray] = None):
+    """Calculate dot product."""
+    if root.root:
+        if len(mat.shape) == 1:
+            res = np.zeros(root.shape[0])
+        elif len(mat.shape) == 2:
+            res = np.zeros((root.shape[0], mat.shape[1]))
+        else:
+            raise RuntimeError("Dimension of input numpy array must be one or two.")
+
+    if root.first_child is not None:
+        res[root.rows] = dot(
+            root.first_child,
+            mat[root.col_begin : root.col_end],
+            res[root.rows],
+        )
+    if root.next_sibling is not None:
+        res = dot(root.next_sibling, mat, res)
+    if root.data is not None:
+        res[root.rows] += root.data @ mat[root.col_begin : root.col_end]
+    return res
 
 
 @dataclass
