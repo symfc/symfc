@@ -32,69 +32,104 @@ class BlockMatrixNode:
     col_begin: int
     col_end: int
     root: bool = False
+    shape: Optional[tuple] = None
+
     data: Optional[np.ndarray] = None
     first_child: Optional[Self] = None
     next_sibling: Optional[Self] = None
     compress: Optional[Self] = None
-    index: Optional[int] = None
 
-    rows_full: Optional[np.ndarray] = None
-    col_begin_full: Optional[int] = None
-    col_end_full: Optional[int] = None
-    full: bool = False
+    rows_root: Optional[np.ndarray] = None
+    col_begin_root: Optional[int] = None
+    col_end_root: Optional[int] = None
+    index: Optional[int] = None
 
     def __post_init__(self):
         """Post init method."""
-        if self.data is None and self.first_child is None:
-            raise RuntimeError("No data and first child.")
         self.shape = (len(self.rows), self.col_end - self.col_begin)
-        if self.compress is None:
-            if self.data is not None and self.data.shape != self.shape:
-                raise RuntimeError("Data shape is inconsistent with rows and columns.")
-        else:
-            if self.data is None:
-                raise RuntimeError("Data is required with compress matrix.")
-            if self.compress.shape[0] != self.shape[0]:
-                raise RuntimeError("Data shape is inconsistent with rows.")
-            if self.data.shape[1] != self.shape[1]:
-                raise RuntimeError("Data shape is inconsistent with columns.")
-
         self.rows = np.array(self.rows)
-        if self.root:
-            self.set_full_indices()
-            self.full = True
+        self._check_errors()
 
-    def traverse(self):
+        if self.root:
+            self.set_root_indices()
+
+    def _check_errors(self):
+        """Check errors in node."""
+        if self.data is None:
+            if self.first_child is None:
+                raise RuntimeError("No data in this node and its children.")
+            if self.compress is not None:
+                raise RuntimeError("Data is required with compress matrix.")
+        else:
+            if self.compress is None:
+                if self.data.shape != self.shape:
+                    raise RuntimeError(
+                        "Data shape is inconsistent with rows and columns."
+                    )
+            else:
+                if self.compress.shape[0] != self.shape[0]:
+                    raise RuntimeError("Data shape is inconsistent with rows.")
+                if self.data.shape[1] != self.shape[1]:
+                    raise RuntimeError("Data shape is inconsistent with columns.")
+
+    def traverse_data_nodes(self):
         """Traverse all nodes."""
         if self.first_child is not None:
-            yield from self.first_child.traverse()
+            yield from self.first_child.traverse_data_nodes()
         if self.next_sibling is not None:
-            yield from self.next_sibling.traverse()
+            yield from self.next_sibling.traverse_data_nodes()
         if self.data is not None:
             yield self
 
-    def recover(self, full: Optional[np.ndarray] = None):
+    def set_root_indices(
+        self,
+        parent_rows: Optional[np.ndarray] = None,
+        parent_col_begin: Optional[int] = None,
+    ):
+        """Set row and columns indices compatible with root node and full matrix."""
+        if self.first_child is not None:
+            if parent_rows is None:
+                self.first_child.set_root_indices(self.rows, self.col_begin)
+            else:
+                self.first_child.set_root_indices(
+                    parent_rows[self.rows],
+                    parent_col_begin + self.col_begin,
+                )
+
+        if self.next_sibling is not None:
+            self.next_sibling.set_root_indices(parent_rows, parent_col_begin)
+
+        if self.data is not None:
+            self.rows_root = parent_rows[self.rows]
+            self.col_begin_root = self.col_begin + parent_col_begin
+            self.col_end_root = self.col_end + parent_col_begin
+        return self
+
+    def decompress(self):
+        """Decompress compressed data matrix."""
+        if self.compress is not None:
+            return self.compress.dot(self.data)
+        return self.data
+
+    def recover(self):
         """Recover full block matrix."""
         if not self.root:
-            raise RuntimeError("This node must be root of tree.")
+            raise RuntimeError("Node must be root of tree.")
 
         full = np.zeros(self.shape, dtype="double")  # type: ignore
-        if not self.full:
-            self.set_full_indices()
-
-        for b in self.traverse():
+        for b in self.traverse_data_nodes():
             if b.compress is None:
-                full[b.rows_full, b.col_begin_full : b.col_end_full] = b.data
+                full[b.rows_root, b.col_begin_root : b.col_end_root] = b.data
             else:
                 data = b.compress.dot(b.data)
-                full[b.rows_full, b.col_begin_full : b.col_end_full] = data
+                full[b.rows_root, b.col_begin_root : b.col_end_root] = data
 
         return full
 
     def dot(self, mat: np.ndarray):
-        """Calculate dot product."""
+        """Calculate dot product block_mat @ mat."""
         if not self.root:
-            raise RuntimeError("This node must be root of tree.")
+            raise RuntimeError("Node must be root of tree.")
 
         if len(mat.shape) == 1:
             prod = np.zeros(self.shape[0])
@@ -103,101 +138,68 @@ class BlockMatrixNode:
         else:
             raise RuntimeError("Dimension of input numpy array must be one or two.")
 
-        if not self.full:
-            self.set_full_indices()
-
-        for b in self.traverse():
-            res = b.data @ mat[b.col_begin_full : b.col_end_full]
+        for b in self.traverse_data_nodes():
+            res = b.data @ mat[b.col_begin_root : b.col_end_root]
             if b.compress is not None:
                 res = b.compress.dot(res)
-            prod[b.rows_full] += res
+            prod[b.rows_root] += res
 
         return prod
 
-    def set_full_indices(
+    def transpose_dot(self, mat: np.ndarray):
+        """Calculate dot product block_mat.T @ mat."""
+        if not self.root:
+            raise RuntimeError("Node must be root of tree.")
+
+        if len(mat.shape) == 1:
+            prod = np.zeros(self.shape[1])
+        elif len(mat.shape) == 2:
+            prod = np.zeros((self.shape[1], mat.shape[1]))
+        else:
+            raise RuntimeError("Dimension of input numpy array must be one or two.")
+
+        for b in self.traverse_data_nodes():
+            if b.compress is not None:
+                res = b.data.T @ b.compress.transpose_dot(mat[b.rows_root])
+            else:
+                res = b.data.T @ mat[b.rows_root]
+            prod[b.col_begin_root : b.col_end_root] += res
+
+        return prod
+
+    def compress_matrix(
         self,
-        parent_rows: Optional[np.ndarray] = None,
-        parent_col_begin: Optional[int] = None,
+        mat: Union[csr_array, np.ndarray],
+        sparse: bool = False,
+        use_mkl: bool = False,
     ):
-        """Set row and columns indices for root full matrix."""
-        if self.first_child is not None:
-            if parent_rows is None:
-                parent_rows_ref = self.rows
-            else:
-                parent_rows_ref = parent_rows[self.rows]
-
-            if parent_col_begin is None:
-                parent_col_begin_ref = self.col_begin
-            else:
-                parent_col_begin_ref = parent_col_begin + self.col_begin
-
-            self.first_child.set_full_indices(parent_rows_ref, parent_col_begin_ref)
-
-        if self.next_sibling is not None:
-            self.next_sibling.set_full_indices(parent_rows, parent_col_begin)
-
-        if self.data is not None:
-            self.rows_full = parent_rows[self.rows]
-            self.col_begin_full = parent_col_begin + self.col_begin
-            self.col_end_full = parent_col_begin + self.col_end
-        return self
-
-    def compress_matrix(self, mat: np.ndarray):
-        """Calculate block_mat.T @ mat @ block_mat for csr_array."""
-        if not self.full:
-            self.set_full_indices()
-
-        res = np.zeros((self.shape[1], self.shape[1]))
-        for b1 in self.traverse():
-            col_begin1 = b1.col_begin_full
-            col_end1 = b1.col_end_full
-            if b1.compress is not None:
-                data1 = b1.compress.dot(b1.data)
-            else:
-                data1 = b1.data
-
-            for b2 in self.traverse():
-                col_begin2 = b2.col_begin_full
-                col_end2 = b2.col_end_full
-                if b2.compress is not None:
-                    data2 = b2.compress.dot(b2.data)
-                else:
-                    data2 = b2.data
-                prod = data1.T @ mat[np.ix_(b1.rows_full, b2.rows_full)] @ data2
-                res[col_begin1:col_end1, col_begin2:col_end2] += prod
-        return res
-
-    def compress_csr_matrix(self, mat: csr_array, use_mkl: bool = False):
         """Calculate block_mat.T @ mat(csr) @ block_mat for csr_array."""
-        if mat.shape[0] < 10000:
+        if not self.root:
+            raise RuntimeError("Node must be root of tree.")
+
+        if isinstance(mat, csr_array):
+            sparse = True
+        if sparse and mat.shape[0] < 10000:
             use_mkl = False
-        if not self.full:
-            self.set_full_indices()
 
         res = np.zeros((self.shape[1], self.shape[1]))
-        for b1 in self.traverse():
-            col_begin1 = b1.col_begin_full
-            col_end1 = b1.col_end_full
-            # efficient?
-            if b1.compress is not None:
-                data1 = b1.compress.dot(b1.data)
-            else:
-                data1 = b1.data
-
-            for b2 in self.traverse():
-                col_begin2 = b2.col_begin_full
-                col_end2 = b2.col_end_full
-                if b2.compress is not None:
-                    data2 = b2.compress.dot(b2.data)
+        for b1 in self.traverse_data_nodes():
+            col_begin1 = b1.col_begin_root
+            col_end1 = b1.col_end_root
+            data1 = b1.decompress()
+            for b2 in self.traverse_data_nodes():
+                col_begin2 = b2.col_begin_root
+                col_end2 = b2.col_end_root
+                data2 = b2.decompress()
+                if sparse:
+                    prod = data1.T @ dot_product_sparse(
+                        mat[np.ix_(b1.rows_root, b2.rows_root)],
+                        data2,
+                        use_mkl=use_mkl,
+                        dense=True,
+                    )
                 else:
-                    data2 = b2.data
-
-                prod = data1.T @ dot_product_sparse(
-                    mat[np.ix_(b1.rows_full, b2.rows_full)],
-                    data2,
-                    use_mkl=use_mkl,
-                    dense=True,
-                )
+                    prod = data1.T @ mat[np.ix_(b1.rows_root, b2.rows_root)] @ data2
                 res[col_begin1:col_end1, col_begin2:col_end2] += prod
         return res
 
@@ -224,22 +226,27 @@ def append_node(
     return next_sibling
 
 
-# def block_matrix_sandwich(
-#     bm1: BlockMatrixNode,
-#     bm2: BlockMatrixNode,
-#     mat: np.ndarray,
-# ):
-#     """Calculate block1.T @ mat @ block2."""
-#     bm1.set_full_indices()
-#     bm2.set_full_indices()
-#     res = np.zeros((bm1.shape[1], bm2.shape[1]))
-#     for b1 in bm1.traverse():
-#         b1_full = b1.recover()
-#         for b2 in bm2.traverse():
-#             b2_full = b2.recover()
-#             prod = b1_full.T @ mat[np.ix_(b1.rows, b2.rows)] @ b2_full
-#             res[b1.col_begin : b1.col_end, b2.col_begin : b2.col_end] += prod
-#     return res
+def block_matrix_sandwich(
+    bm1: BlockMatrixNode,
+    bm2: BlockMatrixNode,
+    mat: np.ndarray,
+):
+    """Calculate block1.T @ mat @ block2."""
+    if not bm1.root or not bm2.root:
+        raise RuntimeError("Nodes must be root of tree.")
+
+    res = np.zeros((bm1.shape[1], bm2.shape[1]))
+    for b1 in bm1.traverse_data_nodes():
+        col_begin1 = b1.col_begin_root
+        col_end1 = b1.col_end_root
+        data1 = b1.decompress()
+        for b2 in bm2.traverse_data_nodes():
+            col_begin2 = b2.col_begin_root
+            col_end2 = b2.col_end_root
+            data2 = b2.decompress()
+            prod = data1.T @ mat[np.ix_(b1.rows_root, b2.rows_root)] @ data2
+            res[col_begin1:col_end1, col_begin2:col_end2] += prod
+    return res
 
 
 @dataclass
@@ -413,7 +420,7 @@ class BlockMatrix:
         return self.data_full
 
 
-def append_block(
+def append_block_deprecated(
     blocks_list: list,
     eigvecs: np.ndarray,
     rows: Optional[np.ndarray] = None,
@@ -434,7 +441,7 @@ def append_block(
     return blocks_list
 
 
-def block_matrix_sandwich(
+def block_matrix_sandwich_deprecated(
     block_matrix1: BlockMatrix,
     block_matrix2: BlockMatrix,
     mat: np.ndarray,

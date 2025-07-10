@@ -172,9 +172,13 @@ def test_block_matrix():
     mat2 = np.array([[3, 1], [5, 7], [2, 8], [5, 9], [3, 2], [4, 5], [7, 2], [2, 1]])
     vec2 = np.array([3, 1, 5, 7, 2, 3, 3, 1])
 
+    np.testing.assert_array_equal(bm.recover(), mat)
+
     np.testing.assert_array_equal(bm.dot(mat2), mat @ mat2)
     np.testing.assert_array_equal(bm.dot(vec2), mat @ vec2)
-    np.testing.assert_array_equal(bm.recover(), mat)
+
+    np.testing.assert_array_equal(bm.transpose_dot(mat2), mat.T @ mat2)
+    np.testing.assert_array_equal(bm.transpose_dot(vec2), mat.T @ vec2)
 
     mat3 = np.array(
         [
@@ -193,22 +197,12 @@ def test_block_matrix():
         mat.T @ mat3 @ mat,
     )
     np.testing.assert_array_equal(
-        bm.compress_csr_matrix(csr_array(mat3)),
+        bm.compress_matrix(csr_array(mat3)),
         mat.T @ mat3 @ mat,
     )
 
-
-#    perm = np.array([2, 1, 0, 4, 3, 6, 5, 7])
-#    bm.rows = perm
-#    mat = mat[perm]
-#    np.testing.assert_array_equal(bm.dot(mat2), mat @ mat2)
-
-
-#     np.testing.assert_array_equal(bm.dot(vec2), mat @ vec2)
-#     np.testing.assert_array_equal(bm.transpose_dot(vec2), mat.T @ vec2)
-#     np.testing.assert_array_equal(bm.dot(vec2, left=True), vec2 @ mat)
-#     np.testing.assert_array_equal(bm.transpose_dot(vec2, left=True), vec2 @ mat.T)
-#
-#     np.testing.assert_array_equal(bm.dot(mat2), mat @ mat2)
-#     np.testing.assert_array_equal(bm.transpose_dot(mat2), mat.T @ mat2)
-#     np.testing.assert_array_equal(bm.dot(mat2.T, left=True), mat2.T @ mat)
+    perm = np.array([2, 1, 0, 4, 3, 6, 5, 7])
+    bm.rows = perm
+    bm.set_root_indices()
+    mat = mat[perm]
+    np.testing.assert_array_equal(bm.dot(mat2), mat @ mat2)

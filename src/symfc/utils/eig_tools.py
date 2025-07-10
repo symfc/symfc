@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Optional, Union
 
 import numpy as np
+import scipy
 from scipy.sparse import csr_array
 
 from symfc.utils.matrix import BlockMatrix, BlockMatrixNode, append_node
@@ -70,10 +71,9 @@ def _compr_projector(p: csr_array) -> tuple[csr_array, Optional[csr_array]]:
 
 def _find_projector_blocks(p: csr_array):
     """Find block structures in projection matrix."""
-    from symfc.utils.graph import connected_components
-
-    n_components, labels = connected_components(p, verbose=True)
-    # n_components, labels = scipy.sparse.csgraph.connected_components(p)
+    # from symfc.utils.graph import connected_components
+    # n_components, labels = connected_components(p, verbose=True)
+    n_components, labels = scipy.sparse.csgraph.connected_components(p)
     group = defaultdict(list)
     for i, ll in enumerate(labels):
         group[ll].append(i)
@@ -290,12 +290,6 @@ def eigh_projector_use_submatrix(
                 sibling = append_node(
                     eigvecs, sibling, rows=np.arange(begin, end), col_begin=col_id
                 )
-                # eigvecs_blocks = append_block(
-                #     eigvecs_blocks,
-                #     eigvecs,
-                #     rows=np.arange(begin, end),
-                #     col_begin=col_id,
-                # )
                 col_id += eigvecs.shape[1]
             if cmplt_small is not None:
                 sibling_c = append_node(
@@ -304,12 +298,6 @@ def eigh_projector_use_submatrix(
                     rows=np.arange(begin, end),
                     col_begin=col_id_cmplt,
                 )
-                # cmplt_blocks = append_block(
-                #     cmplt_blocks,
-                #     cmplt_small,
-                #     rows=np.arange(begin, end),
-                #     col_begin=col_id_cmplt,
-                # )
                 col_id_cmplt += cmplt_small.shape[1]
 
     if col_id_cmplt > 0:
@@ -323,7 +311,6 @@ def eigh_projector_use_submatrix(
             first_child=sibling_c,
             root=True,
         )
-        # cmplt = BlockMatrix(blocks=cmplt_blocks, shape=(p_size, col_id_cmplt))
         if not repeat or cmplt.shape[1] < 20000:
             result = eigh_projector(
                 cmplt.compress_matrix(p),
@@ -359,13 +346,6 @@ def eigh_projector_use_submatrix(
                 col_begin=col_id,
                 compress=cmplt,
             )
-            # eigvecs_blocks = append_block(
-            #     eigvecs_blocks,
-            #     eigvecs,
-            #     rows=np.arange(p_size),
-            #     col_begin=col_id,
-            #     compress=cmplt,
-            # )
             col_id += eigvecs.shape[1]
 
         if return_cmplt:
@@ -385,9 +365,6 @@ def eigh_projector_use_submatrix(
         root=True,
     )
     eigvecs = block.recover()
-
-    # blocks = BlockMatrix(blocks=eigvecs_blocks, shape=(p_size, col_id))
-    # eigvecs = blocks.recover_full_matrix()
 
     if return_cmplt:
         return eigvecs, (cmplt_eigvals, cmplt_eigvecs)
@@ -425,12 +402,6 @@ def _solve_use_submatrix(p_block: csr_array, verbose: bool = False):
                 sibling = append_node(
                     eigvecs, sibling, rows=np.arange(begin, end), col_begin=col_id
                 )
-                # eigvecs_blocks = append_block(
-                #     eigvecs_blocks,
-                #     eigvecs,
-                #     rows=np.arange(begin, end),
-                #     col_begin=col_id,
-                # )
                 col_id += eigvecs.shape[1]
             if cmplt_small is not None:
                 sibling_c = append_node(
@@ -439,12 +410,6 @@ def _solve_use_submatrix(p_block: csr_array, verbose: bool = False):
                     rows=np.arange(begin, end),
                     col_begin=col_id_cmplt,
                 )
-                # cmplt_blocks = append_block(
-                #     cmplt_blocks,
-                #     cmplt_small,
-                #     rows=np.arange(begin, end),
-                #     col_begin=col_id_cmplt,
-                # )
                 col_id_cmplt += cmplt_small.shape[1]
 
     cmplt = BlockMatrixNode(
@@ -454,7 +419,6 @@ def _solve_use_submatrix(p_block: csr_array, verbose: bool = False):
         first_child=sibling_c,
         root=True,
     )
-    # cmplt = BlockMatrix(blocks=cmplt_blocks, shape=(p_size, col_id_cmplt))
     return sibling, col_id, cmplt
 
 
@@ -493,7 +457,7 @@ def eigsh_projector_use_submatrix(
             print("Solve complementary projector.", flush=True)
             print("Complementary block size:", cmplt.shape[1], flush=True)
 
-        p_block_cmr = cmplt.compress_csr_matrix(p_block, use_mkl=use_mkl)
+        p_block_cmr = cmplt.compress_matrix(p_block, use_mkl=use_mkl)
         size_cmplt = min(max(p_block_cmr.shape[0] // 3, p_size // 15), 20000)
         if verbose:
             print("Submatrix size for complementary block:", size_cmplt, flush=True)
@@ -526,7 +490,6 @@ def eigsh_projector_use_submatrix(
         first_child=sibling,
         root=True,
     )
-    # return BlockMatrix(blocks=eigvecs_blocks, shape=(p_size, col_id))
 
 
 def eigsh_projector_sumrule(
@@ -572,12 +535,6 @@ def eigsh_projector_sumrule(
             eigvecs = eigh_projector(p_block, atol=atol, rtol=rtol, verbose=verbose)
             if eigvecs is not None:
                 sibling = append_node(eigvecs, sibling, rows=ids, col_begin=col_id)
-                # eigvecs_blocks = append_block(
-                #     eigvecs_blocks,
-                #     eigvecs,
-                #     rows=ids,
-                #     col_begin=col_id,
-                # )
                 col_id += eigvecs.shape[1]
 
         elif rank > 0 and p_block.shape[0] >= size_threshold:
@@ -596,14 +553,6 @@ def eigsh_projector_sumrule(
                 sibling = block
                 col_id += block.shape[1]
 
-            # eigvecs = eigsh_projector_use_submatrix(
-            #     p_block, atol=atol, rtol=rtol, use_mkl=use_mkl, verbose=verbose
-            # )
-            # if eigvecs is not None and eigvecs.shape[1] > 0:
-            #     for block in eigvecs.blocks:
-            #         block.change_indices(ids, col_id)
-            #         eigvecs_blocks.append(block)
-            #     col_id += eigvecs.shape[1]
         del p_block
 
     return BlockMatrixNode(
@@ -613,4 +562,3 @@ def eigsh_projector_sumrule(
         first_child=sibling,
         root=True,
     )
-    # return BlockMatrix(blocks=eigvecs_blocks, shape=(p.shape[0], col_id))
