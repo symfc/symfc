@@ -38,7 +38,7 @@ def test_eigsh_projector():
         assert np.all(np.isclose(eigvecs[:, i][nonzero], eigvecs[nonzero[0], i]))
 
     eigvecs = eigsh_projector_sumrule(proj, verbose=False)
-    eigvecs = eigvecs.recover_full_matrix()
+    eigvecs = eigvecs.recover()
 
     assert eigvecs.shape[1] == 3
     assert np.linalg.norm(eigvecs[:, 0]) == pytest.approx(1.0)
