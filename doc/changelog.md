@@ -2,6 +2,12 @@
 
 # Change Log
 
+## Jul-10-2025: Version 1.5.1
+
+- Improve memory efficiency and calculation performance for basis set
+  computations. The current implementation shows particular effectiveness with
+  `use_mkl=True` (requires sparse-dot-mkl) for large systems.
+
 ## Jul-3-2025: Version 1.5.0
 
 - Improve memory efficiency in computing basis sets
