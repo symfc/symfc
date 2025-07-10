@@ -8,16 +8,21 @@ import numpy as np
 import scipy
 from scipy.sparse import csr_array
 
-from symfc.utils.matrix import BlockMatrixNode, append_node
+from symfc.utils.matrix import (
+    BlockMatrixNode,
+    append_node,
+    get_single_block_matrix,
+)
 from symfc.utils.solver_funcs import get_batch_slice
 
 
 def eigh_projector(
     p: np.ndarray,
-    return_cmplt: bool = False,
     atol: float = 1e-8,
     rtol: float = 0.0,
     depth: int = 0,
+    return_cmplt: bool = False,
+    return_block: bool = False,
     verbose: bool = True,
 ) -> Union[
     np.ndarray,
@@ -32,10 +37,10 @@ def eigh_projector(
             return None, None
         return None
 
-    if rank < 32768:
-        eigvals, eigvecs = np.linalg.eigh(p)
-    else:
+    if rank > 32767:
         raise RuntimeError("Projector rank is too large in eigh.")
+
+    eigvals, eigvecs = np.linalg.eigh(p)
 
     tol = 1e-8
     if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
@@ -43,12 +48,19 @@ def eigh_projector(
 
     nonzero = np.isclose(eigvals, 1.0, atol=atol, rtol=rtol)
     if return_cmplt:
-        compr_bool = np.logical_and(np.logical_not(nonzero), eigvals > 1e-12)
-        return (
-            eigvecs[:, nonzero],
-            (eigvals[compr_bool], eigvecs[:, compr_bool]),
-        )
-    return eigvecs[:, nonzero]
+        cmplt_bool = np.logical_and(np.logical_not(nonzero), eigvals > 1e-12)
+        cmplt_eigvals, cmplt_eigvecs = eigvals[cmplt_bool], eigvecs[:, cmplt_bool]
+
+    eigvecs = eigvecs[:, nonzero]
+    if return_block:
+        block = get_single_block_matrix(eigvecs)
+        if return_cmplt:
+            return block, (cmplt_eigvals, cmplt_eigvecs)
+        return block
+
+    if return_cmplt:
+        return eigvecs, (cmplt_eigvals, cmplt_eigvecs)
+    return eigvecs
 
 
 def _compr_projector(p: csr_array) -> tuple[csr_array, Optional[csr_array]]:
@@ -274,21 +286,22 @@ def _find_submatrix_eigenvectors(
 
         rank = int(round(np.trace(p_small)))
         if rank > 0:
-            eigvecs, (cmplt_eigvals, cmplt_small) = solver(
+            block, (cmplt_eigvals, cmplt_small) = solver(
                 p_small,
-                return_cmplt=True,
                 atol=1e-12,
                 rtol=0.0,
                 depth=depth,
+                return_cmplt=True,
+                return_block=True,
                 verbose=verbose,
             )
             rows = np.arange(begin, end)
-            if eigvecs is not None:
+            if block is not None:
                 if verbose:
-                    print(header, " ", eigvecs.shape[1], "eigenvectors.", flush=True)
+                    print(header, " ", block.shape[1], "eigenvectors.", flush=True)
 
-                sibling = append_node(eigvecs, sibling, rows=rows, col_begin=col_id)
-                col_id += eigvecs.shape[1]
+                sibling = append_node(block, sibling, rows=rows, col_begin=col_id)
+                col_id += block.shape[1]
             if cmplt_small is not None:
                 sibling_c = append_node(
                     cmplt_small, sibling_c, rows=rows, col_begin=col_id_cmplt
@@ -316,6 +329,7 @@ def eigh_projector_use_submatrix(
     depth: int = 0,
     repeat: bool = True,
     return_cmplt: bool = False,
+    return_block: bool = False,
     verbose: bool = False,
 ):
     """Solve eigenvalue problem for numpy array."""
@@ -396,8 +410,12 @@ def eigh_projector_use_submatrix(
         first_child=sibling,
         root=True,
     )
-    eigvecs = block.recover()
+    if return_block:
+        if return_cmplt:
+            return block, (cmplt_eigvals, cmplt_eigvecs)
+        return block
 
+    eigvecs = block.recover()
     if return_cmplt:
         return eigvecs, (cmplt_eigvals, cmplt_eigvecs)
     return eigvecs
@@ -513,8 +531,8 @@ def eigsh_projector_sumrule(
     for i, key in enumerate(order):
         ids = np.array(group[key])
         if verbose and len(ids) > 0:
-            print("Eigsh_solver_block:", i + 1, "/", len(group), flush=True)
-            print("- Block_size:", len(ids), flush=True)
+            print("--- Eigsh_solver_block:", i + 1, "/", len(group), "---", flush=True)
+            print("Block_size:", len(ids), flush=True)
 
         p_block = p[np.ix_(ids, ids)]
         rank = int(round(p_block.trace()))
@@ -534,13 +552,13 @@ def eigsh_projector_sumrule(
                 p_block, atol=atol, rtol=rtol, use_mkl=use_mkl, verbose=verbose
             )
             if block.shape[1] > 0:
-                block.next_sibling = sibling
-                block.rows = ids
-                block.col_begin = col_id
-                block.col_end = col_id + block.shape[0]
-                block.root = False
-
-                sibling = block
+                sibling = append_node(block, sibling, rows=ids, col_begin=col_id)
+                # block.next_sibling = sibling
+                # block.rows = ids
+                # block.col_begin = col_id
+                # block.col_end = col_id + block.shape[0]
+                # block.root = False
+                # sibling = block
                 col_id += block.shape[1]
 
         del p_block

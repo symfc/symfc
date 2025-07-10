@@ -212,17 +212,28 @@ def append_node(
     compress: Optional[BlockMatrixNode] = None,
 ):
     """Add eigenvectors to block matrix node."""
-    if eigvecs is not None and eigvecs.shape[1] > 0:
-        col_end = col_begin + eigvecs.shape[1]  # type: ignore
-        block = BlockMatrixNode(
-            rows=rows,
-            col_begin=col_begin,
-            col_end=col_end,
-            data=eigvecs,
-            next_sibling=next_sibling,
-            compress=compress,
-        )
-        next_sibling = block
+    if isinstance(eigvecs, BlockMatrixNode):
+        block = eigvecs
+        if block.shape[1] > 0:
+            col_end = col_begin + block.shape[1]  # type: ignore
+            block.rows = rows
+            block.col_begin = col_begin
+            block.col_end = col_end
+            block.next_sibling = next_sibling
+            block.root = False
+            next_sibling = block
+    else:
+        if eigvecs is not None and eigvecs.shape[1] > 0:
+            col_end = col_begin + eigvecs.shape[1]  # type: ignore
+            block = BlockMatrixNode(
+                rows=rows,
+                col_begin=col_begin,
+                col_end=col_end,
+                data=eigvecs,
+                next_sibling=next_sibling,
+                compress=compress,
+            )
+            next_sibling = block
     return next_sibling
 
 
@@ -247,6 +258,17 @@ def block_matrix_sandwich(
             prod = data1.T @ mat[np.ix_(b1.rows_root, b2.rows_root)] @ data2
             res[col_begin1:col_end1, col_begin2:col_end2] += prod
     return res
+
+
+def get_single_block_matrix(mat: np.array):
+    """Return single block matrix."""
+    return BlockMatrixNode(
+        rows=np.arange(mat.shape[0]),
+        col_begin=0,
+        col_end=mat.shape[1],
+        data=mat,
+        # root=True,
+    )
 
 
 @dataclass
