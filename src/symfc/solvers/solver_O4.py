@@ -12,8 +12,13 @@ from symfc.solvers.solver_O2O3O4 import (
     reshape_nNNN3333_nx_to_N3N3N3_n3nx,
     set_disps_N3N3N3,
 )
-from symfc.utils.eig_tools import dot_product_sparse
+from symfc.utils.matrix import block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
+
+try:
+    from symfc.utils.matrix import dot_product_sparse
+except ImportError:
+    pass
 
 from .solver_base import FCSolverBase
 
@@ -212,10 +217,8 @@ def prepare_normal_equation_O4(
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
 
-    XTX = compress_eigvecs_fc4.dot(compress_eigvecs_fc4.transpose_dot(mat44), left=True)
+    XTX = block_matrix_sandwich(compress_eigvecs_fc4, compress_eigvecs_fc4, mat44)
     XTy = compress_eigvecs_fc4.transpose_dot(mat4y)
-    # XTX = compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
-    # XTy = compress_eigvecs_fc4.T @ mat4y
 
     compact_compress_mat_fc4 /= const_fc4
     t_all2 = time.time()
