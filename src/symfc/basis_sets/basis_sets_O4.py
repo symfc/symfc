@@ -10,11 +10,15 @@ from scipy.sparse import csr_array
 
 from symfc.spg_reps import SpgRepsO4
 from symfc.utils.eig_tools import (
-    BlockedMatrix,
-    dot_product_sparse,
     eigsh_projector,
     eigsh_projector_sumrule,
 )
+from symfc.utils.matrix import BlockMatrix
+
+try:
+    from symfc.utils.matrix import dot_product_sparse
+except ImportError:
+    pass
 from symfc.utils.permutation_tools_O4 import compr_permutation_lat_trans_O4
 from symfc.utils.translation_tools_O4 import compressed_projector_sum_rules_O4
 from symfc.utils.utils import SymfcAtoms
@@ -85,7 +89,7 @@ class FCBasisSetO4(FCBasisSetBase):
 
         self._n_a_compression_matrix: Optional[csr_array] = None
         self._basis_set: Optional[np.ndarray] = None
-        self._blocked_basis_set: Optional[BlockedMatrix] = None
+        self._blocked_basis_set: Optional[BlockMatrix] = None
 
     @property
     def compression_matrix(self) -> Optional[csr_array]:
@@ -163,7 +167,11 @@ class FCBasisSetO4(FCBasisSetBase):
             verbose=self._log_level > 0,
         )
         tt6 = time.time()
-        eigvecs = eigsh_projector_sumrule(proj, verbose=self._log_level > 0)
+        eigvecs = eigsh_projector_sumrule(
+            proj,
+            use_mkl=self._use_mkl,
+            verbose=self._log_level > 0,
+        )
 
         if self._log_level:
             print("Final size of basis set:", eigvecs.shape, flush=True)

@@ -138,20 +138,7 @@ def test_fc_basis_set_o3_wurtzite():
     compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
     assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(18.0)
 
-    sbs = FCBasisSetO3(supercell, log_level=1).run(use_submatrix=True)
-
-    assert sbs.basis_set.shape[0] == 40
-    assert sbs.basis_set.shape[1] == 18
-    compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
-    assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(18.0)
-
     sbs = FCBasisSetO3(supercell, cutoff=3.0, log_level=1).run()
-    assert sbs.basis_set.shape[0] == 22
-    assert sbs.basis_set.shape[1] == 6
-    compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
-    assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(6.0)
-
-    sbs = FCBasisSetO3(supercell, cutoff=3.0, log_level=1).run(use_submatrix=True)
     assert sbs.basis_set.shape[0] == 22
     assert sbs.basis_set.shape[1] == 6
     compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
@@ -177,13 +164,6 @@ def test_fc_basis_set_o3_diamond():
     numbers = [1, 1, 1, 1, 1, 1, 1, 1]
     supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
     sbs = FCBasisSetO3(supercell, log_level=1).run()
-
-    assert sbs.basis_set.shape[0] == 17
-    assert sbs.basis_set.shape[1] == 13
-    compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
-    assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(3.25)
-
-    sbs = FCBasisSetO3(supercell, log_level=1).run(use_submatrix=True)
 
     assert sbs.basis_set.shape[0] == 17
     assert sbs.basis_set.shape[1] == 13
