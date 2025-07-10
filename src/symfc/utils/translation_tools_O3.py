@@ -12,7 +12,7 @@ from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O3 import get_atomic_lat_trans_decompr_indices_O3
 
 try:
-    from symfc.utils.eig_tools import dot_product_sparse
+    from symfc.utils.matrix import dot_product_sparse
 except ImportError:
     pass
 

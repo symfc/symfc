@@ -9,8 +9,13 @@ import numpy as np
 from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2
-from symfc.utils.eig_tools import dot_product_sparse
+from symfc.utils.matrix import block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
+
+try:
+    from symfc.utils.matrix import dot_product_sparse
+except ImportError:
+    pass
 
 from .solver_base import FCSolverBase
 
@@ -227,8 +232,7 @@ def prepare_normal_equation_O2(
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
-    mat22 = compress_eigvecs_fc2.dot(mat22, left=True)
-    XTX = compress_eigvecs_fc2.transpose_dot(mat22)
+    XTX = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
     XTy = compress_eigvecs_fc2.transpose_dot(mat2y)
 
     compact_compress_mat_fc2 /= const_fc2

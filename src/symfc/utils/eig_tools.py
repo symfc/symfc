@@ -6,27 +6,48 @@ from typing import Optional, Union
 
 import numpy as np
 import scipy
-from scipy.linalg import get_lapack_funcs
 from scipy.sparse import csr_array
 
+from symfc.utils.matrix import BlockMatrix, append_block
 from symfc.utils.solver_funcs import get_batch_slice
 
-try:
-    from sparse_dot_mkl import dot_product_mkl  # type: ignore
-except ImportError:
-    pass
 
+def eigh_projector(
+    p: np.ndarray,
+    return_cmplt: bool = False,
+    atol: float = 1e-8,
+    rtol: float = 0.0,
+    verbose: bool = True,
+) -> Union[
+    np.ndarray,
+    tuple[np.ndarray, tuple[np.ndarray, np.ndarray]],
+    None,
+    tuple[None, None],
+]:
+    """Solve eigenvalue problem using numpy and eliminate eigenvectors with e < 1.0."""
+    rank = int(round(np.trace(p)))
+    if rank == 0:
+        if return_cmplt:
+            return None, None
+        return None
 
-def dot_product_sparse(
-    A: Union[np.ndarray, csr_array],
-    B: Union[np.ndarray, csr_array],
-    use_mkl: bool = False,
-    dense: bool = False,
-) -> csr_array:
-    """Compute dot-product of sparse matrices."""
-    if use_mkl:
-        return dot_product_mkl(A, B, dense=dense)
-    return A @ B
+    if rank < 32768:
+        eigvals, eigvecs = np.linalg.eigh(p)
+    else:
+        raise RuntimeError("Projector rank is too large in eigh.")
+
+    tol = 1e-8
+    if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
+        raise ValueError("Eigenvalue error: e > 1 or e < 0.")
+
+    nonzero = np.isclose(eigvals, 1.0, atol=atol, rtol=rtol)
+    if return_cmplt:
+        compr_bool = np.logical_and(np.logical_not(nonzero), eigvals > 1e-12)
+        return (
+            eigvecs[:, nonzero],
+            (eigvals[compr_bool], eigvecs[:, compr_bool]),
+        )
+    return eigvecs[:, nonzero]
 
 
 def _compr_projector(p: csr_array) -> tuple[csr_array, Optional[csr_array]]:
@@ -50,6 +71,8 @@ def _compr_projector(p: csr_array) -> tuple[csr_array, Optional[csr_array]]:
 
 def _find_projector_blocks(p: csr_array):
     """Find block structures in projection matrix."""
+    # from symfc.utils.graph import connected_components
+    # n_components, labels = connected_components(p, verbose=True)
     n_components, labels = scipy.sparse.csgraph.connected_components(p)
     group = defaultdict(list)
     for i, ll in enumerate(labels):
@@ -168,47 +191,6 @@ def _extract_sparse_projector_data(p: csr_array, group: dict) -> DataCSR:
     return p_data
 
 
-def eigh_projector(
-    p: np.ndarray,
-    return_complement: bool = False,
-    atol: float = 1e-8,
-    rtol: float = 0.0,
-    verbose: bool = True,
-) -> Union[
-    np.ndarray,
-    tuple[np.ndarray, tuple[np.ndarray, np.ndarray]],
-    None,
-    tuple[None, None],
-]:
-    """Solve eigenvalue problem using numpy and eliminate eigenvectors with e < 1.0."""
-    rank = int(round(np.trace(p)))
-    if rank == 0:
-        if return_complement:
-            return None, None
-        return None
-
-    if rank < 32768:
-        eigvals, eigvecs = np.linalg.eigh(p)
-    else:
-        if verbose:
-            print("Eigsh_solver: lapack dsyevr is used.", flush=True)
-        (syevr,) = get_lapack_funcs(("syevr",), ilp64=False)
-        eigvals, eigvecs, _, _, _ = syevr(p, compute_v=True)
-
-    tol = 1e-8
-    if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
-        raise ValueError("Eigenvalue error: e > 1 or e < 0.")
-
-    nonzero = np.isclose(eigvals, 1.0, atol=atol, rtol=rtol)
-    if return_complement:
-        compr_bool = np.logical_not(nonzero)
-        return (
-            eigvecs[:, nonzero],
-            (eigvals[compr_bool], eigvecs[:, compr_bool]),
-        )
-    return eigvecs[:, nonzero]
-
-
 def eigsh_projector(
     p: csr_array,
     atol: float = 1e-8,
@@ -262,120 +244,176 @@ def eigsh_projector(
     return c_p
 
 
-@dataclass
-class BlockedMatrixComponent:
-    """Dataclass for each component of blocked matrix."""
-
-    data: np.ndarray
-    rows: np.ndarray
-    col_begin: int
-    col_end: int
-
-    def change_indices(self, rows: np.ndarray, col_shift: int):
-        """Change indices."""
-        self.rows = rows[self.rows]
-        self.col_begin += col_shift
-        self.col_end += col_shift
-
-
-@dataclass
-class BlockedMatrix:
-    """Dataclass for blocked matrix."""
-
-    blocks: list[BlockedMatrixComponent]
-    shape: tuple[int, int]
-    data_full: Optional[np.ndarray] = None
-
-    def dot(self, mat: np.ndarray, left: bool = False):
-        """Dot product block_mat @ mat or mat @ block_mat."""
-        if left:
-            return self.dot_from_left(mat)
-        return self.dot_from_right(mat)
-
-    def transpose_dot(self, mat: np.ndarray, left: bool = False):
-        """Dot product block_mat.T @ mat or mat @ block_mat.T."""
-        if left:
-            return self.transpose_dot_from_left(mat)
-        return self.transpose_dot_from_right(mat)
-
-    def dot_from_right(self, mat: np.ndarray):
-        """Dot product block_mat @ mat."""
-        if len(mat.shape) == 1:
-            dot_matrix = np.zeros(self.shape[0])
-        elif len(mat.shape) == 2:
-            dot_matrix = np.zeros((self.shape[0], mat.shape[1]))
-        else:
-            raise RuntimeError("Dimension of input numpy array must be one or two.")
-
-        for b in self.blocks:
-            dot_matrix[b.rows] += b.data @ mat[b.col_begin : b.col_end]
-        return dot_matrix
-
-    def dot_from_left(self, mat: np.ndarray):
-        """Dot product mat @ block_mat."""
-        if len(mat.shape) == 1:
-            dot_matrix = np.zeros(self.shape[1])
-            for b in self.blocks:
-                dot_matrix[b.col_begin : b.col_end] += mat[b.rows] @ b.data
-        elif len(mat.shape) == 2:
-            dot_matrix = np.zeros((mat.shape[0], self.shape[1]))
-            for b in self.blocks:
-                dot_matrix[:, b.col_begin : b.col_end] += mat[:, b.rows] @ b.data
-        else:
-            raise RuntimeError("Dimension of input numpy array must be one or two.")
-
-        return dot_matrix
-
-    def transpose_dot_from_right(self, mat: np.ndarray):
-        """Dot product block_mat.T @ mat."""
-        if len(mat.shape) == 1:
-            dot_matrix = np.zeros(self.shape[1])
-        elif len(mat.shape) == 2:
-            dot_matrix = np.zeros((self.shape[1], mat.shape[1]))
-        else:
-            raise RuntimeError("Dimension of input numpy array must be one or two.")
-
-        for b in self.blocks:
-            dot_matrix[b.col_begin : b.col_end] += b.data.T @ mat[b.rows]
-        return dot_matrix
-
-    def transpose_dot_from_left(self, mat: np.ndarray):
-        """Dot product mat @ block_mat.T."""
-        if len(mat.shape) == 1:
-            dot_matrix = np.zeros(self.shape[0])
-            for b in self.blocks:
-                dot_matrix[b.rows] += mat[b.col_begin : b.col_end] @ b.data.T
-        elif len(mat.shape) == 2:
-            dot_matrix = np.zeros((mat.shape[0], self.shape[0]))
-            for b in self.blocks:
-                dot_matrix[:, b.rows] += mat[:, b.col_begin : b.col_end] @ b.data.T
-        else:
-            raise RuntimeError("Dimension of input numpy array must be one or two.")
-
-        return dot_matrix
-
-    def compress_matrix(self, mat: np.ndarray):
-        """Calculate block_mat.T @ mat @ block_mat."""
-        res = np.zeros((self.shape[1], self.shape[1]))
-        for b in self.blocks:
-            res[b.col_begin : b.col_end] += self.dot_from_left(b.data.T @ mat[b.rows])
-        return res
-
-    def recover_full_matrix(self):
-        """Recover full blocked matrix."""
-        if self.data_full is None:
-            self.data_full = np.zeros(self.shape, dtype="double")  # type: ignore
-            for b in self.blocks:
-                self.data_full[b.rows, b.col_begin : b.col_end] = b.data
-        return self.data_full
-
-
-def eigh_projector_submatrix_division(
-    p_block: np.ndarray,
+def eigh_projector_use_submatrix(
+    p: np.ndarray,
+    return_cmplt: bool = False,
     atol: float = 1e-8,
     rtol: float = 0.0,
+    target_size: Optional[int] = None,
+    repeat: bool = True,
     verbose: bool = False,
-) -> BlockedMatrix:
+):
+    """Solve eigenvalue problem for numpy array."""
+    p_size = p.shape[0]
+    if p_size < 2000:
+        return eigh_projector(
+            p,
+            return_cmplt=return_cmplt,
+            atol=atol,
+            rtol=rtol,
+            verbose=verbose,
+        )
+
+    eigvecs_blocks, cmplt_blocks = [], []
+    col_id, col_id_cmplt = 0, 0
+    if target_size is None:
+        target_size = min(p_size // 5, 10000)
+
+    for begin, end in zip(*get_batch_slice(p_size, target_size)):
+        if verbose:
+            print("- Block:", end, "/", p_size, flush=True)
+        p_small = p[begin:end, begin:end]
+        rank = int(round(np.trace(p_small)))
+        if rank > 0:
+            result = eigh_projector(
+                p_small,
+                return_cmplt=True,
+                atol=1e-12,
+                rtol=0.0,
+                verbose=verbose,
+            )
+            eigvecs, (cmplt_eigvals, cmplt_small) = result
+            if eigvecs is not None:
+                if verbose:
+                    print("  eigenvectors:", eigvecs.shape[1], flush=True)
+                eigvecs_blocks = append_block(
+                    eigvecs_blocks,
+                    eigvecs,
+                    rows=np.arange(begin, end),
+                    col_begin=col_id,
+                )
+                col_id += eigvecs.shape[1]
+            if cmplt_small is not None:
+                cmplt_blocks = append_block(
+                    cmplt_blocks,
+                    cmplt_small,
+                    rows=np.arange(begin, end),
+                    col_begin=col_id_cmplt,
+                )
+                col_id_cmplt += cmplt_small.shape[1]
+
+    if len(cmplt_blocks) > 0:
+        if verbose:
+            print("- Block_complement_size:", col_id_cmplt, flush=True)
+        cmplt = BlockMatrix(blocks=cmplt_blocks, shape=(p_size, col_id_cmplt))
+        if not repeat or cmplt.shape[1] < 20000:
+            result = eigh_projector(
+                cmplt.compress_matrix(p),
+                atol=atol,
+                rtol=rtol,
+                return_cmplt=True,
+                verbose=verbose,
+            )
+        else:
+            target_size = min(cmplt.shape[1] // 2, 20000)
+            result = eigh_projector_use_submatrix(
+                cmplt.compress_matrix(p),
+                atol=atol,
+                rtol=rtol,
+                target_size=target_size,
+                repeat=False,
+                return_cmplt=True,
+                verbose=verbose,
+            )
+
+        assert result is not None
+        assert result[0] is not None
+        eigvecs, (cmplt_eigvals, cmplt_small) = result
+
+        if eigvecs is not None:
+            if verbose:
+                print("  eigenvectors:", eigvecs.shape[1], flush=True)
+            eigvecs_blocks = append_block(
+                eigvecs_blocks,
+                cmplt.dot(eigvecs),
+                rows=np.arange(p_size),
+                col_begin=col_id,
+            )
+            col_id += eigvecs.shape[1]
+
+        if return_cmplt:
+            if cmplt_small is not None and cmplt_small.shape[1] > 0:
+                cmplt_eigvecs = cmplt.dot(cmplt_small)
+            else:
+                cmplt_eigvals, cmplt_eigvecs = None, None
+    else:
+        if return_cmplt:
+            cmplt_eigvals, cmplt_eigvecs = None, None
+
+    blocks = BlockMatrix(blocks=eigvecs_blocks, shape=(p_size, col_id))
+    eigvecs = blocks.recover_full_matrix()
+
+    if return_cmplt:
+        return eigvecs, (cmplt_eigvals, cmplt_eigvecs)
+    return eigvecs
+
+
+def _solve_use_submatrix(p_block: csr_array, verbose: bool = False):
+    """Solve eigenvalue problem for submatrix parts."""
+    eigvecs_blocks, cmplt_blocks = [], []
+    col_id, col_id_cmplt = 0, 0
+    p_size = p_block.shape[0]
+    target_size = max(p_size // 10, 500)
+
+    for begin, end in zip(*get_batch_slice(p_size, target_size)):
+        if verbose:
+            print("Block:", end, "/", p_size, flush=True)
+
+        p_small = p_block[begin:end, begin:end].toarray()
+        rank = int(round(np.trace(p_small)))
+        if rank > 0:
+            # Numerical noise may increase in eigh_projector_use_submatrix.
+            result = eigh_projector_use_submatrix(
+                p_small,
+                return_cmplt=True,
+                atol=1e-12,
+                rtol=0.0,
+                verbose=verbose,
+            )
+            assert result is not None
+            assert result[0] is not None
+            eigvecs, (cmplt_eigvals, cmplt_small) = result
+            if eigvecs is not None:
+                if verbose:
+                    print(eigvecs.shape[1], "eigenvectors are found.", flush=True)
+                eigvecs_blocks = append_block(
+                    eigvecs_blocks,
+                    eigvecs,
+                    rows=np.arange(begin, end),
+                    col_begin=col_id,
+                )
+                col_id += eigvecs.shape[1]
+            if cmplt_small is not None:
+                cmplt_blocks = append_block(
+                    cmplt_blocks,
+                    cmplt_small,
+                    rows=np.arange(begin, end),
+                    col_begin=col_id_cmplt,
+                )
+                col_id_cmplt += cmplt_small.shape[1]
+
+    cmplt = BlockMatrix(blocks=cmplt_blocks, shape=(p_size, col_id_cmplt))
+    return eigvecs_blocks, col_id, cmplt
+
+
+def eigsh_projector_use_submatrix(
+    p_block: csr_array,
+    atol: float = 1e-8,
+    rtol: float = 0.0,
+    size: Optional[int] = None,
+    use_mkl: bool = False,
+    verbose: bool = False,
+) -> BlockMatrix:
     r"""Solve eigenvalue problem using submatrix division algorithm.
 
     This algorithm is optimized to solve an eigenvalue problem for
@@ -397,89 +435,48 @@ def eigh_projector_submatrix_division(
     5. Collect all eigenvectors with e = 1.
     """
     p_size = p_block.shape[0]
-    target_size = min(max(p_size // 10, 1000), 20000)
-
-    eigvecs_blocks, cmplt_blocks = [], []
-    col_id, col_id_cmplt = 0, 0
-    for begin, end in zip(*get_batch_slice(p_size, target_size)):
+    eigvecs_blocks, col_id, cmplt = _solve_use_submatrix(p_block, verbose=verbose)
+    if len(cmplt.blocks) > 0:
         if verbose:
-            print("Block:", end, "/", p_size, flush=True)
-        p_small = p_block[begin:end, begin:end]
-        rank = int(round(np.trace(p_small)))
-        if rank > 0:
-            result = eigh_projector(
-                p_small,
-                return_complement=True,
-                atol=1e-12,
-                rtol=0.0,
-                verbose=verbose,
-            )
-            assert result is not None
-            assert result[0] is not None
-            eigvecs, (cmplt_eigvals, cmplt_small) = result
-            col_end = col_id + eigvecs.shape[1]
-            block = BlockedMatrixComponent(
-                data=eigvecs,
-                rows=np.arange(begin, end),
-                col_begin=col_id,
-                col_end=col_end,
-            )
-            eigvecs_blocks.append(block)
-            col_id = col_end
+            print("Solve complementary projector.", flush=True)
+            print("Complementary block size:", cmplt.shape[1], flush=True)
 
-            col_end_cmplt = col_id_cmplt + cmplt_small.shape[1]
-            block = BlockedMatrixComponent(
-                data=cmplt_small,
-                rows=np.arange(begin, end),
-                col_begin=col_id_cmplt,
-                col_end=col_end_cmplt,
-            )
-            cmplt_blocks.append(block)
-            col_id_cmplt = col_end_cmplt
-
-            p_block[begin:end, begin:end] -= eigvecs @ eigvecs.T
-            if verbose:
-                print(eigvecs.shape[1], "eigenvectors are found.", flush=True)
-
-    cmplt = BlockedMatrix(blocks=cmplt_blocks, shape=(p_size, col_end_cmplt))
-
-    rank = int(round(np.trace(p_block)))
-    if rank > 0:
+        p_block_cmr = cmplt.compress_csr_matrix(p_block, use_mkl=use_mkl)
+        size_cmplt = min(max(p_block_cmr.shape[0] // 3, p_size // 15), 20000)
         if verbose:
-            print("Solving complementary projector.", flush=True)
-        # p_block_rem = cmplt.dot(cmplt.transpose_dot(p_block), left=True)
-        p_block_rem = cmplt.compress_matrix(p_block)
-        eigvecs = eigh_projector(p_block_rem, atol=atol, rtol=rtol, verbose=verbose)
+            print("Submatrix size for complementary block:", size_cmplt, flush=True)
+        eigvecs = eigh_projector_use_submatrix(
+            p_block_cmr,
+            atol=atol,
+            rtol=rtol,
+            target_size=size_cmplt,
+            verbose=verbose,
+        )
         if eigvecs is not None:
             if verbose:
                 print(eigvecs.shape[1], "eigenvectors are found.", flush=True)
-            if eigvecs.shape[1] > 0:
-                col_end = col_id + eigvecs.shape[1]
-                block = BlockedMatrixComponent(
-                    data=cmplt.dot(eigvecs),
-                    rows=np.arange(p_size),
-                    col_begin=col_id,
-                    col_end=col_end,
-                )
-                del cmplt
-                eigvecs_blocks.append(block)
-                col_id = col_end
+            eigvecs_blocks = append_block(
+                eigvecs_blocks,
+                eigvecs,
+                rows=np.arange(p_size),
+                col_begin=col_id,
+                compress=cmplt,
+            )
+            col_id += eigvecs.shape[1]
 
     if col_id == 0:
         return None
-
-    blocks = BlockedMatrix(blocks=eigvecs_blocks, shape=(p_size, col_id))
-    return blocks
+    return BlockMatrix(blocks=eigvecs_blocks, shape=(p_size, col_id))
 
 
 def eigsh_projector_sumrule(
     p: csr_array,
     atol: float = 1e-8,
     rtol: float = 0.0,
-    size_threshold: int = 1000,
-    use_submatrix: bool = False,
+    size_threshold: int = 500,
+    use_mkl: bool = False,
     verbose: bool = True,
-) -> BlockedMatrix:
+) -> BlockMatrix:
     """Solve eigenvalue problem for matrix p.
 
     Return dense matrix for eigenvectors of matrix p.
@@ -493,50 +490,46 @@ def eigsh_projector_sumrule(
     matrices. Otherwise, this function use a submatrix division algorithm
     to solve the eigenvalue problem of each block matrix.
     """
-    if p.shape[0] > size_threshold:  # type: ignore
-        use_submatrix = True
-
-    if use_submatrix:
-        eigh = eigh_projector_submatrix_division
-        if verbose:
-            print("Use eigsh solver for large matrices.", flush=True)
-    else:
-        eigh = eigh_projector
-        if verbose:
-            print("Use standard normal eigsh solver.", flush=True)
-
     group = _find_projector_blocks(p)
     lengths = [-len(ids) for ids in group.values()]
     order = np.array(list(group.keys()))[np.argsort(lengths)]
     if verbose:
         print("Number of blocks in projector (Sum rule):", len(group), flush=True)
 
-    col_id = 0
-    eigvecs_blocks = []
+    eigvecs_blocks, col_id = [], 0
     for i, key in enumerate(order):
         ids = np.array(group[key])
-        if verbose and len(ids) > 2:
+        if verbose and len(ids) > 0:
             print("Eigsh_solver_block:", i + 1, "/", len(group), flush=True)
-            print(" - Block_size:", len(ids), flush=True)
-        p_block = p[np.ix_(ids, ids)].toarray()
-        rank = int(round(np.trace(p_block)))
-        if rank > 0:
-            eigvecs = eigh(p_block, atol=atol, rtol=rtol, verbose=verbose)
-            if eigvecs is not None:
-                col_end = col_id + eigvecs.shape[1]  # type: ignore
-                if use_submatrix:
-                    for block in eigvecs.blocks:
-                        block.change_indices(ids, col_id)
-                        eigvecs_blocks.append(block)
-                else:
-                    block = BlockedMatrixComponent(
-                        data=eigvecs,
-                        rows=ids,
-                        col_begin=col_id,
-                        col_end=col_end,
-                    )
-                    eigvecs_blocks.append(block)
-                col_id = col_end
+            print("- Block_size:", len(ids), flush=True)
 
-    blocks = BlockedMatrix(blocks=eigvecs_blocks, shape=(p.shape[0], col_id))
-    return blocks
+        p_block = p[np.ix_(ids, ids)]
+        rank = int(round(p_block.trace()))
+        if rank > 0 and p_block.shape[0] < size_threshold:
+            if verbose:
+                print("Use standard eigh solver.", flush=True)
+            p_block = p_block.toarray()
+            eigvecs = eigh_projector(p_block, atol=atol, rtol=rtol, verbose=verbose)
+            if eigvecs is not None:
+                eigvecs_blocks = append_block(
+                    eigvecs_blocks,
+                    eigvecs,
+                    rows=ids,
+                    col_begin=col_id,
+                )
+                col_id += eigvecs.shape[1]
+
+        elif rank > 0 and p_block.shape[0] >= size_threshold:
+            if verbose:
+                print("Use submatrix version of eigsh solver.", flush=True)
+            eigvecs = eigsh_projector_use_submatrix(
+                p_block, atol=atol, rtol=rtol, use_mkl=use_mkl, verbose=verbose
+            )
+            if eigvecs is not None and eigvecs.shape[1] > 0:
+                for block in eigvecs.blocks:
+                    block.change_indices(ids, col_id)
+                    eigvecs_blocks.append(block)
+                col_id += eigvecs.shape[1]
+        del p_block, eigvecs
+
+    return BlockMatrix(blocks=eigvecs_blocks, shape=(p.shape[0], col_id))

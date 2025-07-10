@@ -10,7 +10,7 @@ from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.utils import get_indep_atoms_by_lat_trans
 
 try:
-    from symfc.utils.eig_tools import dot_product_sparse
+    from symfc.utils.matrix import dot_product_sparse
 except ImportError:
     pass
 

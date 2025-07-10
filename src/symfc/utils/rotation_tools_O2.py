@@ -14,7 +14,7 @@ from symfc.utils.utils_O2 import (
 )
 
 # try:
-#     from symfc.utils.eig_tools import dot_product_sparse
+#     from symfc.utils.matrix import dot_product_sparse
 # except ImportError:
 #     pass
 

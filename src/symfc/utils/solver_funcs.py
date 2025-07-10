@@ -34,6 +34,10 @@ def get_batch_slice(n_data: int, batch_size: int):
     begin_batch = list(range(0, n_data, batch_size))
     if len(begin_batch) > 1:
         end_batch = list(begin_batch[1:]) + [n_data]
+        if (end_batch[-1] - end_batch[-2]) < batch_size // 5:
+            end_batch[-2] = end_batch[-1]
+            begin_batch = begin_batch[:-1]
+            end_batch = end_batch[:-1]
     else:
         end_batch = [n_data]
     return begin_batch, end_batch

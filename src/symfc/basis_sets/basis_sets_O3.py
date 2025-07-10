@@ -10,11 +10,16 @@ from scipy.sparse import coo_array, csr_array
 
 from symfc.spg_reps import SpgRepsO3
 from symfc.utils.eig_tools import (
-    BlockedMatrix,
-    dot_product_sparse,
     eigsh_projector,
     eigsh_projector_sumrule,
 )
+from symfc.utils.matrix import BlockMatrix
+
+try:
+    from symfc.utils.matrix import dot_product_sparse
+except ImportError:
+    pass
+
 from symfc.utils.permutation_tools_O3 import compr_permutation_lat_trans_O3
 from symfc.utils.translation_tools_O3 import compressed_projector_sum_rules_O3
 from symfc.utils.utils import SymfcAtoms
@@ -90,7 +95,7 @@ class FCBasisSetO3(FCBasisSetBase):
 
         self._n_a_compression_matrix: Optional[csr_array] = None
         self._basis_set: Optional[np.ndarray] = None
-        self._blocked_basis_set: Optional[BlockedMatrix] = None
+        self._blocked_basis_set: Optional[BlockMatrix] = None
 
     @property
     def compression_matrix(self) -> Optional[csr_array]:
@@ -125,7 +130,7 @@ class FCBasisSetO3(FCBasisSetBase):
         n_lp = self.translation_permutations.shape[0]
         return self._n_a_compression_matrix / np.sqrt(n_lp)
 
-    def run(self, use_submatrix: bool = False) -> FCBasisSetO3:
+    def run(self) -> FCBasisSetO3:
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
 
@@ -171,7 +176,7 @@ class FCBasisSetO3(FCBasisSetBase):
         eigvecs = eigsh_projector_sumrule(
             proj,
             verbose=self._log_level > 0,
-            use_submatrix=use_submatrix,
+            use_mkl=self._use_mkl,
         )
 
         if self._log_level:
