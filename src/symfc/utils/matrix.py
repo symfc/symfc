@@ -24,6 +24,30 @@ def dot_product_sparse(
     return A @ B
 
 
+def is_sparse(p: Union[np.ndarray, csr_array]):
+    """Check whether matrix is sparse matrix or not."""
+    if isinstance(p, np.ndarray):
+        return False
+    elif isinstance(p, list):
+        return False
+    return True
+
+
+def return_numpy_array(p: Union[np.ndarray, csr_array]):
+    """Return numpy array."""
+    if isinstance(p, np.ndarray):
+        return p
+    return p.toarray()
+
+
+def matrix_rank(p: Union[np.ndarray, csr_array]):
+    """Calculate projector rank."""
+    sparse = is_sparse(p)
+    if sparse:
+        return int(round(p.trace()))
+    return int(round(np.trace(p)))
+
+
 @dataclass
 class BlockMatrixNode:
     """Dataclass for node in block matrix tree."""
@@ -73,13 +97,34 @@ class BlockMatrixNode:
                     raise RuntimeError("Data shape is inconsistent with columns.")
 
     def traverse_data_nodes(self):
-        """Traverse all nodes."""
+        """Traverse all nodes with data."""
         if self.first_child is not None:
             yield from self.first_child.traverse_data_nodes()
         if self.next_sibling is not None:
             yield from self.next_sibling.traverse_data_nodes()
         if self.data is not None:
             yield self
+
+    def print_nodes(self, depth: int = 0):
+        """Print all nodes."""
+        if depth == 0:
+            header = "-"
+        else:
+            header = "  " * (depth - 1) + "|--"
+        print(header, self.shape, end=", ", flush=True)
+        if self.data is not None:
+            if self.compress is not None:
+                print("data:", self.compress.shape, "@", self.data.shape, flush=True)
+            else:
+                print("data: True", flush=True)
+        else:
+            print("data: False", flush=True)
+
+        if self.first_child is not None:
+            self.first_child.print_nodes(depth=depth + 1)
+        if self.next_sibling is not None:
+            self.next_sibling.print_nodes(depth=depth)
+        return self
 
     def set_root_indices(
         self,
@@ -170,17 +215,20 @@ class BlockMatrixNode:
     def compress_matrix(
         self,
         mat: Union[csr_array, np.ndarray],
-        sparse: bool = False,
+        sparse: bool = True,
         use_mkl: bool = False,
     ):
         """Calculate block_mat.T @ mat(csr) @ block_mat for csr_array."""
         if not self.root:
             raise RuntimeError("Node must be root of tree.")
 
-        if isinstance(mat, csr_array):
-            sparse = True
-        if sparse and mat.shape[0] < 10000:
+        print("use_mkl1:", use_mkl)
+        if isinstance(mat, np.ndarray):
+            sparse = False
+
+        if mat.shape[0] < 10000:
             use_mkl = False
+        print("use_mkl2:", use_mkl)
 
         res = np.zeros((self.shape[1], self.shape[1]))
         for b1 in self.traverse_data_nodes():
@@ -191,6 +239,7 @@ class BlockMatrixNode:
                 col_begin2 = b2.col_begin_root
                 col_end2 = b2.col_end_root
                 data2 = b2.decompress()
+                print(data1.T.shape, mat.shape, data2.shape, use_mkl)
                 if sparse:
                     prod = data1.T @ dot_product_sparse(
                         mat[np.ix_(b1.rows_root, b2.rows_root)],
@@ -207,18 +256,17 @@ class BlockMatrixNode:
 def append_node(
     eigvecs: np.ndarray,
     next_sibling: BlockMatrixNode,
-    rows: Optional[np.ndarray] = None,
-    col_begin: Optional[int] = None,
+    rows: np.ndarray,
+    col_begin,
     compress: Optional[BlockMatrixNode] = None,
 ):
     """Add eigenvectors to block matrix node."""
     if isinstance(eigvecs, BlockMatrixNode):
         block = eigvecs
         if block.shape[1] > 0:
-            col_end = col_begin + block.shape[1]  # type: ignore
             block.rows = rows
             block.col_begin = col_begin
-            block.col_end = col_end
+            block.col_end = col_begin + block.shape[1]  # type: ignore
             block.next_sibling = next_sibling
             block.root = False
             next_sibling = block
@@ -267,7 +315,17 @@ def get_single_block_matrix(mat: np.array):
         col_begin=0,
         col_end=mat.shape[1],
         data=mat,
-        # root=True,
+    )
+
+
+def root_block_matrix(shape: tuple, first_child: Optional[BlockMatrixNode] = None):
+    """Return root block matrix."""
+    return BlockMatrixNode(
+        rows=np.arange(shape[0]),
+        col_begin=0,
+        col_end=shape[1],
+        first_child=first_child,
+        root=True,
     )
 
 
