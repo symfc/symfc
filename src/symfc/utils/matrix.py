@@ -166,12 +166,7 @@ class BlockMatrixNode:
 
         full = np.zeros(self.shape, dtype="double")  # type: ignore
         for b in self.traverse_data_nodes():
-            if b.compress is None:
-                full[b.rows_root, b.col_begin_root : b.col_end_root] = b.data
-            else:
-                data = b.compress.dot(b.data)
-                full[b.rows_root, b.col_begin_root : b.col_end_root] = data
-
+            full[b.rows_root, b.col_begin_root : b.col_end_root] = b.decompress()
         return full
 
     def dot(self, mat: np.ndarray):
@@ -253,6 +248,8 @@ class BlockMatrixNode:
         if mat.shape[0] < 30000:
             use_mkl = False
 
+        # import time
+        # t2 = time.time()
         res = np.zeros((self.shape[1], self.shape[1]))
         for b1 in self.traverse_data_nodes():
             col_begin1 = b1.col_begin_root
@@ -263,13 +260,11 @@ class BlockMatrixNode:
                 col_begin2 = b2.col_begin_root
                 col_end2 = b2.col_end_root
                 data2 = b2.decompress()
-                prod = data1.T @ dot_product_sparse(
-                    mat1[:, b2.rows_root],
-                    data2,
-                    use_mkl=use_mkl,
-                    dense=True,
-                )
+                prod = dot_product_sparse(mat1[:, b2.rows_root], data2, use_mkl=use_mkl)
+                prod = dot_product_sparse(data1.T, prod, use_mkl=use_mkl, dense=True)
                 res[col_begin1:col_end1, col_begin2:col_end2] += prod
+        # t3 = time.time()
+        # print(t3-t2)
         return res
 
 
