@@ -7,7 +7,7 @@ from scipy.sparse import csr_array
 from symfc.utils.eig_tools import (
     _compr_projector,
     eigh_projector,
-    eigh_projector_use_submatrix,
+    eigh_projector_division,
     eigsh_projector,
     eigsh_projector_sumrule,
 )
@@ -38,7 +38,7 @@ def test_eigsh_projector():
         assert np.all(np.isclose(eigvecs[:, i][nonzero], eigvecs[nonzero[0], i]))
 
     eigvecs = eigsh_projector_sumrule(proj, verbose=False)
-    eigvecs = eigvecs.recover_full_matrix()
+    eigvecs = eigvecs.recover()
 
     assert eigvecs.shape[1] == 3
     assert np.linalg.norm(eigvecs[:, 0]) == pytest.approx(1.0)
@@ -76,7 +76,7 @@ def test_eigh_projector():
         nonzero = np.where(np.abs(eigvecs[:, i]) > 1e-12)[0]
         assert np.all(np.isclose(eigvecs[:, i][nonzero], eigvecs[nonzero[0], i]))
 
-    eigvecs = eigh_projector_use_submatrix(proj, verbose=False)
+    eigvecs = eigh_projector_division(proj, verbose=False)
 
     assert eigvecs.shape[1] == 3
     assert np.linalg.norm(eigvecs[:, 0]) == pytest.approx(1.0)
