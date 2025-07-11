@@ -274,13 +274,13 @@ def _find_submatrix_eigenvectors(
     if p_size < 500:
         repeat = False
     else:
-        repeat = False if depth == 3 else True
+        repeat = False if depth >= 3 else True
 
     if target_size is None:
         if depth == 1:
             target_size = max(p_size // 10, 500)
         elif depth == 2:
-            target_size = min(p_size // 5, 30000)
+            target_size = min(p_size // 5, 10000)
         elif depth > 2:
             target_size = min(p_size // 2, 20000)
 
@@ -352,12 +352,15 @@ def _find_complement_eigenvectors(
     if p_size < 5000:
         repeat = False
     else:
-        repeat = False if depth == 3 else True
+        repeat = False if depth >= 3 else True
 
     if depth == 1:
         size_cmplt = min(max(cmplt.shape[1] // 3, p_size // 15), 20000)
         size_threshold = 5000
-    elif depth > 1:
+    elif depth == 2:
+        size_cmplt = min(cmplt.shape[1] // 2, 10000)
+        size_threshold = 10000
+    elif depth == 3:
         size_cmplt = min(cmplt.shape[1] // 2, 20000)
         size_threshold = 20000
 
