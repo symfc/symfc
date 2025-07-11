@@ -11,7 +11,6 @@ from scipy.sparse import csr_array
 from symfc.utils.matrix import (
     BlockMatrixNode,
     append_node,
-    get_single_block_matrix,
     matrix_rank,
     return_numpy_array,
     root_block_matrix,
@@ -35,7 +34,7 @@ def eigh_projector(
 ]:
     """Solve eigenvalue problem using numpy and eliminate eigenvectors with e < 1.0."""
     p = return_numpy_array(p)
-    rank = int(round(np.trace(p)))
+    rank = matrix_rank(p)
     if rank == 0:
         if return_cmplt:
             return None, None
@@ -57,7 +56,8 @@ def eigh_projector(
 
     eigvecs = eigvecs[:, nonzero]
     if return_block:
-        block = get_single_block_matrix(eigvecs)
+        block = root_block_matrix(data=eigvecs)
+
         if return_cmplt:
             return block, (cmplt_eigvals, cmplt_eigvecs)
         return block
@@ -231,7 +231,7 @@ def eigsh_projector(
     p, compr_p = _compr_projector(p)
     group = _find_projector_blocks(p)
     if verbose:
-        rank = int(round(sum(p.diagonal())))
+        rank = matrix_rank(p)
         print("Rank of projector:", rank, flush=True)
         print("Number of blocks in projector:", len(group), flush=True)
 
@@ -271,7 +271,7 @@ def _find_submatrix_eigenvectors(
 ):
     """Find eigenvectors in division part of submatrix division algorithm."""
     p_size = p.shape[0]
-    if p_size < 200:
+    if p_size < 500:
         repeat = False
     else:
         repeat = False if depth == 3 else True
@@ -280,9 +280,9 @@ def _find_submatrix_eigenvectors(
         if depth == 1:
             target_size = max(p_size // 10, 500)
         elif depth == 2:
-            target_size = min(p_size // 5, 10000)
-        elif depth == 3:
-            target_size = min(p_size // 3, 20000)
+            target_size = min(p_size // 5, 30000)
+        elif depth > 2:
+            target_size = min(p_size // 2, 20000)
 
     sibling, sibling_c = None, None
     col_id, col_id_c = 0, 0
@@ -357,12 +357,9 @@ def _find_complement_eigenvectors(
     if depth == 1:
         size_cmplt = min(max(cmplt.shape[1] // 3, p_size // 15), 20000)
         size_threshold = 5000
-    elif depth == 2:
+    elif depth > 1:
         size_cmplt = min(cmplt.shape[1] // 2, 20000)
         size_threshold = 20000
-    elif depth == 3:
-        size_cmplt = min(cmplt.shape[1] // 2, 25000)
-        size_threshold = 25000
 
     header = "  " * (depth - 1) + "(Depth " + str(depth) + ")"
     if verbose:
@@ -430,7 +427,7 @@ def eigh_projector_division(
 ):
     """Solve eigenvalue problem for numpy array."""
     p_size = p.shape[0]
-    if p_size < 200:
+    if p_size < 500:
         return eigh_projector(
             p,
             atol=atol,
@@ -564,7 +561,7 @@ def eigsh_projector_sumrule(
             print("Block_size:", len(ids), flush=True)
 
         p_block = p[np.ix_(ids, ids)]
-        rank = int(round(p_block.trace()))
+        rank = matrix_rank(p_block)
         if rank > 0 and p_block.shape[0] < size_threshold:
             if verbose:
                 print("Use standard eigh solver.", flush=True)
