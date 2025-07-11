@@ -368,10 +368,15 @@ def _find_complement_eigenvectors(
     if verbose:
         print(header, "Complementary block size:", cmplt.shape[1], flush=True)
         print(header, "Submatrix size for complement:", size_cmplt, flush=True)
+        print(header, "Compute compressed projector.", flush=True)
 
+    p_cmr = cmplt.compress_matrix(p, use_mkl=use_mkl)
+
+    if verbose:
+        print(header, "Find eigenvectors.", flush=True)
     if not repeat or cmplt.shape[1] < size_threshold:
         result = eigh_projector(
-            cmplt.compress_matrix(p, use_mkl=use_mkl),
+            p_cmr,
             atol=atol,
             rtol=rtol,
             return_cmplt=return_cmplt,
@@ -379,7 +384,7 @@ def _find_complement_eigenvectors(
         )
     else:
         result = eigh_projector_division(
-            cmplt.compress_matrix(p, use_mkl=use_mkl),
+            p_cmr,
             atol=atol,
             rtol=rtol,
             depth=depth,

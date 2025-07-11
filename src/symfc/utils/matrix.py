@@ -212,23 +212,19 @@ class BlockMatrixNode:
 
         return prod
 
-    def compress_matrix(
-        self,
-        mat: Union[csr_array, np.ndarray],
-        sparse: bool = True,
-        use_mkl: bool = False,
-    ):
-        """Calculate block_mat.T @ mat(csr) @ block_mat for csr_array."""
+    def compress_matrix(self, mat: Union[csr_array, np.ndarray], use_mkl: bool = False):
+        """Calculate block_mat.T @ mat @ block_mat."""
         if not self.root:
             raise RuntimeError("Node must be root of tree.")
 
-        print("use_mkl1:", use_mkl)
-        if isinstance(mat, np.ndarray):
-            sparse = False
+        if is_sparse(mat):
+            return self.compress_sparse_matrix(mat, use_mkl=use_mkl)
+        return self.compress_dense_matrix(mat)
 
-        if mat.shape[0] < 10000:
-            use_mkl = False
-        print("use_mkl2:", use_mkl)
+    def compress_dense_matrix(self, mat: np.ndarray):
+        """Calculate block_mat.T @ mat @ block_mat for numpy array."""
+        if not self.root:
+            raise RuntimeError("Node must be root of tree.")
 
         res = np.zeros((self.shape[1], self.shape[1]))
         for b1 in self.traverse_data_nodes():
@@ -239,16 +235,35 @@ class BlockMatrixNode:
                 col_begin2 = b2.col_begin_root
                 col_end2 = b2.col_end_root
                 data2 = b2.decompress()
-                print(data1.T.shape, mat.shape, data2.shape, use_mkl)
-                if sparse:
-                    prod = data1.T @ dot_product_sparse(
-                        mat[np.ix_(b1.rows_root, b2.rows_root)],
-                        data2,
-                        use_mkl=use_mkl,
-                        dense=True,
-                    )
-                else:
-                    prod = data1.T @ mat[np.ix_(b1.rows_root, b2.rows_root)] @ data2
+                prod = data1.T @ mat[np.ix_(b1.rows_root, b2.rows_root)] @ data2
+                res[col_begin1:col_end1, col_begin2:col_end2] += prod
+        return res
+
+    def compress_sparse_matrix(self, mat: csr_array, use_mkl: bool = False):
+        """Calculate block_mat.T @ mat(csr) @ block_mat for csr_array."""
+        if not self.root:
+            raise RuntimeError("Node must be root of tree.")
+
+        if mat.shape[0] < 10000:
+            use_mkl = False
+
+        res = np.zeros((self.shape[1], self.shape[1]))
+        for b1 in self.traverse_data_nodes():
+            col_begin1 = b1.col_begin_root
+            col_end1 = b1.col_end_root
+            data1 = b1.decompress()
+            mat1 = mat[b1.rows_root]
+            for b2 in self.traverse_data_nodes():
+                col_begin2 = b2.col_begin_root
+                col_end2 = b2.col_end_root
+                data2 = b2.decompress()
+                prod = data1.T @ dot_product_sparse(
+                    # mat[np.ix_(b1.rows_root, b2.rows_root)],
+                    mat1[:, b2.rows_root],
+                    data2,
+                    use_mkl=use_mkl,
+                    dense=True,
+                )
                 res[col_begin1:col_end1, col_begin2:col_end2] += prod
         return res
 
