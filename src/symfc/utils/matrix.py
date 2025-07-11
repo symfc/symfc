@@ -1,7 +1,7 @@
 """Utility functions for matrices."""
 
 from dataclasses import dataclass
-from typing import Any, Optional, Self, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 from scipy.sparse import csr_array
@@ -59,9 +59,9 @@ class BlockMatrixNode:
     shape: Optional[tuple] = None
 
     data: Optional[np.ndarray] = None
-    first_child: Optional[Self] = None
-    next_sibling: Optional[Self] = None
-    compress: Optional[Self] = None
+    first_child: Optional[Any] = None
+    next_sibling: Optional[Any] = None
+    compress: Optional[Any] = None
 
     rows_root: Optional[np.ndarray] = None
     col_begin_root: Optional[int] = None
