@@ -286,7 +286,7 @@ def _find_submatrix_eigenvectors(
 
     sibling, sibling_c = None, None
     col_id, col_id_c = 0, 0
-    header = "  " * (depth - 1) + "(Depth " + str(depth) + ")"
+    header = "  " * (depth - 1) + "(" + str(depth) + ")"
     for begin, end in zip(*get_batch_slice(p_size, target_size)):
         if verbose:
             print(header, "Block:", end, "/", p_size, flush=True)
@@ -355,16 +355,16 @@ def _find_complement_eigenvectors(
         repeat = False if depth >= 3 else True
 
     if depth == 1:
-        size_cmplt = min(max(cmplt.shape[1] // 3, p_size // 15), 20000)
-        size_threshold = 5000
+        size_cmplt = min(max(cmplt.shape[1] // 3, p_size // 15), 10000)
+        size_threshold = 3000
     elif depth == 2:
-        size_cmplt = min(cmplt.shape[1] // 2, 10000)
-        size_threshold = 10000
+        size_cmplt = min(cmplt.shape[1] // 2, 20000)
+        size_threshold = 5000
     elif depth == 3:
         size_cmplt = min(cmplt.shape[1] // 2, 20000)
         size_threshold = 20000
 
-    header = "  " * (depth - 1) + "(Depth " + str(depth) + ")"
+    header = "  " * (depth - 1) + "(" + str(depth) + ")"
     if verbose:
         print(header, "Complementary block size:", cmplt.shape[1], flush=True)
         print(header, "Compute compressed projector.", flush=True)
@@ -465,13 +465,20 @@ def eigh_projector_division(
     else:
         cmplt_eigvals, cmplt_eigvecs = None, None
 
-    block = root_block_matrix((p_size, col_id), first_child=sibling)
+    if col_id == 0:
+        block = None
+    else:
+        block = root_block_matrix((p_size, col_id), first_child=sibling)
+
     if return_block:
         if return_cmplt:
             return block, (cmplt_eigvals, cmplt_eigvecs)
         return block
 
-    eigvecs = block.recover()
+    if block is None:
+        eigvecs = None
+    else:
+        eigvecs = block.recover()
     if return_cmplt:
         return eigvecs, (cmplt_eigvals, cmplt_eigvecs)
     return eigvecs

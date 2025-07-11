@@ -229,12 +229,10 @@ class BlockMatrixNode:
 
         res = np.zeros((self.shape[1], self.shape[1]))
         for b1 in self.traverse_data_nodes():
-            col_begin1 = b1.col_begin_root
-            col_end1 = b1.col_end_root
+            col_begin1, col_end1 = b1.col_begin_root, b1.col_end_root
             data1 = b1.decompress()
             for b2 in self.traverse_data_nodes():
-                col_begin2 = b2.col_begin_root
-                col_end2 = b2.col_end_root
+                col_begin2, col_end2 = b2.col_begin_root, b2.col_end_root
                 data2 = b2.decompress()
                 prod = data1.T @ mat[np.ix_(b1.rows_root, b2.rows_root)] @ data2
                 res[col_begin1:col_end1, col_begin2:col_end2] += prod
@@ -248,23 +246,17 @@ class BlockMatrixNode:
         if mat.shape[0] < 30000:
             use_mkl = False
 
-        # import time
-        # t2 = time.time()
         res = np.zeros((self.shape[1], self.shape[1]))
         for b1 in self.traverse_data_nodes():
-            col_begin1 = b1.col_begin_root
-            col_end1 = b1.col_end_root
+            col_begin1, col_end1 = b1.col_begin_root, b1.col_end_root
             data1 = b1.decompress()
             mat1 = mat[b1.rows_root]
             for b2 in self.traverse_data_nodes():
-                col_begin2 = b2.col_begin_root
-                col_end2 = b2.col_end_root
+                col_begin2, col_end2 = b2.col_begin_root, b2.col_end_root
                 data2 = b2.decompress()
                 prod = dot_product_sparse(mat1[:, b2.rows_root], data2, use_mkl=use_mkl)
                 prod = dot_product_sparse(data1.T, prod, use_mkl=use_mkl, dense=True)
                 res[col_begin1:col_end1, col_begin2:col_end2] += prod
-        # t3 = time.time()
-        # print(t3-t2)
         return res
 
 
@@ -322,11 +314,7 @@ def root_block_matrix(
     )
 
 
-def block_matrix_sandwich(
-    bm1: BlockMatrixNode,
-    bm2: BlockMatrixNode,
-    mat: np.ndarray,
-):
+def block_matrix_sandwich(bm1: BlockMatrixNode, bm2: BlockMatrixNode, mat: np.ndarray):
     """Calculate block1.T @ mat @ block2."""
     if not bm1.root or not bm2.root:
         raise RuntimeError("Nodes must be root of tree.")
@@ -336,12 +324,10 @@ def block_matrix_sandwich(
 
     res = np.zeros((bm1.shape[1], bm2.shape[1]))
     for b1 in bm1.traverse_data_nodes():
-        col_begin1 = b1.col_begin_root
-        col_end1 = b1.col_end_root
+        col_begin1, col_end1 = b1.col_begin_root, b1.col_end_root
         data1 = b1.decompress()
         for b2 in bm2.traverse_data_nodes():
-            col_begin2 = b2.col_begin_root
-            col_end2 = b2.col_end_root
+            col_begin2, col_end2 = b2.col_begin_root, b2.col_end_root
             data2 = b2.decompress()
             prod = data1.T @ mat[np.ix_(b1.rows_root, b2.rows_root)] @ data2
             res[col_begin1:col_end1, col_begin2:col_end2] += prod
