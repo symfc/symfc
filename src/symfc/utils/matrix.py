@@ -258,7 +258,6 @@ class BlockMatrixNode:
                 col_end2 = b2.col_end_root
                 data2 = b2.decompress()
                 prod = data1.T @ dot_product_sparse(
-                    # mat[np.ix_(b1.rows_root, b2.rows_root)],
                     mat1[:, b2.rows_root],
                     data2,
                     use_mkl=use_mkl,

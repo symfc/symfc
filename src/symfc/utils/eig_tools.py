@@ -271,7 +271,7 @@ def _find_submatrix_eigenvectors(
 ):
     """Find eigenvectors in division part of submatrix division algorithm."""
     p_size = p.shape[0]
-    if p_size < 500:
+    if p_size < 200:
         repeat = False
     else:
         repeat = False if depth == 3 else True
@@ -282,7 +282,7 @@ def _find_submatrix_eigenvectors(
         elif depth == 2:
             target_size = min(p_size // 5, 10000)
         elif depth == 3:
-            target_size = min(p_size // 2, 20000)
+            target_size = min(p_size // 3, 20000)
 
     sibling, sibling_c = None, None
     col_id, col_id_c = 0, 0
@@ -367,14 +367,12 @@ def _find_complement_eigenvectors(
     header = "  " * (depth - 1) + "(Depth " + str(depth) + ")"
     if verbose:
         print(header, "Complementary block size:", cmplt.shape[1], flush=True)
-        print(header, "Submatrix size for complement:", size_cmplt, flush=True)
         print(header, "Compute compressed projector.", flush=True)
 
     p_cmr = cmplt.compress_matrix(p, use_mkl=use_mkl)
-
-    if verbose:
-        print(header, "Find eigenvectors.", flush=True)
     if not repeat or cmplt.shape[1] < size_threshold:
+        if verbose:
+            print(header, "Use standard solver.", flush=True)
         result = eigh_projector(
             p_cmr,
             atol=atol,
@@ -383,6 +381,8 @@ def _find_complement_eigenvectors(
             verbose=verbose,
         )
     else:
+        if verbose:
+            print(header, "Use submatrix size of", size_cmplt, flush=True)
         result = eigh_projector_division(
             p_cmr,
             atol=atol,
@@ -430,7 +430,7 @@ def eigh_projector_division(
 ):
     """Solve eigenvalue problem for numpy array."""
     p_size = p.shape[0]
-    if p_size < 500:
+    if p_size < 200:
         return eigh_projector(
             p,
             atol=atol,
