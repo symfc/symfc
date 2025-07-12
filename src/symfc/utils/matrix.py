@@ -24,7 +24,7 @@ def dot_product_sparse(
     return A @ B
 
 
-def is_sparse(p: Union[np.ndarray, csr_array]):
+def is_sparse(p: Union[np.ndarray, csr_array]) -> bool:
     """Check whether matrix is sparse matrix or not."""
     if isinstance(p, np.ndarray):
         return False
@@ -33,17 +33,16 @@ def is_sparse(p: Union[np.ndarray, csr_array]):
     return True
 
 
-def return_numpy_array(p: Union[np.ndarray, csr_array]):
+def return_numpy_array(p: Union[np.ndarray, csr_array]) -> np.ndarray:
     """Return numpy array."""
     if isinstance(p, np.ndarray):
         return p
     return p.toarray()
 
 
-def matrix_rank(p: Union[np.ndarray, csr_array]):
+def matrix_rank(p: Union[np.ndarray, csr_array]) -> int:
     """Calculate projector rank."""
-    sparse = is_sparse(p)
-    if sparse:
+    if is_sparse(p):
         return int(round(p.trace()))
     return int(round(np.trace(p)))
 
@@ -303,6 +302,9 @@ def root_block_matrix(
 
     if data is not None:
         shape = data.shape
+
+    if shape[1] == 0:
+        return None
 
     return BlockMatrixNode(
         rows=np.arange(shape[0]),
