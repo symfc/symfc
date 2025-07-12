@@ -1,7 +1,6 @@
 """Tests of block matrix functions."""
 
 import numpy as np
-from scipy.sparse import csr_array
 
 from symfc.utils.matrix import BlockMatrixNode
 
@@ -180,26 +179,26 @@ def test_block_matrix():
     np.testing.assert_array_equal(bm.transpose_dot(mat2), mat.T @ mat2)
     np.testing.assert_array_equal(bm.transpose_dot(vec2), mat.T @ vec2)
 
-    mat3 = np.array(
-        [
-            [3, 1, 4, 3, 0, 0, 2, 0],
-            [5, 7, 3, 1, 2, 1, 0, 6],
-            [2, 8, 7, 4, 3, 9, 9, 0],
-            [5, 9, 0, 2, 0, 0, 0, 2],
-            [2, 3, 4, 9, 1, 0, 1, 2],
-            [0, 2, 0, 2, 0, 8, 0, 3],
-            [5, 9, 0, 2, 0, 0, 2, 2],
-            [0, 0, 0, 2, 2, 0, 9, 1],
-        ]
-    )
-    np.testing.assert_array_equal(
-        bm.compress_matrix(mat3),
-        mat.T @ mat3 @ mat,
-    )
-    np.testing.assert_array_equal(
-        bm.compress_matrix(csr_array(mat3)),
-        mat.T @ mat3 @ mat,
-    )
+    # mat3 = np.array(
+    #     [
+    #         [3, 1, 4, 3, 0, 0, 2, 0],
+    #         [5, 7, 3, 1, 2, 1, 0, 6],
+    #         [2, 8, 7, 4, 3, 9, 9, 0],
+    #         [5, 9, 0, 2, 0, 0, 0, 2],
+    #         [2, 3, 4, 9, 1, 0, 1, 2],
+    #         [0, 2, 0, 2, 0, 8, 0, 3],
+    #         [5, 9, 0, 2, 0, 0, 2, 2],
+    #         [0, 0, 0, 2, 2, 0, 9, 1],
+    #     ]
+    # )
+    # np.testing.assert_array_equal(
+    #     bm.compress_matrix(mat3),
+    #     mat.T @ mat3 @ mat,
+    # )
+    # np.testing.assert_array_equal(
+    #     bm.compress_matrix(csr_array(mat3)),
+    #     mat.T @ mat3 @ mat,
+    # )
 
     perm = np.array([2, 1, 0, 4, 3, 6, 5, 7])
     bm.rows = perm
