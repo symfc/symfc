@@ -66,6 +66,7 @@ class BlockMatrixNode:
     col_begin_root: Optional[int] = None
     col_end_root: Optional[int] = None
     index: Optional[int] = None
+    eigvals: Optional[np.ndarray] = None
 
     def __post_init__(self):
         """Post init method."""
@@ -210,7 +211,10 @@ class BlockMatrixNode:
         return prod
 
     def compress_matrix(self, mat: Union[csr_array, np.ndarray], use_mkl: bool = False):
-        """Calculate block_mat.T @ mat @ block_mat."""
+        """Calculate block_mat.T @ mat @ block_mat.
+
+        Block matrix must be eigenvectors and include their eigenvalues.
+        """
         if not self.root:
             raise RuntimeError("Node must be root of tree.")
 
@@ -219,7 +223,10 @@ class BlockMatrixNode:
         return self.compress_dense_matrix(mat)
 
     def compress_dense_matrix(self, mat: np.ndarray):
-        """Calculate block_mat.T @ mat @ block_mat for numpy array."""
+        """Calculate block_mat.T @ mat @ block_mat for numpy array.
+
+        Block matrix must be eigenvectors and include their eigenvalues.
+        """
         if not self.root:
             raise RuntimeError("Node must be root of tree.")
 
@@ -227,18 +234,24 @@ class BlockMatrixNode:
             return self.recover().T @ mat @ self.recover()
 
         res = np.zeros((self.shape[1], self.shape[1]))
-        for b1 in self.traverse_data_nodes():
+        for i, b1 in enumerate(self.traverse_data_nodes()):
             col_begin1, col_end1 = b1.col_begin_root, b1.col_end_root
             data1 = b1.decompress()
-            for b2 in self.traverse_data_nodes():
-                col_begin2, col_end2 = b2.col_begin_root, b2.col_end_root
-                data2 = b2.decompress()
-                prod = data1.T @ mat[np.ix_(b1.rows_root, b2.rows_root)] @ data2
-                res[col_begin1:col_end1, col_begin2:col_end2] += prod
+            for c, val in zip(range(col_begin1, col_end1), b1.eigvals):
+                res[c, c] = val
+            for j, b2 in enumerate(self.traverse_data_nodes()):
+                if i != j:
+                    col_begin2, col_end2 = b2.col_begin_root, b2.col_end_root
+                    data2 = b2.decompress()
+                    prod = data1.T @ mat[np.ix_(b1.rows_root, b2.rows_root)] @ data2
+                    res[col_begin1:col_end1, col_begin2:col_end2] = prod
         return res
 
     def compress_sparse_matrix(self, mat: csr_array, use_mkl: bool = False):
-        """Calculate block_mat.T @ mat(csr) @ block_mat for csr_array."""
+        """Calculate block_mat.T @ mat(csr) @ block_mat for csr_array.
+
+        Block matrix must be eigenvectors and include their eigenvalues.
+        """
         if not self.root:
             raise RuntimeError("Node must be root of tree.")
 
@@ -246,16 +259,26 @@ class BlockMatrixNode:
             use_mkl = False
 
         res = np.zeros((self.shape[1], self.shape[1]))
-        for b1 in self.traverse_data_nodes():
+        for i, b1 in enumerate(self.traverse_data_nodes()):
             col_begin1, col_end1 = b1.col_begin_root, b1.col_end_root
             data1 = b1.decompress()
             mat1 = mat[b1.rows_root]
-            for b2 in self.traverse_data_nodes():
-                col_begin2, col_end2 = b2.col_begin_root, b2.col_end_root
-                data2 = b2.decompress()
-                prod = dot_product_sparse(mat1[:, b2.rows_root], data2, use_mkl=use_mkl)
-                prod = dot_product_sparse(data1.T, prod, use_mkl=use_mkl, dense=True)
-                res[col_begin1:col_end1, col_begin2:col_end2] += prod
+            for c, val in zip(range(col_begin1, col_end1), b1.eigvals):
+                res[c, c] = val
+            for j, b2 in enumerate(self.traverse_data_nodes()):
+                if i > j:
+                    col_begin2, col_end2 = b2.col_begin_root, b2.col_end_root
+                    data2 = b2.decompress()
+                    mat_slice = mat1[:, b2.rows_root]
+                    mat_slice_t = mat[np.ix_(b2.rows_root, b1.rows_root)].T
+                    mat_slice = 0.5 * (mat_slice + mat_slice_t)
+                    prod = dot_product_sparse(mat_slice, data2, use_mkl=use_mkl)
+                    prod = dot_product_sparse(
+                        data1.T, prod, use_mkl=use_mkl, dense=True
+                    )
+                    res[col_begin1:col_end1, col_begin2:col_end2] = prod
+                    res[col_begin2:col_end2, col_begin1:col_end1] = prod.T
+
         return res
 
 
@@ -265,6 +288,7 @@ def append_node(
     rows: np.ndarray,
     col_begin,
     compress: Optional[BlockMatrixNode] = None,
+    eigvals: Optional[np.ndarray] = None,
 ):
     """Add eigenvectors to block matrix node."""
     if isinstance(eigvecs, BlockMatrixNode):
@@ -274,6 +298,7 @@ def append_node(
             block.col_begin = col_begin
             block.col_end = col_begin + block.shape[1]  # type: ignore
             block.next_sibling = next_sibling
+            block.eigvals = eigvals
             block.root = False
             next_sibling = block
     else:
@@ -286,6 +311,7 @@ def append_node(
                 data=eigvecs,
                 next_sibling=next_sibling,
                 compress=compress,
+                eigvals=eigvals,
             )
             next_sibling = block
     return next_sibling
