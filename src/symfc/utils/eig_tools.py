@@ -50,7 +50,7 @@ def eigh_projector(
 
     nonzero = np.isclose(eigvals, 1.0, atol=atol, rtol=rtol)
     if return_cmplt:
-        cmplt_bool = np.logical_and(np.logical_not(nonzero), eigvals > 1e-12)
+        cmplt_bool = np.logical_and(np.logical_not(nonzero), eigvals > 1e-14)
         cmplt_eigvals, cmplt_eigvecs = eigvals[cmplt_bool], eigvecs[:, cmplt_bool]
 
     eigvecs = eigvecs[:, nonzero]
@@ -279,7 +279,7 @@ def _find_submatrix_eigenvectors(
         if depth == 1:
             batch_size = max(p_size // 10, 500)
         elif depth == 2:
-            batch_size = min(p_size // 5, 10000)
+            batch_size = min(p_size // 5, 5000)
         elif depth > 2:
             batch_size = min(p_size // 2, 20000)
 
@@ -293,9 +293,9 @@ def _find_submatrix_eigenvectors(
         rank = matrix_rank(p_small)
         if rank > 0:
             if repeat:
-                block, (_, cmplt_vecs) = eigh_projector_division(
+                block, (cmplt_eigvals, cmplt_vecs) = eigh_projector_division(
                     p_small,
-                    atol=1e-12,
+                    atol=1e-14,
                     rtol=0.0,
                     depth=depth,
                     return_cmplt=True,
@@ -304,9 +304,9 @@ def _find_submatrix_eigenvectors(
                     verbose=verbose,
                 )
             else:
-                block, (_, cmplt_vecs) = eigh_projector(
+                block, (cmplt_eigvals, cmplt_vecs) = eigh_projector(
                     p_small,
-                    atol=1e-12,
+                    atol=1e-14,
                     rtol=0.0,
                     return_cmplt=True,
                     return_block=True,
@@ -324,7 +324,11 @@ def _find_submatrix_eigenvectors(
                 col_id += block.shape[1]
             if cmplt_vecs is not None:
                 sibling_c = append_node(
-                    cmplt_vecs, sibling_c, rows=rows, col_begin=col_id_c
+                    cmplt_vecs,
+                    sibling_c,
+                    rows=rows,
+                    col_begin=col_id_c,
+                    eigvals=cmplt_eigvals,
                 )
                 col_id_c += cmplt_vecs.shape[1]
 
@@ -358,11 +362,11 @@ def _find_complement_eigenvectors(
         batch_size_cmplt = min(max(cmplt.shape[1] // 3, p_size // 15), 10000)
         size_threshold = 2000
     elif depth == 2:
-        batch_size_cmplt = min(cmplt.shape[1] // 2, 20000)
+        batch_size_cmplt = min(int(round(cmplt.shape[1] / 1.5)), 20000)
         size_threshold = 3000
-    elif depth == 3:
-        batch_size_cmplt = min(cmplt.shape[1] // 2, 20000)
-        size_threshold = 20000
+    elif depth > 2:
+        batch_size_cmplt = min(int(round(cmplt.shape[1] / 1.3)), 20000)
+        size_threshold = 5000
 
     header = "  " * (depth - 1) + "(" + str(depth) + ")"
     if verbose:
