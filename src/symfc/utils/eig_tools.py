@@ -316,7 +316,9 @@ def _find_submatrix_eigenvectors(
             rows = np.arange(begin, end)
             if block is not None:
                 if verbose:
-                    print(header, " ", block.shape[1], "eigenvectors.", flush=True)
+                    print(
+                        header, " ", block.shape[1], "eigenvectors found.", flush=True
+                    )
 
                 sibling = append_node(block, sibling, rows=rows, col_begin=col_id)
                 col_id += block.shape[1]
@@ -395,7 +397,7 @@ def _find_complement_eigenvectors(
 
     if eigvecs is not None:
         if verbose:
-            print(header, " ", eigvecs.shape[1], "eigenvectors.", flush=True)
+            print(header, " ", eigvecs.shape[1], "eigenvectors found.", flush=True)
         sibling = append_node(
             eigvecs,
             sibling,
