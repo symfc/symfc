@@ -50,7 +50,7 @@ def eigh_projector(
 
     nonzero = np.isclose(eigvals, 1.0, atol=atol, rtol=rtol)
     if return_cmplt:
-        cmplt_bool = np.logical_and(np.logical_not(nonzero), eigvals > 1e-14)
+        cmplt_bool = np.logical_and(np.logical_not(nonzero), eigvals > 1e-12)
         cmplt_eigvals, cmplt_eigvecs = eigvals[cmplt_bool], eigvecs[:, cmplt_bool]
 
     eigvecs = eigvecs[:, nonzero]
@@ -272,16 +272,20 @@ def _find_submatrix_eigenvectors(
     p_size = p.shape[0]
     if p_size < 500:
         repeat = False
+    elif p_size > 30000:
+        repeat = True if depth < 8 else False
     else:
-        repeat = False if depth >= 3 else True
+        repeat = True if depth < 3 else False
 
     if batch_size is None:
         if depth == 1:
             batch_size = max(p_size // 10, 500)
         elif depth == 2:
-            batch_size = min(p_size // 5, 5000)
-        elif depth > 2:
-            batch_size = min(p_size // 2, 20000)
+            batch_size = p_size // 5
+        elif depth == 3:
+            batch_size = p_size // 2
+        else:
+            batch_size = min(int(round(p_size / 1.3)), 20000)
 
     sibling, sibling_c = None, None
     col_id, col_id_c = 0, 0
@@ -295,7 +299,7 @@ def _find_submatrix_eigenvectors(
             if repeat:
                 block, (cmplt_eigvals, cmplt_vecs) = eigh_projector_division(
                     p_small,
-                    atol=1e-14,
+                    atol=1e-12,
                     rtol=0.0,
                     depth=depth,
                     return_cmplt=True,
@@ -306,7 +310,7 @@ def _find_submatrix_eigenvectors(
             else:
                 block, (cmplt_eigvals, cmplt_vecs) = eigh_projector(
                     p_small,
-                    atol=1e-14,
+                    atol=1e-12,
                     rtol=0.0,
                     return_cmplt=True,
                     return_block=True,
@@ -355,18 +359,23 @@ def _find_complement_eigenvectors(
     p_size = p.shape[0]
     if p_size < 5000:
         repeat = False
+    elif p_size > 30000:
+        repeat = True if depth < 8 else False
     else:
-        repeat = False if depth >= 3 else True
+        repeat = True if depth < 4 else False
 
     if depth == 1:
         batch_size_cmplt = min(max(cmplt.shape[1] // 3, p_size // 15), 10000)
         size_threshold = 2000
     elif depth == 2:
-        batch_size_cmplt = min(int(round(cmplt.shape[1] / 1.5)), 20000)
+        batch_size_cmplt = int(round(cmplt.shape[1] / 1.5))
         size_threshold = 3000
-    elif depth > 2:
-        batch_size_cmplt = min(int(round(cmplt.shape[1] / 1.3)), 20000)
+    elif depth == 3:
+        batch_size_cmplt = int(round(cmplt.shape[1] / 1.3))
         size_threshold = 5000
+    else:
+        batch_size_cmplt = min(int(round(cmplt.shape[1] / 1.3)), 20000)
+        size_threshold = 20000
 
     header = "  " * (depth - 1) + "(" + str(depth) + ")"
     if verbose:
