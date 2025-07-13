@@ -281,7 +281,7 @@ def _find_submatrix_eigenvectors(
         if depth == 1:
             batch_size = max(p_size // 10, 500)
         elif depth == 2:
-            batch_size = p_size // 5
+            batch_size = max(p_size // 5, 250)
         elif depth == 3:
             batch_size = p_size // 2
         else:
