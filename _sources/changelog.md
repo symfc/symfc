@@ -2,6 +2,11 @@
 
 # Change Log
 
+## Jul-14-2025: Version 1.5.2
+
+- Improve memory efficiency and calculation performance for basis set
+  computations using block matrix tree.
+
 ## Jul-10-2025: Version 1.5.1
 
 - Improve memory efficiency and calculation performance for basis set
