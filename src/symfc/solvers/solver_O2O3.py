@@ -11,7 +11,7 @@ from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3
 from symfc.solvers.solver_O2 import reshape_nN33_nx_to_N3_n3nx
-from symfc.utils.matrix import BlockMatrix, block_matrix_sandwich
+from symfc.utils.matrix import BlockMatrixNode, block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
 try:
@@ -231,8 +231,8 @@ def prepare_normal_equation_O2O3(
     forces: np.ndarray,
     compact_compress_mat_fc2: csr_array,
     compact_compress_mat_fc3: csr_array,
-    compress_eigvecs_fc2: BlockMatrix,
-    compress_eigvecs_fc3: BlockMatrix,
+    compress_eigvecs_fc2: BlockMatrixNode,
+    compress_eigvecs_fc3: BlockMatrixNode,
     atomic_decompr_idx_fc2: np.ndarray,
     atomic_decompr_idx_fc3: np.ndarray,
     batch_size: int = 100,
@@ -372,8 +372,8 @@ def run_solver_O2O3(
     forces: np.ndarray,
     compact_compress_mat_fc2: csr_array,
     compact_compress_mat_fc3: csr_array,
-    compress_eigvecs_fc2: BlockMatrix,
-    compress_eigvecs_fc3: BlockMatrix,
+    compress_eigvecs_fc2: BlockMatrixNode,
+    compress_eigvecs_fc3: BlockMatrixNode,
     atomic_decompr_idx_fc2: np.ndarray,
     atomic_decompr_idx_fc3: np.ndarray,
     batch_size: int = 100,
