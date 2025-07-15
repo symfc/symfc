@@ -2,6 +2,10 @@
 
 # Change Log
 
+## Jul-15-2025: Version 1.5.3
+
+- More optimization for basis set computations.
+
 ## Jul-14-2025: Version 1.5.2
 
 - Improve memory efficiency and calculation performance for basis set
