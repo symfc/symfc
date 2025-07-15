@@ -87,9 +87,13 @@ def _compr_projector(p: csr_array) -> tuple[csr_array, Optional[csr_array]]:
 
 def _find_projector_blocks(p: csr_array):
     """Find block structures in projection matrix."""
-    # from symfc.utils.graph import connected_components
+    # try:
+    #     from symfc.utils.graph import connected_components
+    #
+    #     n_components, labels = connected_components(p, verbose=True)
+    # except ImportError:
+    #     n_components, labels = scipy.sparse.csgraph.connected_components(p)
 
-    # n_components, labels = connected_components(p, verbose=True)
     n_components, labels = scipy.sparse.csgraph.connected_components(p)
     group = defaultdict(list)
     for i, ll in enumerate(labels):
@@ -365,17 +369,13 @@ def _find_complement_eigenvectors(
         repeat = True if depth < 4 else False
 
     if depth == 1:
-        batch_size_cmplt = min(max(cmplt.shape[1] // 3, p_size // 15), 10000)
-        size_threshold = 2000
+        batch_size_cmplt = max(cmplt.shape[1] // 3, p_size // 15)
     elif depth == 2:
         batch_size_cmplt = int(round(cmplt.shape[1] / 1.5))
-        size_threshold = 3000
     elif depth == 3:
         batch_size_cmplt = int(round(cmplt.shape[1] / 1.3))
-        size_threshold = 5000
     else:
-        batch_size_cmplt = min(int(round(cmplt.shape[1] / 1.3)), 20000)
-        size_threshold = 20000
+        batch_size_cmplt = min(int(round(cmplt.shape[1] / 1.2)), 20000)
 
     header = "  " * (depth - 1) + "(" + str(depth) + ")"
     if verbose:
@@ -383,7 +383,7 @@ def _find_complement_eigenvectors(
         print(header, "Compute compressed projector.", flush=True)
 
     p_cmr = cmplt.compress_matrix(p, use_mkl=use_mkl)
-    if not repeat or cmplt.shape[1] < size_threshold:
+    if not repeat:
         if verbose:
             print(header, "Use standard solver.", flush=True)
         result = eigh_projector(
@@ -406,6 +406,7 @@ def _find_complement_eigenvectors(
             use_mkl=use_mkl,
             verbose=verbose,
         )
+
     eigvecs = result[0] if return_cmplt else result
 
     if eigvecs is not None:
