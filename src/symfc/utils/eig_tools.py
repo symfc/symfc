@@ -245,12 +245,10 @@ def eigsh_projector(
         block_label = p_data.get_block_label(i)
         block_size = p_data.get_block_size(i)
         if block_size > 1:
-            key = tuple(list(p_block))
-            if key in uniq_eigvecs:
-                # try:
+            key = tuple(p_block)
+            try:
                 uniq_eigvecs[key][1].append(block_label)
-            else:
-                # except KeyError:
+            except KeyError:
                 p_np = p_block.reshape((block_size, block_size))
                 eigvecs = eigh_projector(p_np, atol=atol, rtol=rtol, verbose=verbose)
                 uniq_eigvecs[key] = [eigvecs, [block_label]]
