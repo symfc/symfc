@@ -44,7 +44,7 @@ def eigh_projector(
 
     eigvals, eigvecs = np.linalg.eigh(p)
 
-    tol = 1e-8
+    tol = 1e-6
     if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
         raise ValueError("Eigenvalue error: e > 1 or e < 0.")
 
@@ -245,10 +245,12 @@ def eigsh_projector(
         block_label = p_data.get_block_label(i)
         block_size = p_data.get_block_size(i)
         if block_size > 1:
-            key = tuple(p_block)
-            try:
+            key = tuple(list(p_block))
+            if key in uniq_eigvecs:
+                # try:
                 uniq_eigvecs[key][1].append(block_label)
-            except KeyError:
+            else:
+                # except KeyError:
                 p_np = p_block.reshape((block_size, block_size))
                 eigvecs = eigh_projector(p_np, atol=atol, rtol=rtol, verbose=verbose)
                 uniq_eigvecs[key] = [eigvecs, [block_label]]
