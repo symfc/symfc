@@ -46,6 +46,13 @@ def eigh_projector(
 
     tol = 1e-8
     if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
+        diff = np.abs(p - p.T)
+        if np.any(diff > 1e-3):
+            raise RuntimeError("Transpose equality not satisfied")
+        elif np.any(diff > 1e-15):
+            eigvals, eigvecs = np.linalg.eigh(0.5 * (p + p.T))
+
+    if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
         raise ValueError("Eigenvalue error: e > 1 or e < 0.")
 
     nonzero = np.isclose(eigvals, 1.0, atol=atol, rtol=rtol)
