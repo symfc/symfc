@@ -95,14 +95,10 @@ def _compr_projector(p: csr_array) -> tuple[csr_array, Optional[csr_array]]:
 
 def _find_projector_blocks(p: csr_array, verbose: bool = False):
     """Find block structures in projection matrix."""
-    # import time
-    # t1 = time.time()
-
     if verbose:
         print("Finding block diagonal structure in projector.", flush=True)
 
     if len(p.data) < 4294967000:
-        # if len(p.data) < 2:
         if verbose:
             print("Using scipy connected_components.", flush=True)
         n_components, labels = scipy.sparse.csgraph.connected_components(p)
@@ -114,8 +110,6 @@ def _find_projector_blocks(p: csr_array, verbose: bool = False):
             print("Using symfc connected_components with DFS.", flush=True)
         group = connected_components(p)
 
-    # t2 = time.time()
-    # print(t2-t1)
     return group
 
 
