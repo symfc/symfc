@@ -2,6 +2,12 @@
 
 # Change Log
 
+## Jul-21-2025: Version 1.5.4
+
+- Improve eigensolver for large projector.
+- Check symmetric property of projector and make it symmetric unless the
+  symmetry is largely broken.
+
 ## Jul-15-2025: Version 1.5.3
 
 - More optimization for basis set computations.
