@@ -137,7 +137,7 @@ def compressed_projector_sum_rules_O4(
             continue
 
         if verbose:
-            print("Complementary P (Sum rule):", str(end) + "/" + str(NNN), flush=True)
+            print("Complementary P (Sum rule):", str(end) + "/" + str(NNNN), flush=True)
         decompr_idx_b = decompr_idx[begin:end][nonzero_b]
         c_sum_cplmt = csr_array(
             (
@@ -153,7 +153,7 @@ def compressed_projector_sum_rules_O4(
         c_sum_cplmt = dot_product_sparse(c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl)
         proj_cplmt += dot_product_sparse(c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl)
 
-    proj_cplmt /= n_lp * natom
+    proj_cplmt /= natom
     return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt
 
 

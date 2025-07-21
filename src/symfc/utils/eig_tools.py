@@ -8,6 +8,7 @@ import numpy as np
 import scipy
 from scipy.sparse import csr_array
 
+from symfc.utils.graph import connected_components
 from symfc.utils.matrix import (
     BlockMatrixNode,
     append_node,
@@ -45,6 +46,13 @@ def eigh_projector(
     eigvals, eigvecs = np.linalg.eigh(p)
 
     tol = 1e-8
+    if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
+        diff = np.abs(p - p.T)
+        if np.any(diff > 1e-3):
+            raise RuntimeError("Transpose equality not satisfied")
+        elif np.any(diff > 1e-15):
+            eigvals, eigvecs = np.linalg.eigh(0.5 * (p + p.T))
+
     if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
         raise ValueError("Eigenvalue error: e > 1 or e < 0.")
 
@@ -85,19 +93,23 @@ def _compr_projector(p: csr_array) -> tuple[csr_array, Optional[csr_array]]:
     return p, None
 
 
-def _find_projector_blocks(p: csr_array):
+def _find_projector_blocks(p: csr_array, verbose: bool = False):
     """Find block structures in projection matrix."""
-    # try:
-    #     from symfc.utils.graph import connected_components
-    #
-    #     n_components, labels = connected_components(p, verbose=True)
-    # except ImportError:
-    #     n_components, labels = scipy.sparse.csgraph.connected_components(p)
+    if verbose:
+        print("Finding block diagonal structure in projector.", flush=True)
 
-    n_components, labels = scipy.sparse.csgraph.connected_components(p)
-    group = defaultdict(list)
-    for i, ll in enumerate(labels):
-        group[ll].append(i)
+    if len(p.data) < 2147483647:
+        if verbose:
+            print("Using scipy connected_components.", flush=True)
+        n_components, labels = scipy.sparse.csgraph.connected_components(p)
+        group = defaultdict(list)
+        for i, ll in enumerate(labels):
+            group[ll].append(i)
+    else:
+        if verbose:
+            print("Using symfc connected_components with DFS.", flush=True)
+        group = connected_components(p)
+
     return group
 
 
@@ -232,7 +244,7 @@ def eigsh_projector(
 
     """
     p, compr_p = _compr_projector(p)
-    group = _find_projector_blocks(p)
+    group = _find_projector_blocks(p, verbose=verbose)
     if verbose:
         rank = matrix_rank(p)
         print("Rank of projector:", rank, flush=True)
@@ -563,7 +575,7 @@ def eigsh_projector_sumrule(
     matrices. Otherwise, this function use a submatrix division algorithm
     to solve the eigenvalue problem of each block matrix.
     """
-    group = _find_projector_blocks(p)
+    group = _find_projector_blocks(p, verbose=verbose)
     lengths = [-len(ids) for ids in group.values()]
     order = np.array(list(group.keys()))[np.argsort(lengths)]
     if verbose:
