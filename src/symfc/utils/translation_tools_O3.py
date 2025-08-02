@@ -126,6 +126,7 @@ def compressed_projector_sum_rules_O3(
 
     batch_size = optimize_batch_size_sum_rules_O3(natom, n_batch=n_batch)
     abc = np.arange(27)
+
     for begin, end in zip(*get_batch_slice(NNN, batch_size)):
         size = end - begin
         size_vector = size * 27
@@ -138,6 +139,7 @@ def compressed_projector_sum_rules_O3(
 
         if verbose:
             print("Complementary P (Sum rule):", str(end) + "/" + str(NNN), flush=True)
+
         decompr_idx_b = decompr_idx[begin:end][nonzero_b]
         c_sum_cplmt = csr_array(
             (
@@ -151,6 +153,7 @@ def compressed_projector_sum_rules_O3(
             dtype="double",
         )
         c_sum_cplmt = dot_product_sparse(c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl)
+        # TODO: reduce computational time for sum.
         proj_cplmt += dot_product_sparse(c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl)
 
     proj_cplmt /= natom
