@@ -46,13 +46,17 @@ def eigh_projector(
     try:
         eigvals, eigvecs = np.linalg.eigh(p)
     except np.linalg.LinAlgError:
-        eigvals, eigvecs = np.linalg.eigh(0.5 * (p + p.T))
+        diff = np.abs(p - p.T)
+        if np.any(diff < 1e-3):
+            eigvals, eigvecs = np.linalg.eigh(0.5 * (p + p.T))
+        else:
+            raise
 
     tol = 1e-8
     if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
         diff = np.abs(p - p.T)
         if np.any(diff > 1e-3):
-            raise RuntimeError("Transpose equality not satisfied")
+            raise RuntimeError("Symmetric property of projector is not satisfied.")
         elif np.any(diff > 1e-15):
             eigvals, eigvecs = np.linalg.eigh(0.5 * (p + p.T))
 
