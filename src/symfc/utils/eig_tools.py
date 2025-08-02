@@ -43,7 +43,10 @@ def eigh_projector(
     if rank > 32767:
         raise RuntimeError("Projector rank is too large in eigh.")
 
-    eigvals, eigvecs = np.linalg.eigh(p)
+    try:
+        eigvals, eigvecs = np.linalg.eigh(p)
+    except np.linalg.LinAlgError:
+        eigvals, eigvecs = np.linalg.eigh(0.5 * (p + p.T))
 
     tol = 1e-8
     if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
