@@ -27,16 +27,18 @@ def test_fc_basis_set_o2():
     )
 
     comp_mat = sbs.compression_matrix
-    np.testing.assert_allclose(comp_mat.data, [0.40824829046386313] * comp_mat.size)
+    proj = comp_mat @ comp_mat.T
+    np.testing.assert_allclose(proj.data, [1.0 / 6.0] * proj.size)
+
     ref_col = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0]
     ref_row = [0, 4, 8, 9, 13, 17, 18, 22, 26, 27, 31, 35]
     np.testing.assert_array_equal(comp_mat.tocoo().col, ref_col)
     np.testing.assert_array_equal(comp_mat.tocoo().row, ref_row)
 
     compact_comp_mat = sbs.compact_compression_matrix
-    np.testing.assert_allclose(
-        compact_comp_mat.data, [0.40824829046386313] * compact_comp_mat.size
-    )
+    compact_proj = compact_comp_mat @ compact_comp_mat.T
+    np.testing.assert_allclose(compact_proj.data, [1.0 / 6.0] * compact_proj.size)
+
     ref_col = [0, 0, 0, 1, 1, 1]
     ref_row = [0, 4, 8, 9, 13, 17]
     np.testing.assert_array_equal(compact_comp_mat.tocoo().col, ref_col)
