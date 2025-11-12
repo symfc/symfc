@@ -31,7 +31,7 @@ class FCSparseSolverO2(FCSolverBase):
         atoms: np.ndarray,
         displacements: np.ndarray,
         forces: np.ndarray,
-        batch_size: int = 100,
+        batch_size: int = 100000,
     ) -> FCSparseSolverO2:
         """Solve coefficients of basis set from displacements and forces.
 
@@ -69,6 +69,7 @@ class FCSparseSolverO2(FCSolverBase):
             basis_set_fc2,
             atomic_decompr_idx_fc2,
             batch_size=batch_size,
+            use_sparse_disps=True,
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )

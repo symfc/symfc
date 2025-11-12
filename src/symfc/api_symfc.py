@@ -233,7 +233,6 @@ class Symfc:
                 max_order=max_order,
                 orders=orders,
                 is_compact_fc=is_compact_fc,
-                batch_size=batch_size,
             )
         else:
             self.solve_dense(
@@ -249,7 +248,6 @@ class Symfc:
         max_order: Optional[int] = None,
         orders: Optional[list] = None,
         is_compact_fc: bool = True,
-        batch_size: int = 100,
     ) -> Symfc:
         """Calculate force constants.
 
