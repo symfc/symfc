@@ -196,8 +196,6 @@ class Symfc:
         batch_size : int, optional
             Batch size in solvers, by default 100.
         """
-        print(self._displacements_fd)
-        print(self._atoms_fd)
         if (self._displacements is not None and self._forces is not None) or (
             self._displacements_fd is not None and self._atoms_fd is not None
         ):
