@@ -31,7 +31,7 @@ class FCSparseSolverO2(FCSolverBase):
         atoms: np.ndarray,
         displacements: np.ndarray,
         forces: np.ndarray,
-        batch_size: int = 100000,
+        batch_size: int = 10000,
     ) -> FCSparseSolverO2:
         """Solve coefficients of basis set from displacements and forces.
 
