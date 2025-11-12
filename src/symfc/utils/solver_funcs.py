@@ -2,6 +2,7 @@
 
 import numpy as np
 from scipy.linalg.lapack import get_lapack_funcs
+from scipy.sparse import csr_array
 
 
 def solve_linear_equation(A: np.ndarray, b: np.ndarray):
@@ -41,3 +42,34 @@ def get_batch_slice(n_data: int, batch_size: int):
     else:
         end_batch = [n_data]
     return begin_batch, end_batch
+
+
+def get_displacement_sparse_matrix(
+    atoms: np.ndarray,
+    displacements: np.ndarray,
+    n_atom: int,
+    tol: float = 1e-15,
+) -> csr_array:
+    """Return sparse matrix with displacements.
+
+    Parameter
+    ---------
+    atoms: Indices of atoms displaced, shape = (n_snapshot).
+    displacements: Displacement vectors, shape = (n_snapshot, 3).
+    n_atom: Number of atoms in structure.
+    tol: Tolerance value for defining nonzero elements.
+    """
+    if atoms.shape[0] != displacements.shape[0]:
+        raise RuntimeError("Sizes of atoms and displacements are inconsistent.")
+
+    N3 = n_atom * 3
+    nonzero = np.abs(displacements) > tol
+    rows, cols = np.where(nonzero)
+    cols += atoms[rows] * 3
+
+    mat = csr_array(
+        (displacements[nonzero], (rows, cols)),
+        shape=(displacements.shape[0], N3),
+        dtype="double",
+    )
+    return mat
