@@ -15,6 +15,7 @@ from symfc.solvers import (
     FCSolverO3,
     FCSolverO3O4,
     FCSolverO4,
+    FCSparseSolverO2,
 )
 from symfc.utils.eig_tools import (
     eigh_projector,
@@ -74,6 +75,10 @@ class Symfc:
         self._force_constants: dict[int, np.ndarray] = {}
         self._prepare_cutoff(cutoff)
 
+        self._use_fd = False
+        self._atoms_fd = None
+        self._displacements_fd = None
+
     @property
     def supercell(self) -> SymfcAtoms:
         """Return supercell."""
@@ -128,6 +133,36 @@ class Symfc:
         self._displacements = np.array(displacements, dtype="double", order="C")
 
     @property
+    def displacements_fd(self) -> Optional[dict]:
+        """Setter and getter of supercell displacements for finite displacements.
+
+        dict(ndarray)
+            shape=(n_snapshot, 3), dtype='double', order='C'
+
+        """
+        return self._displacements
+
+    @displacements_fd.setter
+    def displacements_fd(self, displacements: dict):
+        self._displacements_fd = displacements
+        self._use_fd = True
+
+    @property
+    def atoms_fd(self) -> Optional[dict]:
+        """Setter and getter of atoms with displacements for finite displacements.
+
+        ndarray
+            shape=(n_snapshot), dtype='int', order='C'
+
+        """
+        return self._atoms_fd
+
+    @atoms_fd.setter
+    def atoms_fd(self, atoms: dict):
+        self._atoms_fd = atoms
+        self._use_fd = True
+
+    @property
     def forces(self) -> Optional[np.ndarray]:
         """Setter and getter of supercell forces.
 
@@ -161,7 +196,9 @@ class Symfc:
         batch_size : int, optional
             Batch size in solvers, by default 100.
         """
-        if self._displacements is not None and self._forces is not None:
+        if (self._displacements is not None and self._forces is not None) or (
+            self._displacements_fd is not None and self._atoms_fd is not None
+        ):
             self.compute_basis_set(max_order=max_order, orders=orders)
             self.solve(
                 max_order=max_order,
@@ -172,6 +209,92 @@ class Symfc:
         return self
 
     def solve(
+        self,
+        max_order: Optional[int] = None,
+        orders: Optional[list] = None,
+        is_compact_fc: bool = True,
+        batch_size: int = 100,
+    ) -> Symfc:
+        """Calculate force constants.
+
+        Parameters
+        ----------
+        max_order : int
+            Maximum fc order.
+        orders: list
+            Orders of force constants.
+        is_compact_fc: bool
+            Return compact force constants.
+        batch_size : int, optional
+            Batch size in solvers, by default 100.
+        """
+        if self._use_fd:
+            self.solve_sparse(
+                max_order=max_order,
+                orders=orders,
+                is_compact_fc=is_compact_fc,
+            )
+        else:
+            self.solve_dense(
+                max_order=max_order,
+                orders=orders,
+                is_compact_fc=is_compact_fc,
+                batch_size=batch_size,
+            )
+        return self
+
+    def solve_sparse(
+        self,
+        max_order: Optional[int] = None,
+        orders: Optional[list] = None,
+        is_compact_fc: bool = True,
+    ) -> Symfc:
+        """Calculate force constants.
+
+        Parameters
+        ----------
+        max_order : int
+            Maximum fc order.
+        orders: list
+            Orders of force constants.
+        is_compact_fc: bool
+            Return compact force constants.
+        batch_size : int, optional
+            Batch size in solvers, by default 100.
+        """
+        self._check_dataset()
+        _orders = self._check_orders(max_order, orders)
+
+        if self._atoms_fd is None:
+            raise RuntimeError("Atoms not found.")
+        if self._displacements_fd is None:
+            raise RuntimeError("Displacements not found.")
+        if self._forces is None:
+            raise RuntimeError("Forces not found.")
+
+        if _orders == (2,):
+            basis_set_o2: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[2])
+            solver_o2 = FCSparseSolverO2(
+                basis_set_o2,
+                use_mkl=self._use_mkl,
+                log_level=self._log_level,
+            ).solve(self._atoms_fd[2], self._displacements_fd[2], self._forces)
+            if is_compact_fc:
+                if solver_o2.compact_fc is not None:
+                    self._force_constants[2] = solver_o2.compact_fc
+                else:
+                    raise RuntimeError("Failed to obtain compact force constants")
+            else:
+                if solver_o2.full_fc is not None:
+                    self._force_constants[2] = solver_o2.full_fc
+                else:
+                    raise RuntimeError("Failed to obtain full force constants")
+        else:
+            raise RuntimeError("Sparse FD solver not supported.")
+
+        return self
+
+    def solve_dense(
         self,
         max_order: Optional[int] = None,
         orders: Optional[list] = None,
@@ -418,23 +541,25 @@ class Symfc:
         return _orders
 
     def _check_dataset(self):
-        if self._displacements is None:
+        if self._displacements is None and self._displacements_fd is None:
             raise RuntimeError("Dispalcements not found.")
+        if self._displacements_fd is not None:
+            if self._atoms_fd is None:
+                raise RuntimeError("Atoms not found.")
         if self._forces is None:
             raise RuntimeError("Forces not found.")
-        if self._displacements.shape != self._forces.shape:
-            raise RuntimeError("Shape mismatch between dispalcements and forces.")
-        if self._displacements.shape != self._forces.shape:
-            raise RuntimeError("Shape mismatch between dispalcements and forces.")
-        if self._displacements.ndim != 3 or self._displacements.shape[1:] != (
-            len(self._supercell),
-            3,
-        ):
-            raise RuntimeError(
-                "Inconsistent array shape of displacements "
-                f"{self._displacements.shape} with respect to supercell "
-                f"{len(self._supercell)}."
-            )
+        if self._displacements is not None:
+            if self._displacements.shape != self._forces.shape:
+                raise RuntimeError("Shape mismatch between dispalcements and forces.")
+            if self._displacements.ndim != 3 or self._displacements.shape[1:] != (
+                len(self._supercell),
+                3,
+            ):
+                raise RuntimeError(
+                    "Inconsistent array shape of displacements "
+                    f"{self._displacements.shape} with respect to supercell "
+                    f"{len(self._supercell)}."
+                )
         if self._forces.ndim != 3 or self._forces.shape[1:] != (
             len(self._supercell),
             3,
