@@ -43,20 +43,19 @@ def test_api_NaCl_222_with_dataset(
 
     """
     supercell, displacements, forces = ph_nacl_222
-    symfc = Symfc(
-        supercell,
-        displacements=displacements,
-        forces=forces,
-    ).run(max_order=2)
+    symfc = Symfc(supercell)
+    symfc.displacements = displacements
+    symfc.forces = forces
+    symfc.run(max_order=2)
     fc = symfc.force_constants[2]
     fc_ref = np.loadtxt(cwd / "compact_fc_NaCl_222.xz").reshape(fc.shape)
     np.testing.assert_allclose(fc, fc_ref)
 
     new_symfc = Symfc(
         supercell,
-        displacements=displacements,
-        forces=forces,
     )
+    new_symfc.displacements = displacements
+    new_symfc.forces = forces
     new_symfc.basis_set = symfc.basis_set
     new_symfc.solve(max_order=2)
     np.testing.assert_allclose(new_symfc.force_constants[2], fc_ref)
@@ -77,9 +76,10 @@ def test_api_si_111_fc3(
 ):
     """Test Symfc class with displacements and forces as input."""
     supercell, displacements, forces = ph3_si_111_fc3
-    symfc = Symfc(supercell, displacements=displacements, forces=forces).run(
-        max_order=3, is_compact_fc=is_compact_fc
-    )
+    symfc = Symfc(supercell)
+    symfc.displacements = displacements
+    symfc.forces = forces
+    symfc.run(max_order=3, is_compact_fc=is_compact_fc)
     fc2 = symfc.force_constants[2]
     fc3 = symfc.force_constants[3]
 
@@ -103,9 +103,10 @@ def test_api_si_111_fc4(
 ):
     """Test Symfc class with displacements and forces as input."""
     supercell, displacements, forces = ph3_si_111_fc3
-    symfc = Symfc(supercell, displacements=displacements, forces=forces).run(
-        orders=[2, 3, 4], is_compact_fc=is_compact_fc
-    )
+    symfc = Symfc(supercell)
+    symfc.displacements = displacements
+    symfc.forces = forces
+    symfc.run(orders=[2, 3, 4], is_compact_fc=is_compact_fc)
     fc2 = symfc.force_constants[2]
     fc3 = symfc.force_constants[3]
     fc4 = symfc.force_constants[4]
@@ -135,9 +136,10 @@ def test_api_si_111_fc4_step(
 ):
     """Test Symfc class with displacements and forces as input."""
     supercell, displacements, forces = ph3_si_111_fc3
-    symfc = Symfc(supercell, displacements=displacements, forces=forces).run(
-        orders=[2], is_compact_fc=is_compact_fc
-    )
+    symfc = Symfc(supercell)
+    symfc.displacements = displacements
+    symfc.forces = forces
+    symfc.run(orders=[2], is_compact_fc=is_compact_fc)
     fc2 = symfc.force_constants[2]
 
     natom = fc2.shape[0]
@@ -149,9 +151,10 @@ def test_api_si_111_fc4_step(
     forces_mat -= -displacements_mat @ fc2_mat
     forces = forces_mat.reshape((-1, natom, 3))
 
-    symfc = Symfc(supercell, displacements=displacements, forces=forces).run(
-        orders=[3, 4], is_compact_fc=is_compact_fc
-    )
+    symfc = Symfc(supercell)
+    symfc.displacements = displacements
+    symfc.forces = forces
+    symfc.run(orders=[3, 4], is_compact_fc=is_compact_fc)
     fc3 = symfc.force_constants[3]
     fc4 = symfc.force_constants[4]
 
