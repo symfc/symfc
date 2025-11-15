@@ -38,7 +38,7 @@ def test_compute_sg_permutations(
     """Test compute_sg_permutations."""
     pytest.importorskip("spglib")
     import spglib
-    from spglib.spglib import SpgCell
+    from spglib.spglib import Cell as SpgCell
 
     supercell, _, _ = ph_gan_222
     primitive = cell_gan_111
@@ -83,7 +83,7 @@ def test_compute_sg_permutations_compare_stable():
     """Test compute_sg_permutations and compare with compute_sg_permutations_stable."""
     pytest.importorskip("spglib")
     import spglib
-    from spglib.spglib import SpgCell
+    from spglib.spglib import Cell as SpgCell
 
     axis = np.array([[0.0, 1.0, 1.0], [7.0, 6.0, 7.0], [8.0, 8.0, 8.0]])
     positions = np.array(
@@ -223,7 +223,7 @@ def test_compute_sg_permutations_compare_stable_nacl(
     """Test of compute_sg_permutations for NaCl."""
     pytest.importorskip("spglib")
     import spglib
-    from spglib.spglib import SpgCell
+    from spglib.spglib import Cell as SpgCell
 
     supercell, _, _ = ph_nacl_222
     dataset = spglib.get_symmetry_dataset(cast(SpgCell, supercell.totuple()))
@@ -249,7 +249,7 @@ def test_compute_sg_permutations_compare_stable_sio2(
     """Test of compute_sg_permutations for SiO2."""
     pytest.importorskip("spglib")
     import spglib
-    from spglib.spglib import SpgCell
+    from spglib.spglib import Cell as SpgCell
 
     supercell, _, _ = ph_sio2_221
     dataset = spglib.get_symmetry_dataset(cast(SpgCell, supercell.totuple()))
@@ -273,7 +273,7 @@ def test_compute_sg_permutations_compare_stable_baal2o4():
     """Test compute_sg_permutations for BaAl2O4."""
     pytest.importorskip("spglib")
     import spglib
-    from spglib.spglib import SpgCell
+    from spglib.spglib import Cell as SpgCell
 
     types = np.zeros(8, dtype=int)
     axis = np.array(
