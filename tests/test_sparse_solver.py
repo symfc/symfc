@@ -21,9 +21,9 @@ def test_api_NaCl_222_with_dataset_fd(
     supercell, displacements, forces = ph_nacl_222
     symfc = Symfc(
         supercell,
-        displacements=displacements,
-        forces=forces,
     )
+    symfc.displacements = displacements
+    symfc.forces = forces
     symfc.compute_basis_set(orders=(2,))
 
     n_data, n_atom, _ = forces.shape
