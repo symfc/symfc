@@ -152,14 +152,15 @@ def reshape_nN33_nx_to_N3_n3nx(mat, N: int, n: int, n_batch: int = 1) -> csr_arr
 
 
 def prepare_normal_equation_O2(
-    disps,
-    forces,
+    disps: np.ndarray,
+    forces: np.ndarray,
     compact_compress_mat_fc2,
     compress_eigvecs_fc2,
-    atomic_decompr_idx_fc2,
-    batch_size=100,
-    use_mkl=False,
-    verbose=False,
+    atomic_decompr_idx_fc2: np.ndarray,
+    batch_size: int = 100,
+    use_sparse_disps: bool = False,
+    use_mkl: bool = False,
+    verbose: bool = False,
 ):
     r"""Calculate X.T @ X and X.T @ y.
 
@@ -219,7 +220,7 @@ def prepare_normal_equation_O2(
                 disps[begin:end],
                 compr_mat_fc2,
                 use_mkl=use_mkl,
-                dense=True,
+                dense=not use_sparse_disps,
             ).reshape((-1, n_compr_fc2))
             y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
             mat22 += X2.T @ X2
@@ -247,14 +248,15 @@ def prepare_normal_equation_O2(
 
 
 def run_solver_O2(
-    disps,
-    forces,
+    disps: np.ndarray,
+    forces: np.ndarray,
     compact_compress_mat_fc2,
     compress_eigvecs_fc2,
-    atomic_decompr_idx_fc2,
-    batch_size=100,
-    use_mkl=False,
-    verbose=False,
+    atomic_decompr_idx_fc2: np.ndarray,
+    batch_size: int = 100,
+    use_sparse_disps: bool = False,
+    use_mkl: bool = False,
+    verbose: bool = False,
 ):
     """Estimate coeffs. in X @ coeffs = y.
 
@@ -272,6 +274,7 @@ def run_solver_O2(
         compress_eigvecs_fc2,
         atomic_decompr_idx_fc2,
         batch_size=batch_size,
+        use_sparse_disps=use_sparse_disps,
         use_mkl=use_mkl,
         verbose=verbose,
     )

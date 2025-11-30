@@ -12,6 +12,11 @@ except ImportError:
     pass
 
 
+import sys
+
+sys.setrecursionlimit(100000)
+
+
 def dot_product_sparse(
     A: Union[np.ndarray, csr_array],
     B: Union[np.ndarray, csr_array],

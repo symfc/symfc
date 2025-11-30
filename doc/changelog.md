@@ -2,6 +2,12 @@
 
 # Change Log
 
+## Nov-30-2025: Version 1.6.0
+
+- Sparse solver for FC2.
+- Deprecated `displacements` and `forces` parameters for instantiating the
+  `Symfc` class. Use its attributes after instantiation.
+
 ## Jul-21-2025: Version 1.5.4
 
 - Improve eigensolver for large projector.

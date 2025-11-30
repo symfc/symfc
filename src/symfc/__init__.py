@@ -1,6 +1,6 @@
 """Forcd constants calculation code: Symfc."""
 
-from .api_symfc import Symfc  # noqa F401
-from .version import __version__  # noqa F401
+from .api_symfc import Symfc, eigh, eigsh
+from .version import __version__
 
-from .api_symfc import eigh, eigsh  # noqa F401
+__all__ = ["Symfc", "__version__", "eigh", "eigsh"]
