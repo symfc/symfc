@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
+from numpy.typing import NDArray
 
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.utils import SymfcAtoms
@@ -186,7 +188,6 @@ def test_FCCutoff_gan_443():
         [0.0000000000, 0.0000000000, 15.5478175200],
     ]
     points = [
-        [0.0000000000, 0.0000000000, 15.5478175200],
         [0.0833333333, 0.1666666667, 0.0413973067],
         [0.3333333333, 0.1666666667, 0.0413973067],
         [0.5833333333, 0.1666666667, 0.0413973067],
@@ -577,11 +578,15 @@ def test_FCCutoff_gan_443():
 
     n_nonzero_elem = _check(lattice, points, numbers)
     print(n_nonzero_elem)
-    ref = [70303, 676837, 3900487, 6748021]
+    ref = [69312, 665280, 3840768, 6644736]
     np.testing.assert_equal(ref, n_nonzero_elem)
 
 
-def _check(lattice: np.ndarray, points: np.ndarray, numbers: np.ndarray):
+def _check(
+    lattice: Sequence[Sequence[float]] | NDArray,
+    points: Sequence[Sequence[float]] | NDArray,
+    numbers: Sequence[int] | NDArray,
+):
     n_nonzero_elem = []
     for cutoff in (4, 6, 8, 10):
         fccutoff = FCCutoff(

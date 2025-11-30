@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.utils import (
@@ -19,7 +21,7 @@ cwd = Path(__file__).parent
 
 
 def test_get_indep_atoms_by_lattice_translation(
-    ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray],
+    ph_nacl_222: tuple[SymfcAtoms, NDArray, NDArray],
 ):
     """Test of get_indep_atoms_by_lattice_translation."""
     supercell, _, _ = ph_nacl_222
@@ -31,16 +33,19 @@ def test_get_indep_atoms_by_lattice_translation(
 
 
 def test_compute_sg_permutations(
-    ph_gan_222: tuple[SymfcAtoms, np.ndarray, np.ndarray], cell_gan_111: SymfcAtoms
+    ph_gan_222: tuple[SymfcAtoms, NDArray, NDArray], cell_gan_111: SymfcAtoms
 ):
     """Test compute_sg_permutations."""
-    pytest.importorskip("spglib", minversion="2.5")
-    from spglib import spglib
+    pytest.importorskip("spglib")
+    import spglib
+    from spglib.spglib import Cell as SpgCell
 
     supercell, _, _ = ph_gan_222
     primitive = cell_gan_111
-    dataset = spglib.get_symmetry_dataset(supercell.totuple())
-    primitive_dataset = spglib.get_symmetry_dataset(primitive.totuple())
+    dataset = spglib.get_symmetry_dataset(cast(SpgCell, supercell.totuple()))
+    assert dataset is not None
+    primitive_dataset = spglib.get_symmetry_dataset(cast(SpgCell, primitive.totuple()))
+    assert primitive_dataset is not None
     perms = compute_sg_permutations(
         primitive.scaled_positions,
         primitive_dataset.rotations,
@@ -76,8 +81,9 @@ def test_compute_sg_permutations(
 
 def test_compute_sg_permutations_compare_stable():
     """Test compute_sg_permutations and compare with compute_sg_permutations_stable."""
-    pytest.importorskip("spglib", minversion="2.5")
-    from spglib import spglib
+    pytest.importorskip("spglib")
+    import spglib
+    from spglib.spglib import Cell as SpgCell
 
     axis = np.array([[0.0, 1.0, 1.0], [7.0, 6.0, 7.0], [8.0, 8.0, 8.0]])
     positions = np.array(
@@ -95,7 +101,8 @@ def test_compute_sg_permutations_compare_stable():
     types = np.zeros(8, dtype=int)
 
     cell = axis, positions, types
-    dataset = spglib.get_symmetry_dataset(cell)
+    dataset = spglib.get_symmetry_dataset(cast(SpgCell, cell))
+    assert dataset is not None
     perms = compute_sg_permutations(
         positions,
         dataset.rotations,
@@ -211,14 +218,16 @@ def test_compute_sg_permutations_compare_stable():
 
 
 def test_compute_sg_permutations_compare_stable_nacl(
-    ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray],
+    ph_nacl_222: tuple[SymfcAtoms, NDArray, NDArray],
 ):
     """Test of compute_sg_permutations for NaCl."""
-    pytest.importorskip("spglib", minversion="2.5")
-    from spglib import spglib
+    pytest.importorskip("spglib")
+    import spglib
+    from spglib.spglib import Cell as SpgCell
 
     supercell, _, _ = ph_nacl_222
-    dataset = spglib.get_symmetry_dataset(supercell.totuple())
+    dataset = spglib.get_symmetry_dataset(cast(SpgCell, supercell.totuple()))
+    assert dataset is not None
     perms = compute_sg_permutations(
         supercell.scaled_positions,
         dataset.rotations,
@@ -235,14 +244,16 @@ def test_compute_sg_permutations_compare_stable_nacl(
 
 
 def test_compute_sg_permutations_compare_stable_sio2(
-    ph_sio2_221: tuple[SymfcAtoms, np.ndarray, np.ndarray],
+    ph_sio2_221: tuple[SymfcAtoms, NDArray, NDArray],
 ):
     """Test of compute_sg_permutations for SiO2."""
-    pytest.importorskip("spglib", minversion="2.5")
-    from spglib import spglib
+    pytest.importorskip("spglib")
+    import spglib
+    from spglib.spglib import Cell as SpgCell
 
     supercell, _, _ = ph_sio2_221
-    dataset = spglib.get_symmetry_dataset(supercell.totuple())
+    dataset = spglib.get_symmetry_dataset(cast(SpgCell, supercell.totuple()))
+    assert dataset is not None
     perms = compute_sg_permutations(
         supercell.scaled_positions,
         dataset.rotations,
@@ -260,8 +271,9 @@ def test_compute_sg_permutations_compare_stable_sio2(
 
 def test_compute_sg_permutations_compare_stable_baal2o4():
     """Test compute_sg_permutations for BaAl2O4."""
-    pytest.importorskip("spglib", minversion="2.5")
-    from spglib import spglib
+    pytest.importorskip("spglib")
+    import spglib
+    from spglib.spglib import Cell as SpgCell
 
     types = np.zeros(8, dtype=int)
     axis = np.array(
@@ -392,7 +404,8 @@ def test_compute_sg_permutations_compare_stable_baal2o4():
     )
 
     cell = axis, positions, types
-    dataset = spglib.get_symmetry_dataset(cell)
+    dataset = spglib.get_symmetry_dataset(cast(SpgCell, cell))
+    assert dataset is not None
     perms = compute_sg_permutations(
         positions,
         dataset.rotations,

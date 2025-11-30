@@ -2,7 +2,11 @@
 
 import numpy as np
 
-from symfc.utils.solver_funcs import fit, get_batch_slice
+from symfc.utils.solver_funcs import (
+    fit,
+    get_batch_slice,
+    get_displacement_sparse_matrix,
+)
 
 
 def test_fit():
@@ -34,3 +38,21 @@ def test_batch_slice():
     diff = np.array(end) - np.array(begin)
     np.testing.assert_array_equal(diff[:-1], [36] * 27)
     assert diff[-1] == 28
+
+
+def test_sparse_matrix():
+    """Test get_displacement_sparse_matrix."""
+    n_atom = 64
+    atoms = np.array([0, 0, 32, 32])
+    displacements = [
+        [0.01, 0.0, 0.02],
+        [0.0, 0.01, 0.0],
+        [0.01, 0.02, 0.0],
+        [0.0, 0.01, 0.0],
+    ]
+    displacements = np.array(displacements)
+    mat = get_displacement_sparse_matrix(atoms, displacements, n_atom, tol=1e-15)
+    rows, cols = mat.nonzero()
+    assert list(rows) == [0, 0, 1, 2, 2, 3]
+    assert list(cols) == [0, 2, 1, 96, 97, 97]
+    assert list(mat.data) == [0.01, 0.02, 0.01, 0.01, 0.02, 0.01]
