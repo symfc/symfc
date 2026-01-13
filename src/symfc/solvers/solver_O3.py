@@ -170,7 +170,7 @@ def prepare_normal_equation_O3(
     t_all1 = time.time()
     const_fc3 = -0.5
     compact_compress_mat_fc3 *= const_fc3
-    for begin_i, end_i in zip(begin_batch_atom, end_batch_atom):
+    for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
         if verbose:
             print("-----", flush=True)
             print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
@@ -194,7 +194,7 @@ def prepare_normal_equation_O3(
                 flush=True,
             )
 
-        for begin, end in zip(begin_batch, end_batch):
+        for begin, end in zip(begin_batch, end_batch, strict=True):
             t1 = time.time()
             X3 = dot_product_sparse(
                 set_disps_N3N3(disps[begin:end], sparse=False),

@@ -209,7 +209,7 @@ def reshape_nNN333_nx_to_N3N3_n3nx(mat, N, n, n_batch=9):
     batch_size = len(mat.row) if len(mat.row) < n_batch else len(mat.row) // n_batch
 
     begin_batch, end_batch = get_batch_slice(len(mat.row), batch_size)
-    for begin, end in zip(begin_batch, end_batch):
+    for begin, end in zip(begin_batch, end_batch, strict=True):
         div, rem = np.divmod(mat.row[begin:end], 27 * N * N)
         mat.col[begin:end] += div * 3 * nx
         div, rem = np.divmod(rem, 27 * N)
@@ -281,7 +281,7 @@ def prepare_normal_equation_O2O3(
     compact_compress_mat_fc2 *= const_fc2
     compact_compress_mat_fc3 *= const_fc3
 
-    for begin_i, end_i in zip(begin_batch_atom, end_batch_atom):
+    for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
         if verbose:
             print("-----", flush=True)
             print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
@@ -316,7 +316,7 @@ def prepare_normal_equation_O2O3(
                 flush=True,
             )
 
-        for begin, end in zip(begin_batch, end_batch):
+        for begin, end in zip(begin_batch, end_batch, strict=True):
             t1 = time.time()
             X2 = dot_product_sparse(
                 disps[begin:end],
