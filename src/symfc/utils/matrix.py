@@ -242,7 +242,7 @@ class BlockMatrixNode:
         for i, b1 in enumerate(self.traverse_data_nodes()):
             col_begin1, col_end1 = b1.col_begin_root, b1.col_end_root
             data1 = b1.decompress()
-            for c, val in zip(range(col_begin1, col_end1), b1.eigvals):
+            for c, val in zip(range(col_begin1, col_end1), b1.eigvals, strict=True):
                 res[c, c] = val
             for j, b2 in enumerate(self.traverse_data_nodes()):
                 if i != j:
@@ -268,7 +268,7 @@ class BlockMatrixNode:
             col_begin1, col_end1 = b1.col_begin_root, b1.col_end_root
             data1 = b1.decompress()
             mat1 = mat[b1.rows_root]
-            for c, val in zip(range(col_begin1, col_end1), b1.eigvals):
+            for c, val in zip(range(col_begin1, col_end1), b1.eigvals, strict=True):
                 res[c, c] = val
             for j, b2 in enumerate(self.traverse_data_nodes()):
                 if i > j:

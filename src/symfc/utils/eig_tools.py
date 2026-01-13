@@ -316,7 +316,7 @@ def _find_submatrix_eigenvectors(
     sibling, sibling_c = None, None
     col_id, col_id_c = 0, 0
     header = "  " * (depth - 1) + "(" + str(depth) + ")"
-    for begin, end in zip(*get_batch_slice(p_size, batch_size)):
+    for begin, end in zip(*get_batch_slice(p_size, batch_size), strict=True):
         if verbose:
             print(header, "Block:", end, "/", p_size, flush=True)
         p_small = p[begin:end, begin:end]
