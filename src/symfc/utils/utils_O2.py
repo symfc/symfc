@@ -1,9 +1,11 @@
 """Utility functions for 2nd order force constants."""
 
+from __future__ import annotations
+
 import itertools
-from typing import Optional
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.sparse import csr_array, kron
 
 from symfc.spg_reps import SpgRepsO2
@@ -12,7 +14,7 @@ from symfc.utils.cutoff_tools import FCCutoff
 from .utils import get_indep_atoms_by_lat_trans
 
 
-def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
+def get_lat_trans_decompr_indices(trans_perms: NDArray) -> NDArray:
     """Return indices to de-compress compressed matrix by lat-trans-sym.
 
     Usage
@@ -55,7 +57,7 @@ def get_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
     return indices
 
 
-def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
+def get_lat_trans_compr_indices(trans_perms: NDArray) -> NDArray:
     """Return indices to compress matrix by lat-trans-sym.
 
     Usage
@@ -96,7 +98,7 @@ def get_lat_trans_compr_indices(trans_perms: np.ndarray) -> np.ndarray:
     return indices
 
 
-def get_lat_trans_compr_matrix(decompr_idx: np.ndarray, N: int, n_lp: int) -> csr_array:
+def get_lat_trans_compr_matrix(decompr_idx: NDArray, N: int, n_lp: int) -> csr_array:
     """Return compression matrix by lattice translation symmetry.
 
     `decompr_idx` is obtained by `get_lat_trans_decompr_indices`.
@@ -119,7 +121,7 @@ def get_lat_trans_compr_matrix(decompr_idx: np.ndarray, N: int, n_lp: int) -> cs
     return compression_mat
 
 
-def get_lat_trans_compr_matrix_O2(trans_perms: np.ndarray):
+def get_lat_trans_compr_matrix_O2(trans_perms: NDArray):
     """Return lat trans compression matrix."""
     n_lp, N = trans_perms.shape
     decompr_idx = get_lat_trans_decompr_indices(trans_perms)
@@ -165,7 +167,7 @@ def get_perm_compr_matrix(natom: int) -> csr_array:
     )
 
 
-def _get_atomic_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray:
+def _get_atomic_lat_trans_decompr_indices(trans_perms: NDArray) -> NDArray:
     """Return indices to de-compress compressed matrix by atom-lat-trans-sym.
 
     This is atomic permutation only version of get_lat_trans_decompr_indices.
@@ -206,7 +208,7 @@ def _get_atomic_lat_trans_decompr_indices(trans_perms: np.ndarray) -> np.ndarray
     return indices
 
 
-def get_compr_coset_reps_sum(spg_reps: SpgRepsO2):
+def get_compr_coset_reps_sum(spg_reps: SpgRepsO2) -> csr_array:
     """Return compressed projector of coset reps sum."""
     trans_perms = spg_reps.translation_permutations
     n_lp, N = trans_perms.shape
@@ -276,9 +278,9 @@ def _get_perm_compr_matrix_reference(natom: int) -> csr_array:
 
 def get_compr_coset_projector_O2(
     spg_reps: SpgRepsO2,
-    atomic_decompr_idx: Optional[np.ndarray] = None,
-    fc_cutoff: Optional[FCCutoff] = None,
-    c_pt: Optional[csr_array] = None,
+    atomic_decompr_idx: NDArray | None = None,
+    fc_cutoff: FCCutoff | None = None,
+    c_pt: csr_array | None = None,
 ) -> csr_array:
     """Return compr matrix of sum of coset reps."""
     trans_perms = spg_reps.translation_permutations
