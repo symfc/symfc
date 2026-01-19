@@ -5,6 +5,12 @@ from __future__ import annotations
 from typing import Optional
 
 import numpy as np
+import spglib
+
+try:
+    spglib.error.OLD_ERROR_HANDLING = False
+except AttributeError:
+    pass
 
 from symfc.utils.utils import (
     SymfcAtoms,
@@ -126,13 +132,6 @@ class SpgRepsBase:
 
         """
         if spacegroup_operations is None:
-            try:
-                import spglib
-            except ImportError as exc:
-                raise ModuleNotFoundError(
-                    "Spglib python module was not found."
-                ) from exc
-
             symops = spglib.get_symmetry(  # type: ignore
                 (self._lattice, self._positions, self._numbers)  # type: ignore
             )
