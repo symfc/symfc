@@ -2,21 +2,24 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
+from numpy.typing import NDArray
 
 
-def get_indep_atoms_by_lat_trans(trans_perms: np.ndarray) -> np.ndarray:
+def get_indep_atoms_by_lat_trans(trans_perms: NDArray) -> NDArray:
     """Return independent atoms by lattice translation symmetry.
 
     Parameters
     ----------
-    trans_perms : np.ndarray
+    trans_perms : NDArray
         Atom indices after lattice translations.
         shape=(lattice_translations, supercell_atoms)
 
     Returns
     -------
-    np.ndarray
+    NDArray
         Independent atoms.
         shape=(n_indep_atoms_by_lattice_translation,), dtype=int
 
@@ -34,7 +37,7 @@ def get_indep_atoms_by_lat_trans(trans_perms: np.ndarray) -> np.ndarray:
     return np.array(unique_atoms, dtype=int)
 
 
-def round_positions(positions: np.ndarray, tol: float = 1e-13, decimals: int = 5):
+def round_positions(positions: NDArray, tol: float = 1e-13, decimals: int = 5):
     """Round fractional coordinates of positions (-0.5 <= p < 0.5)."""
     positions_rint = positions - np.rint(positions)
     positions_rint[np.abs(positions_rint - 0.5) < tol] = -0.5
@@ -42,7 +45,7 @@ def round_positions(positions: np.ndarray, tol: float = 1e-13, decimals: int = 5
     return positions_rint
 
 
-def argsort_positions(positions: np.ndarray, tol: float = 1e-13, decimals: int = 5):
+def argsort_positions(positions: NDArray, tol: float = 1e-13, decimals: int = 5):
     """Round and sort fractional coordinates of positions (-0.5 <= p < 0.5)."""
     positions_round = round_positions(positions, tol=tol, decimals=decimals)
     # Not needed part?
@@ -54,7 +57,7 @@ def argsort_positions(positions: np.ndarray, tol: float = 1e-13, decimals: int =
     return sorted_ids, sorted_positions
 
 
-def _find_optimal_decimals(positions: np.ndarray, tol: float = 1e-13):
+def _find_optimal_decimals(positions: NDArray, tol: float = 1e-13):
     """Find optimal value of decimals used for sorting atoms."""
     n_atom = positions.shape[0]
     for decimals in range(3, 15):
@@ -66,12 +69,12 @@ def _find_optimal_decimals(positions: np.ndarray, tol: float = 1e-13):
 
 
 def compute_sg_permutations(
-    positions: np.ndarray,
-    rotations: np.ndarray,
-    translations: np.ndarray,
-    lattice: np.ndarray,
+    positions: NDArray,
+    rotations: NDArray,
+    translations: NDArray,
+    lattice: NDArray,
     symprec: float = 1e-5,
-) -> np.ndarray:
+) -> NDArray:
     """Compute permutations of atoms by space group operations in supercell.
 
     Permutations of atoms of pure translations and coset representatives are
@@ -105,7 +108,7 @@ def compute_sg_permutations(
     n_atom = positions.shape[0]
     decimals = _find_optimal_decimals(positions)
     sorted_ids, sorted_positions = argsort_positions(positions, decimals=decimals)
-    for r, t in zip(rotations, translations):
+    for r, t in zip(rotations, translations, strict=True):
         if (r != np.eye(3, dtype=int)).any():
             continue
         trans_positions = positions + t
@@ -132,7 +135,7 @@ def compute_sg_permutations(
     unique_t = []
     r2ur = []
     unique_rotated_positions = []
-    for r, t in zip(rotations, translations):
+    for r, t in zip(rotations, translations, strict=True):
         is_found = False
         for j, ur in enumerate(unique_r):
             if (r == ur).all():
@@ -170,12 +173,12 @@ def compute_sg_permutations(
 
 
 def compute_sg_permutations_stable(
-    positions: np.ndarray,
-    rotations: np.ndarray,
-    translations: np.ndarray,
-    lattice: np.ndarray,
+    positions: NDArray,
+    rotations: NDArray,
+    translations: NDArray,
+    lattice: NDArray,
     symprec: float = 1e-5,
-) -> np.ndarray:
+) -> NDArray:
     """Compute permutations of atoms by space group operations in supercell.
 
     Permutations of atoms of pure translations and coset representatives are
@@ -207,7 +210,7 @@ def compute_sg_permutations_stable(
     trans_perms = []
     pure_trans = []
     """Bottleneck part"""
-    for r, t in zip(rotations, translations):
+    for r, t in zip(rotations, translations, strict=True):
         if (r != np.eye(3, dtype=int)).any():
             continue
         trans_positions = positions + t
@@ -225,7 +228,7 @@ def compute_sg_permutations_stable(
     unique_t = []
     r2ur = []
     unique_rotated_positions = []
-    for r, t in zip(rotations, translations):
+    for r, t in zip(rotations, translations, strict=True):
         is_found = False
         for j, ur in enumerate(unique_r):
             if (r == ur).all():
@@ -267,34 +270,45 @@ class SymfcAtoms:
 
     def __init__(
         self,
-        numbers=None,
-        scaled_positions=None,
-        cell=None,
+        numbers: Sequence[int] | NDArray,
+        scaled_positions: Sequence[Sequence[float]] | NDArray,
+        cell: Sequence[Sequence[float]] | NDArray,
     ):
         """Init method."""
         self._cell = np.array(cell, dtype="double")
+        if self._cell.shape != (3, 3):
+            raise ValueError("cell must be 3x3 array.")
         self._scaled_positions = np.array(scaled_positions, dtype="double")
+        if self._scaled_positions.ndim != 2 or self._scaled_positions.shape[1] != 3:
+            raise ValueError("scaled_positions must be Nx3 array.")
         self._numbers = np.array(numbers, dtype="intc")
+        if (
+            self._numbers.ndim != 1
+            or self._numbers.shape[0] != self._scaled_positions.shape[0]
+        ):
+            raise ValueError(
+                "numbers must be 1D array with the same length as scaled_positions."
+            )
 
-    def __len__(self):
+    def __len__(self) -> int:
         """Return number of atoms."""
         return len(self.numbers)
 
     @property
-    def cell(self):
+    def cell(self) -> NDArray:
         """Setter and getter of basis vectors. For getter, copy is returned."""
         return self._cell.copy()
 
     @property
-    def scaled_positions(self):
+    def scaled_positions(self) -> NDArray:
         """Setter and getter of scaled positions. For getter, copy is returned."""
         return self._scaled_positions.copy()
 
     @property
-    def numbers(self):
+    def numbers(self) -> NDArray:
         """Setter and getter of atomic numbers. For getter, copy is returned."""
         return self._numbers.copy()
 
-    def totuple(self):
+    def totuple(self) -> tuple[NDArray, NDArray, NDArray]:
         """Return (cell, scaled_position, numbers)."""
         return (self._cell, self._scaled_positions, self._numbers)

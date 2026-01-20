@@ -13,13 +13,13 @@ authors = [
 maintainers = [
     {name = "Atsushi Togo", email = "atztogo@gmail.com"}
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "numpy",
     "scipy != 1.11.0, != 1.11.1, != 1.11.2",
-    "spglib",
+    "spglib>=2.5",
 ]
-license = {file = "LICENSE"}
+license-files = ["LICENSE"]
 
 [project.urls]
 "Homepage" = "https://github.com/symfc/symfc"

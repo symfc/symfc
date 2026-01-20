@@ -14,8 +14,13 @@ from symfc.solvers.solver_O2O3O4 import (
     reshape_nNNN3333_nx_to_N3N3N3_n3nx,
     set_disps_N3N3N3,
 )
-from symfc.utils.eig_tools import dot_product_sparse
+from symfc.utils.matrix import block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
+
+try:
+    from symfc.utils.matrix import dot_product_sparse
+except ImportError:
+    pass
 
 from .solver_base import FCSolverBase
 
@@ -83,9 +88,9 @@ class FCSolverO3O4(FCSolverBase):
         fc3_basis: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[0])
         fc4_basis: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[1])
         compress_mat_fc3 = fc3_basis.compact_compression_matrix
-        basis_set_fc3 = fc3_basis.basis_set
+        basis_set_fc3 = fc3_basis.blocked_basis_set
         compress_mat_fc4 = fc4_basis.compact_compression_matrix
-        basis_set_fc4 = fc4_basis.basis_set
+        basis_set_fc4 = fc4_basis.blocked_basis_set
 
         atomic_decompr_idx_fc3 = fc3_basis.atomic_decompr_idx
         atomic_decompr_idx_fc4 = fc4_basis.atomic_decompr_idx
@@ -149,13 +154,13 @@ class FCSolverO3O4(FCSolverBase):
             raise ValueError("Invalid comp_mat_type.")
 
         N = self._natom
-        fc3 = fc3_basis.basis_set @ self._coefs[0]
+        fc3 = fc3_basis.blocked_basis_set.dot(self._coefs[0])
         fc3 = np.array(
             (comp_mat_fc3 @ fc3).reshape((-1, N, N, 3, 3, 3)),
             dtype="double",
             order="C",
         )
-        fc4 = fc4_basis.basis_set @ self._coefs[1]
+        fc4 = fc4_basis.blocked_basis_set.dot(self._coefs[1])
         fc4 = np.array(
             (comp_mat_fc4 @ fc4).reshape((-1, N, N, N, 3, 3, 3, 3)),
             dtype="double",
@@ -220,7 +225,7 @@ def prepare_normal_equation_O3O4(
     const_fc4 = -1.0 / 6.0
     compact_compress_mat_fc3 *= const_fc3
     compact_compress_mat_fc4 *= const_fc4
-    for begin_i, end_i in zip(begin_batch_atom, end_batch_atom):
+    for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
         if verbose:
             print("-----", flush=True)
             print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
@@ -254,7 +259,7 @@ def prepare_normal_equation_O3O4(
                 flush=True,
             )
 
-        for begin, end in zip(begin_batch, end_batch):
+        for begin, end in zip(begin_batch, end_batch, strict=True):
             t1 = time.time()
             disps_N3N3 = set_disps_N3N3(disps[begin:end], sparse=False)
             X3 = dot_product_sparse(
@@ -284,11 +289,11 @@ def prepare_normal_equation_O3O4(
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
 
-    mat33 = compress_eigvecs_fc3.T @ mat33 @ compress_eigvecs_fc3
-    mat34 = compress_eigvecs_fc3.T @ mat34 @ compress_eigvecs_fc4
-    mat44 = compress_eigvecs_fc4.T @ mat44 @ compress_eigvecs_fc4
-    mat3y = compress_eigvecs_fc3.T @ mat3y
-    mat4y = compress_eigvecs_fc4.T @ mat4y
+    mat33 = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc3, mat33)
+    mat34 = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc4, mat34)
+    mat44 = block_matrix_sandwich(compress_eigvecs_fc4, compress_eigvecs_fc4, mat44)
+    mat3y = compress_eigvecs_fc3.transpose_dot(mat3y)
+    mat4y = compress_eigvecs_fc4.transpose_dot(mat4y)
 
     XTX = np.block([[mat33, mat34], [mat34.T, mat44]])
     XTy = np.hstack([mat3y, mat4y])

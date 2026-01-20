@@ -12,7 +12,7 @@ from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O3 import get_atomic_lat_trans_decompr_indices_O3
 
 try:
-    from symfc.utils.eig_tools import dot_product_sparse
+    from symfc.utils.matrix import dot_product_sparse
 except ImportError:
     pass
 
@@ -126,7 +126,7 @@ def compressed_projector_sum_rules_O3(
 
     batch_size = optimize_batch_size_sum_rules_O3(natom, n_batch=n_batch)
     abc = np.arange(27)
-    for begin, end in zip(*get_batch_slice(NNN, batch_size)):
+    for begin, end in zip(*get_batch_slice(NNN, batch_size), strict=True):
         size = end - begin
         size_vector = size * 27
         size_row = size_vector // natom
@@ -245,7 +245,7 @@ def compressed_projector_sum_rules_O3_stable(
 
     batch_size = optimize_batch_size_sum_rules_O3(natom, n_batch=n_batch)
     abc = np.arange(27)
-    for begin, end in zip(*get_batch_slice(NNN, batch_size)):
+    for begin, end in zip(*get_batch_slice(NNN, batch_size), strict=True):
         if verbose:
             print("Complementary P (Sum rule):", str(end) + "/" + str(NNN), flush=True)
         size = end - begin

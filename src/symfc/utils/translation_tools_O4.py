@@ -12,7 +12,7 @@ from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O4 import get_atomic_lat_trans_decompr_indices_O4
 
 try:
-    from symfc.utils.eig_tools import dot_product_sparse
+    from symfc.utils.matrix import dot_product_sparse
 except ImportError:
     pass
 
@@ -126,7 +126,7 @@ def compressed_projector_sum_rules_O4(
 
     batch_size = optimize_batch_size_sum_rules_O4(natom, n_batch=n_batch)
     abcd = np.arange(81)
-    for begin, end in zip(*get_batch_slice(NNNN, batch_size)):
+    for begin, end in zip(*get_batch_slice(NNNN, batch_size), strict=True):
         size = end - begin
         size_vector = size * 81
         size_row = size_vector // natom
@@ -137,7 +137,7 @@ def compressed_projector_sum_rules_O4(
             continue
 
         if verbose:
-            print("Complementary P (Sum rule):", str(end) + "/" + str(NNN), flush=True)
+            print("Complementary P (Sum rule):", str(end) + "/" + str(NNNN), flush=True)
         decompr_idx_b = decompr_idx[begin:end][nonzero_b]
         c_sum_cplmt = csr_array(
             (
@@ -153,7 +153,7 @@ def compressed_projector_sum_rules_O4(
         c_sum_cplmt = dot_product_sparse(c_sum_cplmt, n_a_compress_mat, use_mkl=use_mkl)
         proj_cplmt += dot_product_sparse(c_sum_cplmt.T, c_sum_cplmt, use_mkl=use_mkl)
 
-    proj_cplmt /= n_lp * natom
+    proj_cplmt /= natom
     return scipy.sparse.identity(proj_cplmt.shape[0]) - proj_cplmt
 
 
@@ -245,7 +245,7 @@ def compressed_projector_sum_rules_O4_stable(
 
     batch_size = optimize_batch_size_sum_rules_O4(natom, n_batch=n_batch)
     abcd = np.arange(81)
-    for begin, end in zip(*get_batch_slice(NNNN, batch_size)):
+    for begin, end in zip(*get_batch_slice(NNNN, batch_size), strict=True):
         if verbose:
             print("Complementary P (Sum rule):", str(end) + "/" + str(NNNN), flush=True)
         size = end - begin

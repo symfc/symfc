@@ -9,8 +9,13 @@ import numpy as np
 from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2
-from symfc.utils.eig_tools import dot_product_sparse
+from symfc.utils.matrix import block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
+
+try:
+    from symfc.utils.matrix import dot_product_sparse
+except ImportError:
+    pass
 
 from .solver_base import FCSolverBase
 
@@ -56,7 +61,7 @@ class FCSolverO2(FCSolverBase):
 
         fc2_basis = self._basis_set
         compress_mat_fc2 = fc2_basis.compact_compression_matrix
-        basis_set_fc2 = fc2_basis.basis_set
+        basis_set_fc2 = fc2_basis.blocked_basis_set
 
         atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
 
@@ -112,7 +117,7 @@ class FCSolverO2(FCSolverBase):
             raise ValueError("Invalid comp_mat_type.")
 
         N = self._natom
-        fc2 = fc2_basis.basis_set @ self._coefs
+        fc2 = fc2_basis.blocked_basis_set.dot(self._coefs)
         fc2 = np.array(
             (comp_mat_fc2 @ fc2).reshape((-1, N, 3, 3)), dtype="double", order="C"
         )
@@ -132,7 +137,7 @@ def reshape_nN33_nx_to_N3_n3nx(mat, N: int, n: int, n_batch: int = 1) -> csr_arr
     mat = mat.tocoo(copy=False)
 
     begin_batch, end_batch = get_batch_slice(len(mat.row), len(mat.row) // n_batch)
-    for begin, end in zip(begin_batch, end_batch):
+    for begin, end in zip(begin_batch, end_batch, strict=True):
         div, rem = np.divmod(mat.row[begin:end], 9 * N)
         mat.col[begin:end] += div * 3 * nx
         div, rem = np.divmod(rem, 9)
@@ -147,14 +152,15 @@ def reshape_nN33_nx_to_N3_n3nx(mat, N: int, n: int, n_batch: int = 1) -> csr_arr
 
 
 def prepare_normal_equation_O2(
-    disps,
-    forces,
+    disps: np.ndarray,
+    forces: np.ndarray,
     compact_compress_mat_fc2,
     compress_eigvecs_fc2,
-    atomic_decompr_idx_fc2,
-    batch_size=100,
-    use_mkl=False,
-    verbose=False,
+    atomic_decompr_idx_fc2: np.ndarray,
+    batch_size: int = 100,
+    use_sparse_disps: bool = False,
+    use_mkl: bool = False,
+    verbose: bool = False,
 ):
     r"""Calculate X.T @ X and X.T @ y.
 
@@ -184,7 +190,7 @@ def prepare_normal_equation_O2(
     t_all1 = time.time()
     const_fc2 = -1.0
     compact_compress_mat_fc2 *= const_fc2
-    for begin_i, end_i in zip(begin_batch_atom, end_batch_atom):
+    for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
         if verbose:
             print("-----", flush=True)
             print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
@@ -208,13 +214,13 @@ def prepare_normal_equation_O2(
                 flush=True,
             )
 
-        for begin, end in zip(begin_batch, end_batch):
+        for begin, end in zip(begin_batch, end_batch, strict=True):
             t1 = time.time()
             X2 = dot_product_sparse(
                 disps[begin:end],
                 compr_mat_fc2,
                 use_mkl=use_mkl,
-                dense=True,
+                dense=not use_sparse_disps,
             ).reshape((-1, n_compr_fc2))
             y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
             mat22 += X2.T @ X2
@@ -227,9 +233,8 @@ def prepare_normal_equation_O2(
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
-    mat22 = mat22 @ compress_eigvecs_fc2
-    XTX = compress_eigvecs_fc2.T @ mat22
-    XTy = compress_eigvecs_fc2.T @ mat2y
+    XTX = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
+    XTy = compress_eigvecs_fc2.transpose_dot(mat2y)
 
     compact_compress_mat_fc2 /= const_fc2
     t_all2 = time.time()
@@ -243,14 +248,15 @@ def prepare_normal_equation_O2(
 
 
 def run_solver_O2(
-    disps,
-    forces,
+    disps: np.ndarray,
+    forces: np.ndarray,
     compact_compress_mat_fc2,
     compress_eigvecs_fc2,
-    atomic_decompr_idx_fc2,
-    batch_size=100,
-    use_mkl=False,
-    verbose=False,
+    atomic_decompr_idx_fc2: np.ndarray,
+    batch_size: int = 100,
+    use_sparse_disps: bool = False,
+    use_mkl: bool = False,
+    verbose: bool = False,
 ):
     """Estimate coeffs. in X @ coeffs = y.
 
@@ -268,6 +274,7 @@ def run_solver_O2(
         compress_eigvecs_fc2,
         atomic_decompr_idx_fc2,
         batch_size=batch_size,
+        use_sparse_disps=use_sparse_disps,
         use_mkl=use_mkl,
         verbose=verbose,
     )

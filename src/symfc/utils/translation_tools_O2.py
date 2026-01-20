@@ -12,7 +12,7 @@ from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O2 import _get_atomic_lat_trans_decompr_indices
 
 try:
-    from symfc.utils.eig_tools import dot_product_sparse
+    from symfc.utils.matrix import dot_product_sparse
 except ImportError:
     pass
 
@@ -118,7 +118,7 @@ def compressed_projector_sum_rules_O2(
 
     batch_size = optimize_batch_size_sum_rules_O2(natom, n_batch=n_batch)
     ab = np.arange(9)
-    for begin, end in zip(*get_batch_slice(NN, batch_size)):
+    for begin, end in zip(*get_batch_slice(NN, batch_size), strict=True):
         size = end - begin
         size_vector = size * 9
         size_row = size_vector // natom
@@ -233,7 +233,7 @@ def compressed_projector_sum_rules_O2_stable(
 
     batch_size = optimize_batch_size_sum_rules_O2(natom, n_batch=n_batch)
     ab = np.arange(9)
-    for begin, end in zip(*get_batch_slice(NN, batch_size)):
+    for begin, end in zip(*get_batch_slice(NN, batch_size), strict=True):
         size = end - begin
         size_vector = size * 9
         size_row = size_vector // natom
