@@ -80,7 +80,7 @@ class SpgRepsBase:
     def _get_translation_permutations(self, rotations) -> np.ndarray:
         eye3 = np.eye(3, dtype=int)
         trans_perms = []
-        for r, perm in zip(rotations, self._permutations):
+        for r, perm in zip(rotations, self._permutations, strict=True):
             if np.array_equal(r, eye3):
                 trans_perms.append(perm)
         return np.array(trans_perms, dtype="intc", order="C")
