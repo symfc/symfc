@@ -75,6 +75,7 @@ class BlockMatrixNode:
     next_sibling : BlockMatrixNode | None
     first_child : BlockMatrixNode | None (readonly)
     compress : BlockMatrixNode | None (readonly)
+    data : NDArray | None (readonly)
     root : bool
     eigvals : NDArray | None
     index : int (readonly)
@@ -187,6 +188,11 @@ class BlockMatrixNode:
         return self._compress
 
     @property
+    def data(self) -> NDArray | None:
+        """Return data matrix node either compressed or original."""
+        return self._data
+
+    @property
     def root(self) -> bool:
         """Return whether node is root or not."""
         return self._root
@@ -220,18 +226,15 @@ class BlockMatrixNode:
                 raise RuntimeError("No data in this node and its children.")
             if self._compress is not None:
                 raise RuntimeError("Data is required with compress matrix.")
+        elif self._compress is None:
+            if self._data.shape != self.shape:
+                raise RuntimeError("Data shape is inconsistent with rows and columns.")
         else:
-            if self._compress is None:
-                if self._data.shape != self.shape:
-                    raise RuntimeError(
-                        "Data shape is inconsistent with rows and columns."
-                    )
-            else:
-                assert self._compress.shape is not None
-                if self._compress.shape[0] != self.shape[0]:
-                    raise RuntimeError("Data shape is inconsistent with rows.")
-                if self._data.shape[1] != self.shape[1]:
-                    raise RuntimeError("Data shape is inconsistent with columns.")
+            assert self._compress.shape is not None
+            if self._compress.shape[0] != self.shape[0]:
+                raise RuntimeError("Data shape is inconsistent with rows.")
+            if self._data.shape[1] != self.shape[1]:
+                raise RuntimeError("Data shape is inconsistent with columns.")
 
     def traverse_data_nodes(self) -> Iterator[BlockMatrixNode]:
         """Traverse all nodes with data."""
@@ -250,8 +253,8 @@ class BlockMatrixNode:
             header = "  " * (depth - 1) + "|--"
         print(header, self.shape, end=", ", flush=True)
         if self._data is not None:
-            if self.compress is not None:
-                print("data:", self.compress.shape, "@", self._data.shape, flush=True)
+            if self._compress is not None:
+                print("data:", self._compress.shape, "@", self._data.shape, flush=True)
             else:
                 print("data: True", flush=True)
         else:
@@ -297,8 +300,10 @@ class BlockMatrixNode:
 
     def decompress(self) -> NDArray:
         """Decompress compressed data matrix."""
-        if self.compress is not None:
-            return self.compress.dot(self._data)
+        if self._data is None:
+            raise ValueError("No data in this node.")
+        if self._compress is not None:
+            return self._compress.dot(self._data)
         return self._data
 
     def recover(self) -> NDArray:
@@ -324,7 +329,7 @@ class BlockMatrixNode:
             raise RuntimeError("Dimension of input numpy array must be one or two.")
 
         for b in self.traverse_data_nodes():
-            res = b._data @ mat[b.col_begin_root : b.col_end_root]
+            res = b.data @ mat[b.col_begin_root : b.col_end_root]
             if b.compress is not None:
                 res = b.compress.dot(res)
             prod[b.rows_root] += res
@@ -344,11 +349,11 @@ class BlockMatrixNode:
             raise RuntimeError("Dimension of input numpy array must be one or two.")
 
         for b in self.traverse_data_nodes():
-            assert b._data is not None
+            assert b.data is not None
             if b.compress is not None:
-                res = b._data.T @ b.compress.transpose_dot(mat[b.rows_root])
+                res = b.data.T @ b.compress.transpose_dot(mat[b.rows_root])
             else:
-                res = b._data.T @ mat[b.rows_root]
+                res = b.data.T @ mat[b.rows_root]
             prod[b.col_begin_root : b.col_end_root] += res
 
         return prod
@@ -359,6 +364,7 @@ class BlockMatrixNode:
         """Calculate block_mat.T @ mat @ block_mat.
 
         Block matrix must be eigenvectors and include their eigenvalues.
+
         """
         if not self._root:
             raise RuntimeError("Node must be root of tree.")
@@ -371,6 +377,7 @@ class BlockMatrixNode:
         """Calculate block_mat.T @ mat @ block_mat for numpy array.
 
         Block matrix must be eigenvectors and include their eigenvalues.
+
         """
         if not self._root:
             raise RuntimeError("Node must be root of tree.")
@@ -380,6 +387,7 @@ class BlockMatrixNode:
 
         res = np.zeros((self.shape[1], self.shape[1]))
         for i, b1 in enumerate(self.traverse_data_nodes()):
+            assert b1.eigvals is not None
             col_begin1, col_end1 = b1.col_begin_root, b1.col_end_root
             data1 = b1.decompress()
             for c, val in zip(range(col_begin1, col_end1), b1.eigvals, strict=True):
@@ -396,6 +404,7 @@ class BlockMatrixNode:
         """Calculate block_mat.T @ mat(csr) @ block_mat for csr_array.
 
         Block matrix must be eigenvectors and include their eigenvalues.
+
         """
         if not self._root:
             raise RuntimeError("Node must be root of tree.")
@@ -405,6 +414,7 @@ class BlockMatrixNode:
 
         res = np.zeros((self.shape[1], self.shape[1]))
         for i, b1 in enumerate(self.traverse_data_nodes()):
+            assert b1.eigvals is not None
             col_begin1, col_end1 = b1.col_begin_root, b1.col_end_root
             data1 = b1.decompress()
             mat1 = mat[b1.rows_root]
@@ -421,6 +431,7 @@ class BlockMatrixNode:
                     prod = dot_product_sparse(
                         data1.T, prod, use_mkl=use_mkl, dense=True
                     )
+                    assert isinstance(prod, np.ndarray)
                     res[col_begin1:col_end1, col_begin2:col_end2] = prod
                     res[col_begin2:col_end2, col_begin1:col_end1] = prod.T
 
