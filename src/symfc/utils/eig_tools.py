@@ -1,11 +1,13 @@
 """Utility functions for eigenvalue solutions."""
 
+from __future__ import annotations
+
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Optional, Union
 
 import numpy as np
 import scipy
+from numpy.typing import NDArray
 from scipy.sparse import csr_array
 
 from symfc.utils.graph import connected_components
@@ -18,33 +20,46 @@ from symfc.utils.matrix import (
 )
 from symfc.utils.solver_funcs import get_batch_slice
 
+# Threshold constants for eigenvalue solvers
+MIN_BLOCK_SIZE = 500
+LARGE_BLOCK_SIZE = 5000
+VERY_LARGE_BLOCK_SIZE = 30000
+MAX_BATCH_SIZE = 20000
+MAX_PROJECTOR_RANK = 32767
+SPARSE_DATA_LIMIT = 2147483647
 
-def eigh_projector(
-    p: Union[np.ndarray, csr_array],
-    atol: float = 1e-8,
-    rtol: float = 0.0,
-    return_cmplt: bool = False,
-    return_block: bool = False,
-    verbose: bool = True,
-) -> Union[
-    np.ndarray,
-    tuple[np.ndarray, tuple[np.ndarray, np.ndarray]],
-    None,
-    tuple[None, None],
-]:
-    """Solve eigenvalue problem using numpy and eliminate eigenvectors with e < 1.0."""
-    p = return_numpy_array(p)
-    rank = matrix_rank(p)
-    if rank == 0:
-        if return_cmplt:
-            return None, None
-        return None
+# Tolerance constants
+DEFAULT_EIGVAL_TOL = 1e-8
+SYMMETRY_TOL_STRICT = 1e-15
+SYMMETRY_TOL_LOOSE = 1e-3
+MIN_EIGVAL_THRESHOLD = 1e-12
 
-    if rank > 32767:
-        raise RuntimeError("Projector rank is too large in eigh.")
 
+@dataclass
+class ComplementEigenvectorsResult:
+    """Result of complement eigenvector computation."""
+
+    sibling: BlockMatrixNode | None
+    col_id: int
+    cmplt_eigvals: NDArray | None = None
+    cmplt_eigvecs: NDArray | None = None
+
+
+@dataclass
+class EigenvectorResult:
+    """Result of eigenvector computation."""
+
+    eigvecs: NDArray | BlockMatrixNode | None
+    cmplt_eigvals: NDArray | None = None
+    cmplt_eigvecs: NDArray | None = None
+
+
+def _solve_eigenvalue_problem(
+    p: NDArray, verbose: bool = True
+) -> tuple[NDArray, NDArray]:
+    """Solve eigenvalue problem with fallback to LAPACK dsyev."""
     try:
-        eigvals, eigvecs = np.linalg.eigh(p)
+        return np.linalg.eigh(p)
     except np.linalg.LinAlgError as e:
         if verbose:
             print(f"np.linalg.eigh failed: {str(e)}")
@@ -54,37 +69,74 @@ def eigh_projector(
             raise scipy.linalg.LinAlgError(
                 "scipy.linalg.lapack.dsyev failed: Eigenvalues did not converge"
             ) from e
+        return eigvals, eigvecs
 
-    tol = 1e-8
+
+def _validate_eigenvalues(
+    eigvals: NDArray,
+    eigvecs: NDArray,
+    p: NDArray,
+    tol: float = DEFAULT_EIGVAL_TOL,
+) -> tuple[NDArray, NDArray]:
+    """Validate eigenvalues and symmetrize matrix if needed."""
     if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
         diff = np.abs(p - p.T)
-        if np.any(diff > 1e-3):
+        if np.any(diff > SYMMETRY_TOL_LOOSE):
             raise RuntimeError("Transpose equality not satisfied")
-        elif np.any(diff > 1e-15):
+        elif np.any(diff > SYMMETRY_TOL_STRICT):
             eigvals, eigvecs = np.linalg.eigh(0.5 * (p + p.T))
 
     if np.count_nonzero((eigvals > 1.0 + tol) | (eigvals < -tol)):
         raise ValueError("Eigenvalue error: e > 1 or e < 0.")
 
+    return eigvals, eigvecs
+
+
+def eigh_projector(
+    p: NDArray | csr_array,
+    atol: float = DEFAULT_EIGVAL_TOL,
+    rtol: float = 0.0,
+    return_cmplt: bool = False,
+    return_block: bool = False,
+    verbose: bool = True,
+) -> EigenvectorResult:
+    """Solve eigenvalue problem using numpy and eliminate eigenvectors with e < 1.0."""
+    p = return_numpy_array(p)
+    rank = matrix_rank(p)
+    if rank == 0:
+        return EigenvectorResult(eigvecs=None)
+
+    if rank > MAX_PROJECTOR_RANK:
+        raise RuntimeError("Projector rank is too large in eigh.")
+
+    eigvals, eigvecs = _solve_eigenvalue_problem(p, verbose=verbose)
+    eigvals, eigvecs = _validate_eigenvalues(eigvals, eigvecs, p)
+
     nonzero = np.isclose(eigvals, 1.0, atol=atol, rtol=rtol)
+    cmplt_eigvals, cmplt_eigvecs = None, None
     if return_cmplt:
-        cmplt_bool = np.logical_and(np.logical_not(nonzero), eigvals > 1e-12)
+        cmplt_bool = np.logical_and(
+            np.logical_not(nonzero), eigvals > MIN_EIGVAL_THRESHOLD
+        )
         cmplt_eigvals, cmplt_eigvecs = eigvals[cmplt_bool], eigvecs[:, cmplt_bool]
 
     eigvecs = eigvecs[:, nonzero]
     if return_block:
         block = root_block_matrix(data=eigvecs)
+        return EigenvectorResult(
+            eigvecs=block,
+            cmplt_eigvals=cmplt_eigvals,
+            cmplt_eigvecs=cmplt_eigvecs,
+        )
 
-        if return_cmplt:
-            return block, (cmplt_eigvals, cmplt_eigvecs)
-        return block
-
-    if return_cmplt:
-        return eigvecs, (cmplt_eigvals, cmplt_eigvecs)
-    return eigvecs
+    return EigenvectorResult(
+        eigvecs=eigvecs,
+        cmplt_eigvals=cmplt_eigvals,
+        cmplt_eigvecs=cmplt_eigvecs,
+    )
 
 
-def _compr_projector(p: csr_array) -> tuple[csr_array, Optional[csr_array]]:
+def _compr_projector(p: csr_array) -> tuple[csr_array, csr_array | None]:
     """Compress projection matrix p with many zero rows and columns."""
     _, col_p = p.nonzero()  # type: ignore
     col_p = np.unique(col_p)
@@ -103,12 +155,12 @@ def _compr_projector(p: csr_array) -> tuple[csr_array, Optional[csr_array]]:
     return p, None
 
 
-def _find_projector_blocks(p: csr_array, verbose: bool = False):
+def _find_projector_blocks(p: csr_array, verbose: bool = False) -> dict:
     """Find block structures in projection matrix."""
     if verbose:
         print("Finding block diagonal structure in projector.", flush=True)
 
-    if len(p.data) < 2147483647:
+    if len(p.data) < SPARSE_DATA_LIMIT:
         if verbose:
             print("Using scipy connected_components.", flush=True)
         n_components, labels = scipy.sparse.csgraph.connected_components(p)
@@ -176,11 +228,11 @@ def _recover_eigvecs_from_uniq_eigvecs(
 class DataCSR:
     """Dataclass for extracting data in projector."""
 
-    data: np.ndarray
-    block_labels: np.ndarray
-    block_sizes: np.ndarray
-    slice_begin: Optional[np.ndarray] = None
-    slice_end: Optional[np.ndarray] = None
+    data: NDArray
+    block_labels: NDArray
+    block_sizes: NDArray
+    slice_begin: NDArray | None = None
+    slice_end: NDArray | None = None
 
     def __post_init__(self):
         """Init method."""
@@ -272,8 +324,8 @@ def eigsh_projector(
                 uniq_eigvecs[key][1].append(block_label)
             except KeyError:
                 p_np = p_block.reshape((block_size, block_size))
-                eigvecs = eigh_projector(p_np, atol=atol, rtol=rtol, verbose=verbose)
-                uniq_eigvecs[key] = [eigvecs, [block_label]]
+                res = eigh_projector(p_np, atol=atol, rtol=rtol, verbose=verbose)
+                uniq_eigvecs[key] = [res.eigvecs, [block_label]]
         else:
             if not np.isclose(p_block[0], 0.0):
                 if "one" in uniq_eigvecs:
@@ -287,31 +339,46 @@ def eigsh_projector(
     return c_p
 
 
+def _should_repeat_division(
+    p_size: int, depth: int, threshold_small: int = MIN_BLOCK_SIZE
+) -> bool:
+    """Determine if division should be repeated based on size and depth."""
+    if p_size < threshold_small:
+        return False
+    elif p_size > VERY_LARGE_BLOCK_SIZE:
+        return depth < 8
+    else:
+        return depth < 3
+
+
+def _calculate_batch_size_division(
+    p_size: int, depth: int, batch_size: int | None = None
+) -> int:
+    """Calculate batch size for submatrix division."""
+    if batch_size is not None:
+        return batch_size
+
+    if depth == 1:
+        return max(p_size // 10, MIN_BLOCK_SIZE)
+    elif depth == 2:
+        return max(p_size // 5, MIN_BLOCK_SIZE // 2)
+    elif depth == 3:
+        return p_size // 2
+    else:
+        return min(int(round(p_size / 1.3)), MAX_BATCH_SIZE)
+
+
 def _find_submatrix_eigenvectors(
-    p: Union[np.ndarray, csr_array],
-    batch_size: Optional[int] = None,
+    p: NDArray | csr_array,
+    batch_size: int | None = None,
     depth: int = 0,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
     """Find eigenvectors in division part of submatrix division algorithm."""
     p_size = p.shape[0]
-    if p_size < 500:
-        repeat = False
-    elif p_size > 30000:
-        repeat = True if depth < 8 else False
-    else:
-        repeat = True if depth < 3 else False
-
-    if batch_size is None:
-        if depth == 1:
-            batch_size = max(p_size // 10, 500)
-        elif depth == 2:
-            batch_size = max(p_size // 5, 250)
-        elif depth == 3:
-            batch_size = p_size // 2
-        else:
-            batch_size = min(int(round(p_size / 1.3)), 20000)
+    repeat = _should_repeat_division(p_size, depth)
+    batch_size = _calculate_batch_size_division(p_size, depth, batch_size)
 
     sibling, sibling_c = None, None
     col_id, col_id_c = 0, 0
@@ -323,7 +390,7 @@ def _find_submatrix_eigenvectors(
         rank = matrix_rank(p_small)
         if rank > 0:
             if repeat:
-                block, (cmplt_eigvals, cmplt_vecs) = eigh_projector_division(
+                res = eigh_projector_division(
                     p_small,
                     atol=1e-12,
                     rtol=0.0,
@@ -334,7 +401,7 @@ def _find_submatrix_eigenvectors(
                     verbose=verbose,
                 )
             else:
-                block, (cmplt_eigvals, cmplt_vecs) = eigh_projector(
+                res = eigh_projector(
                     p_small,
                     atol=1e-12,
                     rtol=0.0,
@@ -342,6 +409,9 @@ def _find_submatrix_eigenvectors(
                     return_block=True,
                     verbose=verbose,
                 )
+            block = res.eigvecs
+            cmplt_eigvals = res.cmplt_eigvals
+            cmplt_vecs = res.cmplt_eigvecs
 
             rows = np.arange(begin, end)
             if block is not None:
@@ -369,35 +439,37 @@ def _find_submatrix_eigenvectors(
     return sibling, col_id, cmplt
 
 
+def _calculate_batch_size_complement(cmplt_size: int, p_size: int, depth: int) -> int:
+    """Calculate batch size for complement eigenvector computation."""
+    if depth == 1:
+        return max(cmplt_size // 3, p_size // 15)
+    elif depth == 2:
+        return int(round(cmplt_size / 1.5))
+    elif depth == 3:
+        return int(round(cmplt_size / 1.3))
+    else:
+        return min(int(round(cmplt_size / 1.2)), MAX_BATCH_SIZE)
+
+
 def _find_complement_eigenvectors(
-    p: Union[np.ndarray, csr_array],
-    sibling: BlockMatrixNode,
+    p: NDArray | csr_array,
+    sibling: BlockMatrixNode | None,
     col_id: int,
     cmplt: BlockMatrixNode,
-    atol: float = 1e-8,
+    atol: float = DEFAULT_EIGVAL_TOL,
     rtol: float = 0.0,
     depth: int = 0,
     return_cmplt: bool = False,
     use_mkl: bool = False,
     verbose: bool = False,
-):
+) -> ComplementEigenvectorsResult:
     """Find eigenvectors in complementary part of submatrix division algorithm."""
     p_size = p.shape[0]
-    if p_size < 5000:
-        repeat = False
-    elif p_size > 30000:
-        repeat = True if depth < 8 else False
-    else:
-        repeat = True if depth < 4 else False
+    repeat = _should_repeat_division(p_size, depth, threshold_small=LARGE_BLOCK_SIZE)
+    if p_size >= LARGE_BLOCK_SIZE and p_size <= VERY_LARGE_BLOCK_SIZE:
+        repeat = depth < 4  # slightly different threshold for complement
 
-    if depth == 1:
-        batch_size_cmplt = max(cmplt.shape[1] // 3, p_size // 15)
-    elif depth == 2:
-        batch_size_cmplt = int(round(cmplt.shape[1] / 1.5))
-    elif depth == 3:
-        batch_size_cmplt = int(round(cmplt.shape[1] / 1.3))
-    else:
-        batch_size_cmplt = min(int(round(cmplt.shape[1] / 1.2)), 20000)
+    batch_size_cmplt = _calculate_batch_size_complement(cmplt.shape[1], p_size, depth)
 
     header = "  " * (depth - 1) + "(" + str(depth) + ")"
     if verbose:
@@ -408,7 +480,7 @@ def _find_complement_eigenvectors(
     if not repeat:
         if verbose:
             print(header, "Use standard solver.", flush=True)
-        result = eigh_projector(
+        res = eigh_projector(
             p_cmr,
             atol=atol,
             rtol=rtol,
@@ -418,7 +490,7 @@ def _find_complement_eigenvectors(
     else:
         if verbose:
             print(header, "Use submatrix size of", batch_size_cmplt, flush=True)
-        result = eigh_projector_division(
+        res = eigh_projector_division(
             p_cmr,
             atol=atol,
             rtol=rtol,
@@ -429,7 +501,7 @@ def _find_complement_eigenvectors(
             verbose=verbose,
         )
 
-    eigvecs = result[0] if return_cmplt else result
+    eigvecs = res.eigvecs
 
     if eigvecs is not None:
         if verbose:
@@ -443,26 +515,31 @@ def _find_complement_eigenvectors(
         )
         col_id += eigvecs.shape[1]
 
+    cmplt_eigvals, cmplt_eigvecs = None, None
     if return_cmplt:
-        cmplt_eigvals, cmplt_small = result[1]
+        cmplt_small = res.cmplt_eigvecs
         if cmplt_small is not None and cmplt_small.shape[1] > 0:
+            cmplt_eigvals = res.cmplt_eigvals
             cmplt_eigvecs = cmplt.dot(cmplt_small)
-        else:
-            cmplt_eigvals, cmplt_eigvecs = None, None
-        return sibling, col_id, (cmplt_eigvals, cmplt_eigvecs)
-    return sibling, col_id
+
+    return ComplementEigenvectorsResult(
+        sibling=sibling,
+        col_id=col_id,
+        cmplt_eigvals=cmplt_eigvals,
+        cmplt_eigvecs=cmplt_eigvecs,
+    )
 
 
 def _run_division(
-    p: Union[np.ndarray, csr_array],
-    batch_size: Optional[int] = None,
-    atol: float = 1e-8,
+    p: NDArray | csr_array,
+    batch_size: int | None = None,
+    atol: float = DEFAULT_EIGVAL_TOL,
     rtol: float = 0.0,
     depth: int = 0,
     return_cmplt: bool = False,
     use_mkl: bool = False,
     verbose: bool = False,
-):
+) -> EigenvectorResult:
     """Find eigenvectors in division and complementary parts."""
     depth += 1
     sibling, col_id, cmplt = _find_submatrix_eigenvectors(
@@ -472,6 +549,7 @@ def _run_division(
         use_mkl=use_mkl,
         verbose=verbose,
     )
+    cmplt_eigvals, cmplt_eigvecs = None, None
     if cmplt is not None:
         result = _find_complement_eigenvectors(
             p,
@@ -485,30 +563,30 @@ def _run_division(
             use_mkl=use_mkl,
             verbose=verbose,
         )
-        if return_cmplt:
-            sibling, col_id, (cmplt_eigvals, cmplt_eigvecs) = result
-        else:
-            sibling, col_id = result
-    else:
-        cmplt_eigvals, cmplt_eigvecs = None, None
+        sibling = result.sibling
+        col_id = result.col_id
+        cmplt_eigvals = result.cmplt_eigvals
+        cmplt_eigvecs = result.cmplt_eigvecs
 
     block = root_block_matrix((p.shape[0], col_id), first_child=sibling)
-    if return_cmplt:
-        return block, (cmplt_eigvals, cmplt_eigvecs)
-    return block
+    return EigenvectorResult(
+        eigvecs=block,
+        cmplt_eigvals=cmplt_eigvals,
+        cmplt_eigvecs=cmplt_eigvecs,
+    )
 
 
 def eigh_projector_division(
-    p: Union[np.ndarray, csr_array],
-    atol: float = 1e-8,
+    p: NDArray | csr_array,
+    atol: float = DEFAULT_EIGVAL_TOL,
     rtol: float = 0.0,
     depth: int = 0,
-    batch_size: Optional[int] = None,
+    batch_size: int | None = None,
     return_cmplt: bool = False,
     return_block: bool = False,
     use_mkl: bool = False,
     verbose: bool = False,
-):
+) -> EigenvectorResult:
     r"""Solve eigenvalue problem using submatrix division algorithm.
 
     This algorithm is optimized to solve an eigenvalue problem for
@@ -530,7 +608,7 @@ def eigh_projector_division(
     5. Collect all eigenvectors with e = 1.
     """
     p_size = p.shape[0]
-    if p_size < 500:
+    if p_size < MIN_BLOCK_SIZE:
         return eigh_projector(
             p,
             atol=atol,
@@ -553,22 +631,20 @@ def eigh_projector_division(
     if return_block:
         return result
 
-    if return_cmplt:
-        block, (cmplt_eigvals, cmplt_eigvecs) = result
-    else:
-        block = result
-
+    block = result.eigvecs
     eigvecs = block.recover() if block is not None else None
-    if return_cmplt:
-        return eigvecs, (cmplt_eigvals, cmplt_eigvecs)
-    return eigvecs
+    return EigenvectorResult(
+        eigvecs=eigvecs,
+        cmplt_eigvals=result.cmplt_eigvals,
+        cmplt_eigvecs=result.cmplt_eigvecs,
+    )
 
 
 def eigsh_projector_sumrule(
     p: csr_array,
-    atol: float = 1e-8,
+    atol: float = DEFAULT_EIGVAL_TOL,
     rtol: float = 0.0,
-    size_threshold: int = 500,
+    size_threshold: int = MIN_BLOCK_SIZE,
     use_mkl: bool = False,
     verbose: bool = True,
 ) -> BlockMatrixNode:
@@ -604,15 +680,15 @@ def eigsh_projector_sumrule(
             if verbose:
                 print("Use standard eigh solver.", flush=True)
             p_block = p_block.toarray()
-            eigvecs = eigh_projector(p_block, atol=atol, rtol=rtol, verbose=verbose)
-            if eigvecs is not None:
-                sibling = append_node(eigvecs, sibling, rows=ids, col_begin=col_id)
-                col_id += eigvecs.shape[1]
+            res = eigh_projector(p_block, atol=atol, rtol=rtol, verbose=verbose)
+            if res.eigvecs is not None:
+                sibling = append_node(res.eigvecs, sibling, rows=ids, col_begin=col_id)
+                col_id += res.eigvecs.shape[1]
 
         elif rank > 0 and p_block.shape[0] >= size_threshold:
             if verbose:
                 print("Use submatrix version of eigh solver.", flush=True)
-            block = eigh_projector_division(
+            res = eigh_projector_division(
                 p_block,
                 atol=atol,
                 rtol=rtol,
@@ -620,9 +696,9 @@ def eigsh_projector_sumrule(
                 use_mkl=use_mkl,
                 verbose=verbose,
             )
-            if block is not None:
-                sibling = append_node(block, sibling, rows=ids, col_begin=col_id)
-                col_id += block.shape[1]
+            if res.eigvecs is not None:
+                sibling = append_node(res.eigvecs, sibling, rows=ids, col_begin=col_id)
+                col_id += res.eigvecs.shape[1]
 
         del p_block
 
