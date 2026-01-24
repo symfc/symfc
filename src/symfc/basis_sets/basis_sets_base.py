@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional
 
-import numpy as np
+from numpy.typing import NDArray
 
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.cutoff_tools import FCCutoff
@@ -19,7 +18,7 @@ class FCBasisSetBase(ABC):
     def __init__(
         self,
         supercell: SymfcAtoms,
-        cutoff: Optional[float] = None,
+        cutoff: float | None = None,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -42,9 +41,9 @@ class FCBasisSetBase(ABC):
         self._use_mkl = use_mkl
         self._log_level = log_level
         self._spg_reps: SpgRepsBase
-        self._atomic_decompr_idx: np.ndarray
-        self._basis_set: np.ndarray
-        self._blocked_basis_set: BlockMatrixNode
+        self._atomic_decompr_idx: NDArray
+        self._basis_set: NDArray | None
+        self._blocked_basis_set: BlockMatrixNode | None
 
         if cutoff is None:
             self._fc_cutoff = None
@@ -53,44 +52,46 @@ class FCBasisSetBase(ABC):
 
     @property
     @abstractmethod
-    def compact_compression_matrix(self) -> Optional[np.ndarray]:
+    def compact_compression_matrix(self) -> NDArray | None:
         """Return compression matrix for compact basis set."""
         pass
 
     @property
     @abstractmethod
-    def compression_matrix(self) -> Optional[np.ndarray]:
+    def compression_matrix(self) -> NDArray | None:
         """Return compression matrix."""
         pass
 
     @property
-    def basis_set(self) -> Optional[np.ndarray]:
+    def basis_set(self) -> NDArray:
         """Return compressed basis set.
 
         shape=(n_c, n_bases), dtype='double'.
 
         """
+        if self._blocked_basis_set is None:
+            raise ValueError("Basis set is not computed yet.")
         return self._blocked_basis_set.recover()
 
     @property
-    def blocked_basis_set(self) -> Optional[BlockMatrixNode]:
+    def blocked_basis_set(self) -> BlockMatrixNode | None:
         """Return compressed basis set in blocked format."""
         return self._blocked_basis_set
 
     @property
-    def atomic_decompr_idx(self) -> np.ndarray:
+    def atomic_decompr_idx(self) -> NDArray:
         """Return atomic permutations by lattice translations."""
         return self._atomic_decompr_idx
 
     @property
-    def translation_permutations(self) -> np.ndarray:
+    def translation_permutations(self) -> NDArray:
         """Return permutations by lattice translation."""
         if self._spg_reps is None:
             raise ValueError("SpgRepsBase is not set.")
         return self._spg_reps.translation_permutations
 
     @property
-    def p2s_map(self) -> np.ndarray:
+    def p2s_map(self) -> NDArray:
         """Return indices of translationally independent atoms."""
         if self._spg_reps is None:
             raise ValueError("SpgRepsBase is not set.")
@@ -99,7 +100,7 @@ class FCBasisSetBase(ABC):
         return self._spg_reps.p2s_map
 
     @property
-    def fc_cutoff(self) -> Optional[FCCutoff]:
+    def fc_cutoff(self) -> FCCutoff | None:
         """Return force constants cutoff."""
         return self._fc_cutoff
 

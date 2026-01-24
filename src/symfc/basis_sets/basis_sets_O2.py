@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import numpy as np
 from scipy.sparse import csr_array
 
@@ -55,8 +53,8 @@ class FCBasisSetO2(FCBasisSetBase):
     def __init__(
         self,
         supercell: SymfcAtoms,
-        cutoff: Optional[float] = None,
-        spacegroup_operations: Optional[dict] = None,
+        cutoff: float | None = None,
+        spacegroup_operations: dict | None = None,
         use_mkl: bool = False,
         log_level: int = 0,
     ):
@@ -88,12 +86,12 @@ class FCBasisSetO2(FCBasisSetBase):
         trans_perms = self._spg_reps.translation_permutations
         self._atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
 
-        self._n_a_compression_matrix: Optional[csr_array] = None
-        self._basis_set: Optional[np.ndarray] = None
-        self._blocked_basis_set: Optional[BlockMatrixNode] = None
+        self._n_a_compression_matrix: csr_array | None = None
+        self._basis_set: np.ndarray | None = None
+        self._blocked_basis_set: BlockMatrixNode | None = None
 
     @property
-    def compression_matrix(self) -> Optional[csr_array]:
+    def compression_matrix(self) -> csr_array | None:
         """Return compression matrix.
 
         This expands fc basis_sets to (N*N*3*3, n_bases).
@@ -110,7 +108,7 @@ class FCBasisSetO2(FCBasisSetBase):
         )
 
     @property
-    def compact_compression_matrix(self) -> Optional[csr_array]:
+    def compact_compression_matrix(self) -> csr_array:
         """Return compact compression matrix.
 
         This expands fc basis_sets to (n_a*N*3*3, n_bases).
