@@ -19,12 +19,11 @@ SPARSE_DATA_LIMIT = 2147483647
 
 # Tolerance constants
 DEFAULT_EIGVAL_TOL = 1e-8
-# MIN_EIGVAL_THRESHOLD = 1e-12
 
 
 def eigsh_projector(
     p: csr_array,
-    atol: float = 1e-8,
+    atol: float = DEFAULT_EIGVAL_TOL,
     rtol: float = 0.0,
     verbose: bool = True,
 ) -> csr_array:
@@ -68,17 +67,19 @@ class CompressionProjector:
         col_p = np.unique(col_p)
         size = len(col_p)
 
-        if p.shape[1] > size:
-            self._compr = csr_array(
-                (np.ones(size), (col_p, np.arange(size))),
-                shape=(p.shape[1], size),
-                dtype="int",
-            )
-            # Matrix compression using p = compr.T @ p @ compr
-            self._compressed_proj = p[col_p].T
-            self._compressed_proj = self._compressed_proj[col_p].T
+        if p.shape[1] == size:
+            self._compressed_proj = p
             return self._compressed_proj
-        return None
+
+        self._compr = csr_array(
+            (np.ones(size), (col_p, np.arange(size))),
+            shape=(p.shape[1], size),
+            dtype="int",
+        )
+        # Matrix compression using p = compr.T @ p @ compr
+        self._compressed_proj = p[col_p].T
+        self._compressed_proj = self._compressed_proj[col_p].T
+        return self._compressed_proj
 
     def recover(self, eigvecs: csr_array):
         """Recover eigenvectors of compressed projector."""
@@ -157,6 +158,26 @@ class DataCSR:
         self.slice_begin = np.zeros_like(self.slice_end)
         self.slice_begin[1:] = self.slice_end[:-1]
 
+        self._index: int = 0
+        self._length = len(self.block_sizes)
+
+    def __iter__(self):
+        """Define iter method."""
+        return self
+
+    def __next__(self):
+        """Define next method."""
+        if self._index >= self._length:
+            raise StopIteration
+
+        value = (
+            self.get_data(self._index),
+            self.get_block_label(self._index),
+            self.get_block_size(self._index),
+        )
+        self._index += 1
+        return value
+
     def get_data(self, idx: int):
         """Get data in projector for i-th block."""
         if self.slice_begin is None or self.slice_end is None:
@@ -172,11 +193,6 @@ class DataCSR:
     def get_block_size(self, idx: int):
         """Get block size for i-th block."""
         return self.block_sizes[idx]
-
-    @property
-    def n_blocks(self):
-        """Return number of blocks in projector."""
-        return len(self.block_labels)
 
 
 def _extract_sparse_projector_data(p: csr_array, group: dict) -> DataCSR:
@@ -212,26 +228,19 @@ def _solve_eigsh(
 ) -> csr_array:
     """Solve eigenvalue problem for matrix p."""
     p_data = _extract_sparse_projector_data(p, group)
-    uniq_eigvecs = dict()
-    # TODO: use __iter__
-    for i in range(p_data.n_blocks):
-        p_block = p_data.get_data(i)
-        block_label = p_data.get_block_label(i)
-        block_size = p_data.get_block_size(i)
-        if block_size > 1:
-            key = tuple(p_block)
+    uniq_eigvecs = {"one": [np.array([[1.0]]), []]}
+    for p_block, block_label, block_size in p_data:
+        if block_size == 1 and not np.isclose(p_block[0], 0.0):
+            uniq_eigvecs["one"][1].append(block_label)
+        elif block_size > 1:
+            # key = tuple(p_block)
+            key = (p_block.tobytes(), p_block.shape, p_block.dtype.str)
             try:
                 uniq_eigvecs[key][1].append(block_label)
             except KeyError:
-                p_np = p_block.reshape((block_size, block_size))
-                res = eigh_projector(p_np, tol=atol, verbose=verbose)
+                p_numpy = p_block.reshape((block_size, block_size))
+                res = eigh_projector(p_numpy, atol=atol, rtol=rtol, verbose=verbose)
                 uniq_eigvecs[key] = [res.eigvecs, [block_label]]
-        else:
-            if not np.isclose(p_block[0], 0.0):
-                if "one" in uniq_eigvecs:
-                    uniq_eigvecs["one"][1].append(block_label)
-                else:
-                    uniq_eigvecs["one"] = [np.array([[1.0]]), [block_label]]
 
     eigvecs = _recover_eigvecs_from_uniq_eigvecs(uniq_eigvecs, group, p.shape[0])  # type: ignore
     return eigvecs

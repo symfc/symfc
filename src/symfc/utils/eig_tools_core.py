@@ -57,26 +57,6 @@ class EigenvectorResult:
         return self.eigvecs
 
 
-def find_projector_blocks(p: csr_array, verbose: bool = False) -> dict:
-    """Find block structures in projection matrix."""
-    if verbose:
-        print("Finding block diagonal structure in projector.", flush=True)
-
-    if len(p.data) < SPARSE_DATA_LIMIT:
-        if verbose:
-            print("Using scipy connected_components.", flush=True)
-        n_components, labels = scipy.sparse.csgraph.connected_components(p)
-        group = defaultdict(list)
-        for i, ll in enumerate(labels):
-            group[ll].append(i)
-    else:
-        if verbose:
-            print("Using symfc connected_components with DFS.", flush=True)
-        group = connected_components(p)
-
-    return group
-
-
 def eigh_projector(
     p: NDArray | csr_array,
     atol: float = DEFAULT_EIGVAL_TOL,
@@ -162,3 +142,23 @@ def _divide_eigenvectors(
         cmplt_eigvals=cmplt_eigvals,
         cmplt_eigvecs=cmplt_eigvecs,
     )
+
+
+def find_projector_blocks(p: csr_array, verbose: bool = False) -> dict:
+    """Find block structures in projection matrix."""
+    if verbose:
+        print("Finding block diagonal structure in projector.", flush=True)
+
+    if len(p.data) < SPARSE_DATA_LIMIT:
+        if verbose:
+            print("Using scipy connected_components.", flush=True)
+        n_components, labels = scipy.sparse.csgraph.connected_components(p)
+        group = defaultdict(list)
+        for i, ll in enumerate(labels):
+            group[ll].append(i)
+    else:
+        if verbose:
+            print("Using symfc connected_components with DFS.", flush=True)
+        group = connected_components(p)
+
+    return group

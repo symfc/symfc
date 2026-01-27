@@ -12,11 +12,6 @@ from symfc.utils.matrix import BlockMatrixNode
 
 # Threshold constants for eigenvalue solvers
 MIN_BLOCK_SIZE = 500
-LARGE_BLOCK_SIZE = 5000
-VERY_LARGE_BLOCK_SIZE = 30000
-MAX_BATCH_SIZE = 20000
-MAX_PROJECTOR_RANK = 32767
-SPARSE_DATA_LIMIT = 2147483647
 
 # Tolerance constants
 DEFAULT_EIGVAL_TOL = 1e-8

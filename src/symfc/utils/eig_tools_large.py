@@ -146,7 +146,7 @@ def _find_complement_eigenvectors(
     atol: float = DEFAULT_EIGVAL_TOL,
     rtol: float = 0.0,
     depth: int = 0,
-    return_cmplt: bool = False,
+    return_cmplt: bool = True,
     use_mkl: bool = False,
     verbose: bool = False,
 ) -> EigenvectorResult:
@@ -171,7 +171,6 @@ def _find_complement_eigenvectors(
             p_cmr,
             atol=atol,
             rtol=rtol,
-            return_cmplt=return_cmplt,
             verbose=verbose,
         )
     else:
@@ -250,7 +249,7 @@ def _run_division(
             use_mkl=use_mkl,
             verbose=verbose,
         )
-        sibling = result.sibling
+        sibling = result.eigvecs
         col_id = result.col_id
         cmplt_eigvals = result.cmplt_eigvals
         cmplt_eigvecs = result.cmplt_eigvecs
@@ -295,12 +294,7 @@ def eigh_projector_division(
     """
     p_size = p.shape[0]
     if p_size < MIN_BLOCK_SIZE:
-        return eigh_projector(
-            p,
-            atol=atol,
-            rtol=rtol,
-            verbose=verbose,
-        )
+        return eigh_projector(p, atol=atol, rtol=rtol, verbose=verbose)
 
     result = _run_division(
         p,
@@ -391,7 +385,7 @@ def eigsh_projector_sumrule(
                 p_block,
                 atol=atol,
                 rtol=rtol,
-                return_complement=False,
+                return_cmplt=False,
                 use_mkl=use_mkl,
                 verbose=verbose,
             )
