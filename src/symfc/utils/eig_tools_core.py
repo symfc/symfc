@@ -41,7 +41,20 @@ class EigenvectorResult:
     @property
     def block_eigvecs(self):
         """Return eigenvectors in BlockMatrixNode."""
+        if self.eigvecs is None:
+            return None
+        if isinstance(self.eigvecs, BlockMatrixNode):
+            return self.eigvecs
         return root_block_matrix(data=self.eigvecs)
+
+    @property
+    def numpy_eigvecs(self):
+        """Return eigenvectors in BlockMatrixNode."""
+        if self.eigvecs is None:
+            return None
+        if isinstance(self.eigvecs, BlockMatrixNode):
+            return self.eigvecs.recover()
+        return self.eigvecs
 
 
 def find_projector_blocks(p: csr_array, verbose: bool = False) -> dict:
@@ -132,14 +145,20 @@ def _divide_eigenvectors(
     rtol: float = 0.0,
 ) -> EigenvectorResult:
     """Divide eigenvectors into those with eigenvalues one and their complements."""
-    nonzero = np.isclose(eigvals, 1.0, atol=atol, rtol=rtol)
-    # original: np.logical_not(nonzero), eigvals > MIN_EIGVAL_THRESHOLD
-    cmplt_bool = np.logical_and(np.logical_not(nonzero), eigvals > atol)
+    is_one = np.isclose(eigvals, 1.0, atol=atol, rtol=rtol)
+    is_complement = (~is_one) & (eigvals > atol)
 
-    cmplt_eigvals, cmplt_eigvecs = eigvals[cmplt_bool], eigvecs[:, cmplt_bool]
-    eigvecs = eigvecs[:, nonzero]
+    one_eigvecs = eigvecs[:, is_one] if np.any(is_one) else None
+
+    if np.any(is_complement):
+        cmplt_eigvals = eigvals[is_complement]
+        cmplt_eigvecs = eigvecs[:, is_complement]
+    else:
+        cmplt_eigvals = None
+        cmplt_eigvecs = None
+
     return EigenvectorResult(
-        eigvecs=eigvecs,
+        eigvecs=one_eigvecs,
         cmplt_eigvals=cmplt_eigvals,
         cmplt_eigvecs=cmplt_eigvecs,
     )
