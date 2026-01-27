@@ -1,16 +1,14 @@
-"""Utility functions for eigenvalue solutions."""
+"""API functions for eigenvalue solutions."""
 
 from __future__ import annotations
 
 from numpy.typing import NDArray
 from scipy.sparse import csr_array
 
-from symfc.utils.eig_tools_core import eigh_projector as eigh_standard
-from symfc.utils.eig_tools_sparse import eigsh_projector as eigsh_standard
+from symfc.utils.eig_tools_core import eigh_projector as eigh
+from symfc.utils.eig_tools_large import eigsh_projector_sumrule as eigsh_sumrule
+from symfc.utils.eig_tools_sparse import eigsh_projector as eigsh
 from symfc.utils.matrix import BlockMatrixNode
-
-# from symfc.utils.eig_tools_large import eigh_projector as eigsh_standard
-
 
 # Threshold constants for eigenvalue solvers
 MIN_BLOCK_SIZE = 500
@@ -31,7 +29,7 @@ def eigh_projector(
     verbose: bool = True,
 ) -> NDArray:
     """Solve eigenvalue problem using numpy and eliminate eigenvectors with e < 1.0."""
-    return eigh_standard(p, atol=atol, rtol=rtol, verbose=verbose).eigvecs
+    return eigh(p, atol=atol, rtol=rtol, verbose=verbose).eigvecs
 
 
 def eigsh_projector(
@@ -53,7 +51,7 @@ def eigsh_projector(
     matrices.
 
     """
-    return eigsh_standard(p, atol=atol, rtol=rtol, verbose=verbose)
+    return eigsh(p, atol=atol, rtol=rtol, verbose=verbose)
 
 
 def eigsh_projector_sumrule(
@@ -95,4 +93,11 @@ def eigsh_projector_sumrule(
        the compression matrix.
     5. Collect all eigenvectors with e = 1.
     """
-    pass
+    return eigsh_sumrule(
+        p,
+        atol=atol,
+        rtol=rtol,
+        size_threshold=size_threshold,
+        use_mkl=use_mkl,
+        verbose=verbose,
+    )
