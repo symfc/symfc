@@ -438,7 +438,7 @@ class BlockMatrixNode:
         return res
 
 
-def append_node(
+def link_block_matrix_nodes(
     eigvecs: NDArray | BlockMatrixNode | None,
     next_sibling: BlockMatrixNode | None,
     rows: NDArray,
@@ -447,31 +447,33 @@ def append_node(
     eigvals: NDArray | None = None,
 ) -> BlockMatrixNode | None:
     """Add eigenvectors to block matrix node."""
+    if eigvecs is None:
+        return next_sibling
+    if eigvecs.shape[1] == 0:
+        return next_sibling
+
     if isinstance(eigvecs, BlockMatrixNode):
         block = eigvecs
         assert block.shape is not None
-        if block.shape[1] > 0:
-            block.rows = rows
-            block.col_begin = col_begin
-            block.col_end = col_begin + block.shape[1]  # type: ignore
-            block.next_sibling = next_sibling
-            block.eigvals = eigvals
-            block.root = False
-            next_sibling = block
+        block.rows = rows
+        block.col_begin = col_begin
+        block.col_end = col_begin + block.shape[1]  # type: ignore
+        block.next_sibling = next_sibling
+        block.eigvals = eigvals
+        block.root = False
+        return block
     else:
-        if eigvecs is not None and eigvecs.shape[1] > 0:
-            col_end = col_begin + eigvecs.shape[1]  # type: ignore
-            block = BlockMatrixNode(
-                rows=rows,
-                col_begin=col_begin,
-                col_end=col_end,
-                data=eigvecs,
-                next_sibling=next_sibling,
-                compress=compress,
-                eigvals=eigvals,
-            )
-            next_sibling = block
-    return next_sibling
+        col_end = col_begin + eigvecs.shape[1]  # type: ignore
+        block = BlockMatrixNode(
+            rows=rows,
+            col_begin=col_begin,
+            col_end=col_end,
+            data=eigvecs,
+            next_sibling=next_sibling,
+            compress=compress,
+            eigvals=eigvals,
+        )
+        return block
 
 
 def root_block_matrix(

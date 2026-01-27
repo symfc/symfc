@@ -172,7 +172,7 @@ class DataCSR:
 
         value = (
             self.get_data(self._index),
-            self.block_label[self._index],
+            self.block_labels[self._index],
             self.block_sizes[self._index],
         )
         self._index += 1
@@ -185,15 +185,6 @@ class DataCSR:
         s1 = self.slice_begin[idx]
         s2 = self.slice_end[idx]
         return self.data[s1:s2]
-
-
-#     def get_block_label(self, idx: int):
-#         """Get block label for i-th block."""
-#         return self.block_labels[idx]
-#
-#     def get_block_size(self, idx: int):
-#         """Get block size for i-th block."""
-#         return self.block_sizes[idx]
 
 
 def _extract_sparse_projector_data(p: csr_array, group: dict) -> DataCSR:

@@ -39,6 +39,13 @@ class EigenvectorResult:
     col_id: int | None = None
 
     @property
+    def shape(self):
+        """Return shape of eigenvectors."""
+        if self.eigvecs is None:
+            return (0, 0)
+        return self.eigvecs.shape
+
+    @property
     def block_eigvecs(self):
         """Return eigenvectors in BlockMatrixNode."""
         if self.eigvecs is None:

@@ -13,7 +13,7 @@ from symfc.utils.eig_tools_core import (
 )
 from symfc.utils.matrix import (
     BlockMatrixNode,
-    append_node,
+    link_block_matrix_nodes,
     matrix_rank,
     root_block_matrix,
 )
@@ -77,47 +77,48 @@ def _find_submatrix_eigenvectors(
     for begin, end in zip(*get_batch_slice(p_size, batch_size), strict=True):
         if verbose:
             print(header, "Block:", end, "/", p_size, flush=True)
+
         p_small = p[begin:end, begin:end]
         rank = matrix_rank(p_small)
-        if rank > 0:
-            if repeat:
-                res = eigh_projector_division(
-                    p_small,
-                    atol=1e-12,
-                    rtol=0.0,
-                    depth=depth,
-                    use_mkl=use_mkl,
-                    verbose=verbose,
-                )
-            else:
-                res = eigh_projector(
-                    p_small,
-                    atol=1e-12,
-                    rtol=0.0,
-                    verbose=verbose,
-                )
-            block = res.eigvecs
-            cmplt_eigvals = res.cmplt_eigvals
-            cmplt_vecs = res.cmplt_eigvecs
+        if rank == 0:
+            continue
 
-            rows = np.arange(begin, end)
-            if block is not None:
-                if verbose:
-                    print(
-                        header, " ", block.shape[1], "eigenvectors found.", flush=True
-                    )
+        if repeat:
+            res = eigh_projector_division(
+                p_small,
+                atol=1e-12,
+                rtol=0.0,
+                depth=depth,
+                use_mkl=use_mkl,
+                verbose=verbose,
+            )
+        else:
+            res = eigh_projector(
+                p_small,
+                atol=1e-12,
+                rtol=0.0,
+                verbose=verbose,
+            )
+        block = res.eigvecs
+        cmplt_eigvals = res.cmplt_eigvals
+        cmplt_vecs = res.cmplt_eigvecs
 
-                sibling = append_node(block, sibling, rows=rows, col_begin=col_id)
-                col_id += block.shape[1]
-            if cmplt_vecs is not None:
-                sibling_c = append_node(
-                    cmplt_vecs,
-                    sibling_c,
-                    rows=rows,
-                    col_begin=col_id_c,
-                    eigvals=cmplt_eigvals,
-                )
-                col_id_c += cmplt_vecs.shape[1]
+        if verbose:
+            print(header, " ", res.shape[1], "eigenvectors found.", flush=True)
+
+        rows = np.arange(begin, end)
+        sibling = link_block_matrix_nodes(block, sibling, rows=rows, col_begin=col_id)
+        col_id += res.shape[1]
+
+        if cmplt_vecs is not None:
+            sibling_c = link_block_matrix_nodes(
+                cmplt_vecs,
+                sibling_c,
+                rows=rows,
+                col_begin=col_id_c,
+                eigvals=cmplt_eigvals,
+            )
+            col_id_c += cmplt_vecs.shape[1]
 
     if col_id_c > 0:
         cmplt = root_block_matrix((p_size, col_id_c), first_child=sibling_c)
@@ -187,19 +188,17 @@ def _find_complement_eigenvectors(
             verbose=verbose,
         )
 
-    eigvecs = res.eigvecs
+    if verbose:
+        print(header, " ", res.shape[1], "eigenvectors found.", flush=True)
 
-    if eigvecs is not None:
-        if verbose:
-            print(header, " ", eigvecs.shape[1], "eigenvectors found.", flush=True)
-        sibling = append_node(
-            eigvecs,
-            sibling,
-            rows=np.arange(p_size),
-            col_begin=col_id,
-            compress=cmplt,
-        )
-        col_id += eigvecs.shape[1]
+    sibling = link_block_matrix_nodes(
+        res.eigvecs,
+        sibling,
+        rows=np.arange(p_size),
+        col_begin=col_id,
+        compress=cmplt,
+    )
+    col_id += res.shape[1]
 
     cmplt_eigvals, cmplt_eigvecs = None, None
     if return_cmplt:
@@ -373,12 +372,12 @@ def eigsh_projector_sumrule(
                 print("Use standard eigh solver.", flush=True)
             p_block = p_block.toarray()
             res = eigh_projector(p_block, atol=atol, rtol=rtol, verbose=verbose)
-            # TODO: Improve
-            if res.eigvecs is not None:
-                sibling = append_node(res.eigvecs, sibling, rows=ids, col_begin=col_id)
-                col_id += res.eigvecs.shape[1]
+            sibling = link_block_matrix_nodes(
+                res.eigvecs, sibling, rows=ids, col_begin=col_id
+            )
+            col_id += res.shape[1]
 
-        elif p_block.shape[0] >= size_threshold:
+        else:
             if verbose:
                 print("Use submatrix version of eigh solver.", flush=True)
             res = eigh_projector_division(
@@ -389,10 +388,10 @@ def eigsh_projector_sumrule(
                 use_mkl=use_mkl,
                 verbose=verbose,
             )
-            # TODO: Improve
-            if res.eigvecs is not None:
-                sibling = append_node(res.eigvecs, sibling, rows=ids, col_begin=col_id)
-                col_id += res.eigvecs.shape[1]
+            sibling = link_block_matrix_nodes(
+                res.eigvecs, sibling, rows=ids, col_begin=col_id
+            )
+            col_id += res.shape[1]
 
         del p_block
 
