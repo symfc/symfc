@@ -93,13 +93,9 @@ def _find_submatrix_eigenvectors(
                 verbose=verbose,
             )
         else:
-            res = eigh_projector(
-                p_small,
-                atol=1e-12,
-                rtol=0.0,
-                verbose=verbose,
-            )
-        block = res.eigvecs
+            res = eigh_projector(p_small, atol=1e-12, rtol=0.0, verbose=verbose)
+
+        block = res.block_eigvecs
         cmplt_eigvals = res.cmplt_eigvals
         cmplt_vecs = res.cmplt_eigvecs
 
@@ -125,11 +121,8 @@ def _find_submatrix_eigenvectors(
     else:
         cmplt = None
 
-    # block = root_block_matrix((p_size, col_id), first_child=sibling)
-    # return EigenvectorResult(eigvecs=block), cmplt
-    # return EigenvectorResult(eigvecs=block), col_id, cmplt
-    # return sibling, col_id, cmplt
-    return sibling, col_id, cmplt
+    block = root_block_matrix((p_size, col_id), first_child=sibling)
+    return EigenvectorResult(eigvecs=block), cmplt
 
 
 def _calculate_batch_size_complement(cmplt_size: int, p_size: int, depth: int) -> int:
@@ -146,8 +139,6 @@ def _calculate_batch_size_complement(cmplt_size: int, p_size: int, depth: int) -
 
 def _find_complement_eigenvectors(
     p: NDArray | csr_array,
-    sibling: BlockMatrixNode | None,
-    col_id: int,
     cmplt: BlockMatrixNode,
     atol: float = DEFAULT_EIGVAL_TOL,
     rtol: float = 0.0,
@@ -173,12 +164,7 @@ def _find_complement_eigenvectors(
     if not repeat:
         if verbose:
             print(header, "Use standard solver.", flush=True)
-        res = eigh_projector(
-            p_cmr,
-            atol=atol,
-            rtol=rtol,
-            verbose=verbose,
-        )
+        res = eigh_projector(p_cmr, atol=atol, rtol=rtol, verbose=verbose)
     else:
         if verbose:
             print(header, "Use submatrix size of", batch_size_cmplt, flush=True)
@@ -196,14 +182,8 @@ def _find_complement_eigenvectors(
     if verbose:
         print(header, " ", res.n_eigvecs, "eigenvectors found.", flush=True)
 
-    sibling = link_block_matrix_nodes(
-        res.eigvecs,
-        sibling,
-        rows=np.arange(p_size),
-        col_begin=col_id,
-        compress=cmplt,
-    )
-    col_id += res.n_eigvecs
+    res.compress = cmplt
+    block = res.block_eigvecs
 
     cmplt_eigvals, cmplt_eigvecs = None, None
     if return_cmplt:
@@ -213,8 +193,7 @@ def _find_complement_eigenvectors(
             cmplt_eigvecs = cmplt.dot(cmplt_small)
 
     return EigenvectorResult(
-        eigvecs=sibling,
-        col_id=col_id,
+        eigvecs=block,
         cmplt_eigvals=cmplt_eigvals,
         cmplt_eigvecs=cmplt_eigvecs,
     )
@@ -232,23 +211,20 @@ def _run_division(
 ) -> EigenvectorResult:
     """Find eigenvectors in division and complementary parts."""
     depth += 1
-    # res, cmplt = _find_submatrix_eigenvectors(
-    sibling, col_id, cmplt = _find_submatrix_eigenvectors(
+    res, cmplt = _find_submatrix_eigenvectors(
         p,
         batch_size=batch_size,
         depth=depth,
         use_mkl=use_mkl,
         verbose=verbose,
     )
-    # col_id = res.n_eigvecs
-    # sibling = res.block_eigvecs
+    sibling = res.block_eigvecs
+    col_id = res.n_eigvecs
 
     cmplt_eigvals, cmplt_eigvecs = None, None
     if cmplt is not None:
         result = _find_complement_eigenvectors(
             p,
-            sibling,
-            col_id,
             cmplt,
             atol=atol,
             rtol=rtol,
@@ -257,19 +233,16 @@ def _run_division(
             use_mkl=use_mkl,
             verbose=verbose,
         )
-        sibling = result.eigvecs
-        col_id = result.col_id
+
+        sibling = link_block_matrix_nodes(
+            result.eigvecs,
+            sibling,
+            rows=np.arange(p.shape[0]),
+            col_begin=col_id,
+        )
+        col_id += result.n_eigvecs
         cmplt_eigvals = result.cmplt_eigvals
         cmplt_eigvecs = result.cmplt_eigvecs
-        # col_id += result.n_eigvecs
-
-        # sibling = link_block_matrix_nodes(
-        #     res.eigvecs,
-        #     sibling,
-        #     rows=np.arange(p_size),
-        #     col_begin=col_id,
-        #     compress=cmplt,
-        # )
 
     block = root_block_matrix((p.shape[0], col_id), first_child=sibling)
     return EigenvectorResult(

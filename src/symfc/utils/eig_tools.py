@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 from scipy.sparse import csr_array
 
 from symfc.utils.eig_tools_core import eigh_projector as eigh
-from symfc.utils.eig_tools_large import eigsh_projector_sumrule as eigsh_sumrule
+from symfc.utils.eig_tools_division import eigsh_projector_sumrule as eigsh_sumrule
 from symfc.utils.eig_tools_sparse import eigsh_projector as eigsh
 from symfc.utils.matrix import BlockMatrixNode
 

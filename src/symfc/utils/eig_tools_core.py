@@ -15,7 +15,6 @@ from symfc.utils.matrix import (
     BlockMatrixNode,
     matrix_rank,
     return_numpy_array,
-    root_block_matrix,
 )
 
 # Threshold constants for eigenvalue solvers
@@ -36,7 +35,6 @@ class EigenvectorResult:
     cmplt_eigvals: NDArray | None = None
     cmplt_eigvecs: NDArray | None = None
     compress: NDArray | None = None
-    col_id: int | None = None
 
     @property
     def n_eigvecs(self):
@@ -52,7 +50,21 @@ class EigenvectorResult:
             return None
         if isinstance(self.eigvecs, BlockMatrixNode):
             return self.eigvecs
-        return root_block_matrix(data=self.eigvecs, compress=self.compress)
+
+        if self.compress is not None:
+            row_shape = self.compress.shape[0]
+        else:
+            row_shape = self.eigvecs.shape[0]
+        col_shape = self.eigvecs.shape[1]
+
+        block = BlockMatrixNode(
+            rows=np.arange(row_shape),
+            col_begin=0,
+            col_end=col_shape,
+            data=self.eigvecs,
+            compress=self.compress,
+        )
+        return block
 
     @property
     def numpy_eigvecs(self):

@@ -480,7 +480,6 @@ def root_block_matrix(
     shape: tuple | None = None,
     data: NDArray | None = None,
     first_child: BlockMatrixNode | None = None,
-    compress: NDArray | None = None,
 ) -> BlockMatrixNode | None:
     """Return root block matrix."""
     if shape is None and data is None:
@@ -499,7 +498,6 @@ def root_block_matrix(
         col_end=shape[1],
         first_child=first_child,
         data=data,
-        compress=compress,
         root=True,
     )
 
