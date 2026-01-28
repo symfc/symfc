@@ -37,14 +37,14 @@ class EigenvectorResult:
     compress: NDArray | None = None
 
     @property
-    def n_eigvecs(self):
+    def n_eigvecs(self) -> int:
         """Return shape of eigenvectors."""
         if self.eigvecs is None:
             return 0
         return self.eigvecs.shape[1]
 
     @property
-    def block_eigvecs(self):
+    def block_eigvecs(self) -> BlockMatrixNode:
         """Return eigenvectors in BlockMatrixNode."""
         if self.eigvecs is None:
             return None
@@ -65,15 +65,6 @@ class EigenvectorResult:
             compress=self.compress,
         )
         return block
-
-    @property
-    def numpy_eigvecs(self):
-        """Return eigenvectors in BlockMatrixNode."""
-        if self.eigvecs is None:
-            return None
-        if isinstance(self.eigvecs, BlockMatrixNode):
-            return self.eigvecs.recover()
-        return self.eigvecs
 
 
 def eigh_projector(

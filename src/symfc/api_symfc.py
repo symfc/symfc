@@ -631,7 +631,7 @@ def eigh(
     Eigenvectors with eigenvalues = 1.0 in NDArray format.
     Eigenvectors with eigenvalues < 1.0 are eliminated.
     """
-    return eigh_projector(p, atol=atol, rtol=rtol, verbose=log_level > 0).eigvecs
+    return eigh_projector(p, atol=atol, rtol=rtol, verbose=log_level > 0)
 
 
 def eigsh(

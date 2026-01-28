@@ -4,10 +4,9 @@ import numpy as np
 import pytest
 from scipy.sparse import csr_array
 
-from symfc.utils.eig_tools import (
-    eigh_projector,
+from symfc.utils.eig_tools_sparse import (
+    CompressionProjector,
     eigsh_projector,
-    eigsh_projector_sumrule,
 )
 
 
@@ -41,20 +40,36 @@ def test_eigsh_projector():
     """Test eigsh_projector."""
     proj = _set_projector()
     eigvecs = eigsh_projector(proj, verbose=False)
-    eigvecs = eigvecs.toarray()
-    _assert_eigvecs(eigvecs)
+    _assert_eigvecs(eigvecs.toarray())
 
 
-def test_eigsh_projector_sumrule():
-    """Test eigsh_projector_sumrule."""
-    proj = _set_projector()
-    eigvecs = eigsh_projector_sumrule(proj, verbose=False)
-    eigvecs = eigvecs.recover()
-    _assert_eigvecs(eigvecs)
+def test_compression_projector():
+    """Test CompressionProjector."""
+    row = np.repeat(np.arange(4, 12, 4), 6)
+    col = np.repeat(np.arange(4, 12, 4), 6)
+    data = np.full(len(col), 1 / 6)
+    proj = csr_array((data, (row, col)), shape=(12, 12), dtype=float)
+
+    cp = CompressionProjector(proj)
+    assert cp._compr.shape == (12, 2)
+    assert cp._compressed_proj.shape == (2, 2)
+
+    eigvecs = eigsh_projector(cp._compressed_proj, verbose=False)
+    eigvecs = cp.recover(eigvecs)
+    np.testing.assert_allclose((eigvecs @ eigvecs.T - proj).toarray(), 0.0, atol=1e-8)
 
 
-def test_eigh_projector():
-    """Test eigh_projector."""
-    proj = _set_projector()
-    eigvecs = eigh_projector(proj, verbose=False)
-    _assert_eigvecs(eigvecs)
+# def test_compr_projector():
+#     """Test compr_projector."""
+#     row = col = [0, 2, 5]
+#     data = [1, 1, 1]
+#     proj = csr_array((data, (row, col)), shape=(6, 6), dtype=int)
+#
+#     proj_rev, compr = _compr_projector(proj)
+#     assert proj_rev.shape == (3, 3)
+#     np.testing.assert_allclose(proj_rev.toarray(), np.eye(3))
+#     assert compr.shape == (6, 3)
+#     compr_ref = np.zeros(compr.shape, dtype=int)
+#     for icol, irow in enumerate(row):
+#         compr_ref[irow, icol] = 1
+#     np.testing.assert_allclose(compr.toarray(), compr_ref)
