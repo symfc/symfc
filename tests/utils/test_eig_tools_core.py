@@ -8,6 +8,7 @@ from symfc.utils.eig_tools_core import (
     EigenvectorResult,
     _divide_eigenvectors,
     eigh_projector,
+    find_projector_blocks,
 )
 from symfc.utils.matrix import root_block_matrix
 
@@ -81,3 +82,12 @@ def test_divide_eigenvectors():
     assert res.eigvecs.shape == (10, 3)
     assert res.cmplt_eigvecs.shape == (10, 2)
     np.testing.assert_allclose(res.cmplt_eigvals, [0.5, 0.5])
+
+
+def test_find_projector_blocks():
+    """Test find_projector_blocks."""
+    proj = _set_projector()
+    group = find_projector_blocks(proj)
+    assert group[0] == [0, 3, 6, 9]
+    assert group[1] == [1, 4, 7, 10]
+    assert group[2] == [2, 5, 8, 11]
