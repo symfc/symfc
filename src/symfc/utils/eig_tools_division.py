@@ -1,4 +1,4 @@
-"""Utility functions for large sparse eigenvalue solutions."""
+"""Functions for eigenvalue solutions using matrix divisions."""
 
 from __future__ import annotations
 
