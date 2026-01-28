@@ -27,7 +27,6 @@ MAX_BATCH_SIZE = 20000
 
 # Tolerance constants
 DEFAULT_EIGVAL_TOL = 1e-8
-# MIN_EIGVAL_THRESHOLD = 1e-12
 
 
 def _should_repeat_division(
@@ -83,7 +82,9 @@ def _find_submatrix_eigenvectors(
         if rank == 0:
             continue
 
-        if repeat:
+        if not repeat:
+            res = eigh_projector(p_small, atol=1e-12, rtol=0.0, verbose=verbose)
+        else:
             res = eigh_projector_division(
                 p_small,
                 atol=1e-12,
@@ -92,8 +93,6 @@ def _find_submatrix_eigenvectors(
                 use_mkl=use_mkl,
                 verbose=verbose,
             )
-        else:
-            res = eigh_projector(p_small, atol=1e-12, rtol=0.0, verbose=verbose)
 
         block = res.block_eigvecs
         cmplt_eigvals = res.cmplt_eigvals
