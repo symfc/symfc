@@ -19,14 +19,13 @@ from symfc.utils.matrix import (
 )
 
 # Threshold constants for eigenvalue solvers
-MAX_PROJECTOR_RANK = 32767
-SPARSE_DATA_LIMIT = 2147483647
+MAX_PROJECTOR_RANK_EIGH = 32767
+SCIPY_SPARSE_DATA_LIMIT = 2147483647
 
 # Tolerance constants
 DEFAULT_EIGVAL_TOL = 1e-8
 SYMMETRY_TOL_STRICT = 1e-15
 SYMMETRY_TOL_LOOSE = 1e-3
-# MIN_EIGVAL_THRESHOLD = 1e-12
 
 
 @dataclass
@@ -39,11 +38,11 @@ class EigenvectorResult:
     col_id: int | None = None
 
     @property
-    def shape(self):
+    def n_eigvecs(self):
         """Return shape of eigenvectors."""
         if self.eigvecs is None:
-            return (0, 0)
-        return self.eigvecs.shape
+            return 0
+        return self.eigvecs.shape[1]
 
     @property
     def block_eigvecs(self):
@@ -76,7 +75,7 @@ def eigh_projector(
     if rank == 0:
         return EigenvectorResult(eigvecs=None)
 
-    if rank > MAX_PROJECTOR_RANK:
+    if rank > MAX_PROJECTOR_RANK_EIGH:
         raise RuntimeError("Projector rank is too large in eigh.")
 
     eigvals, eigvecs = _solve_eigh(p, tol=atol, verbose=verbose)
@@ -156,7 +155,7 @@ def find_projector_blocks(p: csr_array, verbose: bool = False) -> dict:
     if verbose:
         print("Finding block diagonal structure in projector.", flush=True)
 
-    if len(p.data) < SPARSE_DATA_LIMIT:
+    if len(p.data) < SCIPY_SPARSE_DATA_LIMIT:
         if verbose:
             print("Using scipy connected_components.", flush=True)
         n_components, labels = scipy.sparse.csgraph.connected_components(p)

@@ -462,18 +462,18 @@ def link_block_matrix_nodes(
         block.eigvals = eigvals
         block.root = False
         return block
-    else:
-        col_end = col_begin + eigvecs.shape[1]  # type: ignore
-        block = BlockMatrixNode(
-            rows=rows,
-            col_begin=col_begin,
-            col_end=col_end,
-            data=eigvecs,
-            next_sibling=next_sibling,
-            compress=compress,
-            eigvals=eigvals,
-        )
-        return block
+
+    col_end = col_begin + eigvecs.shape[1]  # type: ignore
+    block = BlockMatrixNode(
+        rows=rows,
+        col_begin=col_begin,
+        col_end=col_end,
+        data=eigvecs,
+        next_sibling=next_sibling,
+        compress=compress,
+        eigvals=eigvals,
+    )
+    return block
 
 
 def root_block_matrix(
