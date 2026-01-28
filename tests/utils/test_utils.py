@@ -10,7 +10,7 @@ import spglib
 from numpy.typing import NDArray
 from spglib import Cell as SpgCell
 
-from symfc.spg_reps import SpgRepsBase
+from symfc.spg_reps.spg_reps_base import SpgRepsBase
 from symfc.utils.utils import (
     SymfcAtoms,
     compute_sg_permutations,
@@ -77,7 +77,7 @@ def test_compute_sg_permutations(
 
 
 def test_compute_sg_permutations_compare_stable():
-    """Test compute_sg_permutations and compare with compute_sg_permutations_stable."""
+    """Test compute_sg_permutations with compute_sg_permutations_stable."""
     axis = np.array([[0.0, 1.0, 1.0], [7.0, 6.0, 7.0], [8.0, 8.0, 8.0]])
     positions = np.array(
         [
