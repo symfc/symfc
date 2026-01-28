@@ -1,14 +1,19 @@
-"""Tests of eigsh functions."""
+"""Tests of eigsh functions using division techniques."""
 
 import numpy as np
 import pytest
 from scipy.sparse import csr_array
 
-from symfc.utils.eig_tools_core import (
-    EigenvectorResult,
-    eigh_projector,
+from symfc.utils.eig_tools_division import (
+    _calculate_batch_size_division,
+    _find_complement_eigenvectors,
+    _find_submatrix_eigenvectors,
+    _get_descending_order,
+    _run_division,
+    _should_repeat_division,
+    eigsh_projector_division,
+    eigsh_projector_sumrule,
 )
-from symfc.utils.matrix import root_block_matrix
 
 
 def _set_projector():
@@ -37,52 +42,80 @@ def _assert_eigvecs(eigvecs):
         assert np.all(np.isclose(eigvecs[:, i][nonzero], eigvecs[nonzero[0], i]))
 
 
-def test_eigh_projector():
-    """Test eigh_projector."""
+def test_eigsh_projector_sumrule():
+    """Test eigsh_projector_sumrule."""
     proj = _set_projector()
-    eigvecs = eigh_projector(proj, verbose=False).eigvecs
+    block = eigsh_projector_sumrule(proj, verbose=False)
+    eigvecs = block.recover()
     _assert_eigvecs(eigvecs)
 
 
-def test_eigenvector_result():
-    """Test EigenvectorResult."""
-    eigvecs = np.random.random((5, 3))
-
-    res = EigenvectorResult(eigvecs)
-    assert res.n_eigvecs == 3
-
-    block = res.block_eigvecs
-    block_root = root_block_matrix(shape=(5, 3), first_child=block)
-    mat = np.random.random((3, 3))
-    np.testing.assert_allclose(block_root.dot(mat), eigvecs @ mat)
-
-    res = EigenvectorResult(block_root)
-    assert res.n_eigvecs == 3
+def test_get_descending_order():
+    """Test _get_descending_order."""
+    group = {
+        0: [0, 1],
+        1: [2, 3, 4],
+        2: [5],
+    }
+    order = _get_descending_order(group)
+    np.testing.assert_equal(order, [1, 0, 2])
 
 
-def test_eigenvector_result_with_compress():
-    """Test EigenvectorResult with compression matrix."""
-    eigvecs = np.random.random((3, 2))
-    compress = np.random.random((5, 3))
-    res = EigenvectorResult(eigvecs, compress=compress)
-    assert res.n_eigvecs == 2
+def test_eigsh_functions():
+    """Test eigsh_projector_division and _run_division."""
+    proj = _set_projector()
+    res = eigsh_projector_division(proj, verbose=False)
+    assert res.block_eigvecs.shape == (12, 3)
 
-    block = res.block_eigvecs
-    block_root = root_block_matrix(shape=(5, 2), first_child=block)
-    np.testing.assert_allclose(block_root.recover(), compress @ eigvecs)
+    res = _run_division(proj)
+    assert res.block_eigvecs.shape == (12, 3)
 
 
-# def test_compr_projector():
-#     """Test compr_projector."""
-#     row = col = [0, 2, 5]
-#     data = [1, 1, 1]
-#     proj = csr_array((data, (row, col)), shape=(6, 6), dtype=int)
-#
-#     proj_rev, compr = _compr_projector(proj)
-#     assert proj_rev.shape == (3, 3)
-#     np.testing.assert_allclose(proj_rev.toarray(), np.eye(3))
-#     assert compr.shape == (6, 3)
-#     compr_ref = np.zeros(compr.shape, dtype=int)
-#     for icol, irow in enumerate(row):
-#         compr_ref[irow, icol] = 1
-#     np.testing.assert_allclose(compr.toarray(), compr_ref)
+def test_should_repeat_division():
+    """Test _should_repeat_division."""
+    assert not _should_repeat_division(100, depth=1)
+    assert _should_repeat_division(10000, depth=1)
+    assert not _should_repeat_division(10000, depth=5)
+    assert not _should_repeat_division(30000, depth=5)
+    assert _should_repeat_division(50000, depth=5)
+
+
+def test_calculate_batch_size_division():
+    """Test _calculate_batch_size_division."""
+    assert _calculate_batch_size_division(100, depth=1) == 500
+    assert _calculate_batch_size_division(10000, depth=1) == 1000
+    assert _calculate_batch_size_division(10000, depth=5) == 7692
+    assert _calculate_batch_size_division(30000, depth=5) == 20000
+    assert _calculate_batch_size_division(50000, depth=5) == 20000
+
+
+def test_find_submatrix_eigenvectors():
+    """Test _find_submatrix_eigenvectors."""
+    proj = _set_projector()
+    res, cmplt = _find_submatrix_eigenvectors(proj, batch_size=100)
+    assert res.block_eigvecs.shape == (12, 3)
+    assert cmplt is None
+
+    res, cmplt = _find_submatrix_eigenvectors(proj, batch_size=3)
+    assert res.eigvecs is None
+    assert cmplt.shape == (12, 12)
+    for i, bl in enumerate(cmplt.traverse_data_nodes()):
+        np.testing.assert_equal(bl.rows, [3 * i, 3 * i + 1, 3 * i + 2])
+        np.testing.assert_allclose(bl.data, np.eye(3))
+
+    res, cmplt = _find_submatrix_eigenvectors(proj, batch_size=1)
+    assert res.eigvecs is None
+    assert cmplt.shape == (12, 12)
+    for i, bl in enumerate(cmplt.traverse_data_nodes()):
+        np.testing.assert_equal(bl.rows, [i])
+        np.testing.assert_allclose(bl.data, np.eye(1))
+
+
+def test_find_complement_eigenvectors():
+    """Test _find_complement_eigenvectors."""
+    proj = _set_projector()
+    _, cmplt = _find_submatrix_eigenvectors(proj, batch_size=3)
+    res = _find_complement_eigenvectors(proj, cmplt)
+    assert res.block_eigvecs.shape == (12, 3)
+    assert res.cmplt_eigvals is None
+    assert res.cmplt_eigvecs is None

@@ -76,9 +76,6 @@ def eigh_projector(
     """Solve eigenvalue problem using numpy and eliminate eigenvectors with e < 1.0."""
     p = return_numpy_array(p)
     rank = matrix_rank(p)
-    if rank == 0:
-        return EigenvectorResult(eigvecs=None)
-
     if rank > MAX_PROJECTOR_RANK_EIGH:
         raise RuntimeError("Projector rank is too large in eigh.")
 

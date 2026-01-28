@@ -78,14 +78,10 @@ def _find_submatrix_eigenvectors(
             print(header, "Block:", end, "/", p_size, flush=True)
 
         p_small = p[begin:end, begin:end]
-        rank = matrix_rank(p_small)
-        if rank == 0:
-            continue
-
         if not repeat:
             res = eigh_projector(p_small, atol=1e-12, rtol=0.0, verbose=verbose)
         else:
-            res = eigh_projector_division(
+            res = eigsh_projector_division(
                 p_small,
                 atol=1e-12,
                 rtol=0.0,
@@ -167,7 +163,7 @@ def _find_complement_eigenvectors(
     else:
         if verbose:
             print(header, "Use submatrix size of", batch_size_cmplt, flush=True)
-        res = eigh_projector_division(
+        res = eigsh_projector_division(
             p_cmr,
             atol=atol,
             rtol=rtol,
@@ -251,7 +247,7 @@ def _run_division(
     )
 
 
-def eigh_projector_division(
+def eigsh_projector_division(
     p: NDArray | csr_array,
     atol: float = DEFAULT_EIGVAL_TOL,
     rtol: float = 0.0,
@@ -361,7 +357,7 @@ def eigsh_projector_sumrule(
         else:
             if verbose:
                 print("Use submatrix version of eigh solver.", flush=True)
-            res = eigh_projector_division(
+            res = eigsh_projector_division(
                 p_block,
                 atol=atol,
                 rtol=rtol,
