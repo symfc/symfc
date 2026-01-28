@@ -125,11 +125,11 @@ def _find_submatrix_eigenvectors(
     else:
         cmplt = None
 
-    block = root_block_matrix((p_size, col_id), first_child=sibling)
-    return EigenvectorResult(eigvecs=block), cmplt
+    # block = root_block_matrix((p_size, col_id), first_child=sibling)
+    # return EigenvectorResult(eigvecs=block), cmplt
     # return EigenvectorResult(eigvecs=block), col_id, cmplt
     # return sibling, col_id, cmplt
-    # return sibling, col_id, cmplt
+    return sibling, col_id, cmplt
 
 
 def _calculate_batch_size_complement(cmplt_size: int, p_size: int, depth: int) -> int:
@@ -232,16 +232,16 @@ def _run_division(
 ) -> EigenvectorResult:
     """Find eigenvectors in division and complementary parts."""
     depth += 1
-    # sibling, col_id, cmplt = _find_submatrix_eigenvectors(
-    res, cmplt = _find_submatrix_eigenvectors(
+    # res, cmplt = _find_submatrix_eigenvectors(
+    sibling, col_id, cmplt = _find_submatrix_eigenvectors(
         p,
         batch_size=batch_size,
         depth=depth,
         use_mkl=use_mkl,
         verbose=verbose,
     )
-    col_id = res.n_eigvecs
-    sibling = res.block_eigvecs
+    # col_id = res.n_eigvecs
+    # sibling = res.block_eigvecs
 
     cmplt_eigvals, cmplt_eigvecs = None, None
     if cmplt is not None:
@@ -258,9 +258,18 @@ def _run_division(
             verbose=verbose,
         )
         sibling = result.eigvecs
+        col_id = result.col_id
         cmplt_eigvals = result.cmplt_eigvals
         cmplt_eigvecs = result.cmplt_eigvecs
-        col_id += result.n_eigvecs
+        # col_id += result.n_eigvecs
+
+        # sibling = link_block_matrix_nodes(
+        #     res.eigvecs,
+        #     sibling,
+        #     rows=np.arange(p_size),
+        #     col_begin=col_id,
+        #     compress=cmplt,
+        # )
 
     block = root_block_matrix((p.shape[0], col_id), first_child=sibling)
     return EigenvectorResult(
@@ -356,7 +365,8 @@ def eigsh_projector_sumrule(
     for i, key in enumerate(order):
         ids = np.array(group[key])
         if verbose and len(ids) > 0:
-            print("--- Eigsh_solver_block:", i + 1, "/", len(group), "---", flush=True)
+            prefix = "------------ Eigsh_solver_block:"
+            print(prefix, i + 1, "/", len(group), "------------", flush=True)
             print("Block_size:", len(ids), flush=True)
 
         p_block = p[np.ix_(ids, ids)]
@@ -396,6 +406,7 @@ def eigsh_projector_sumrule(
 
     block = root_block_matrix((p.shape[0], col_id), first_child=sibling)
     if verbose:
+        print("---------------------------------------------------", flush=True)
         print("Tree of FC basis block matrices:", flush=True)
         block.print_nodes()
     return block

@@ -35,6 +35,7 @@ class EigenvectorResult:
     eigvecs: NDArray | BlockMatrixNode | None
     cmplt_eigvals: NDArray | None = None
     cmplt_eigvecs: NDArray | None = None
+    compress: NDArray | None = None
     col_id: int | None = None
 
     @property
@@ -51,7 +52,7 @@ class EigenvectorResult:
             return None
         if isinstance(self.eigvecs, BlockMatrixNode):
             return self.eigvecs
-        return root_block_matrix(data=self.eigvecs)
+        return root_block_matrix(data=self.eigvecs, compress=self.compress)
 
     @property
     def numpy_eigvecs(self):
