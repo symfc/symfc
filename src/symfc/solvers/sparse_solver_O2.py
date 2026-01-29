@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 import numpy as np
+from numpy.typing import NDArray
 
 from symfc.basis_sets import FCBasisSetO2
 from symfc.utils.solver_funcs import get_displacement_sparse_matrix
@@ -28,9 +29,9 @@ class FCSparseSolverO2(FCSolverBase):
 
     def solve(
         self,
-        atoms: np.ndarray,
-        displacements: np.ndarray,
-        forces: np.ndarray,
+        atoms: NDArray,
+        displacements: NDArray,
+        forces: NDArray,
         batch_size: int = 10000,
     ) -> FCSparseSolverO2:
         """Solve coefficients of basis set from displacements and forces.
@@ -76,7 +77,7 @@ class FCSparseSolverO2(FCSolverBase):
         return self
 
     @property
-    def full_fc(self) -> Optional[np.ndarray]:
+    def full_fc(self) -> NDArray | None:
         """Return full force constants.
 
         Returns
@@ -88,7 +89,7 @@ class FCSparseSolverO2(FCSolverBase):
         return self._recover_fcs("full")
 
     @property
-    def compact_fc(self) -> Optional[np.ndarray]:
+    def compact_fc(self) -> NDArray | None:
         """Return full force constants.
 
         Returns
@@ -99,9 +100,7 @@ class FCSparseSolverO2(FCSolverBase):
         """
         return self._recover_fcs("compact")
 
-    def _recover_fcs(
-        self, comp_mat_type: Literal["full", "compact"]
-    ) -> Optional[np.ndarray]:
+    def _recover_fcs(self, comp_mat_type: Literal["full", "compact"]) -> NDArray | None:
         fc2_basis = self._basis_set
 
         if self._coefs is None or fc2_basis.basis_set is None:

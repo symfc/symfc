@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import time
-from typing import Literal, Optional
+from typing import Literal
 
 import numpy as np
 from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2
-from symfc.utils.matrix import block_matrix_sandwich
+from symfc.utils.matrix import BlockMatrixNode, block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
 try:
@@ -17,11 +17,13 @@ try:
 except ImportError:
     pass
 
+from numpy.typing import NDArray
+
 from .solver_base import FCSolverBase
 
 
 class FCSolverO2(FCSolverBase):
-    """Third order force constants solver."""
+    """Second order force constants solver."""
 
     def __init__(
         self,
@@ -35,8 +37,8 @@ class FCSolverO2(FCSolverBase):
 
     def solve(
         self,
-        displacements: np.ndarray,
-        forces: np.ndarray,
+        displacements: NDArray,
+        forces: NDArray,
         batch_size: int = 100,
     ) -> FCSolverO2:
         """Solve coefficients of basis set from displacements and forces.
@@ -78,7 +80,7 @@ class FCSolverO2(FCSolverBase):
         return self
 
     @property
-    def full_fc(self) -> Optional[np.ndarray]:
+    def full_fc(self) -> NDArray | None:
         """Return full force constants.
 
         Returns
@@ -90,7 +92,7 @@ class FCSolverO2(FCSolverBase):
         return self._recover_fcs("full")
 
     @property
-    def compact_fc(self) -> Optional[np.ndarray]:
+    def compact_fc(self) -> NDArray | None:
         """Return full force constants.
 
         Returns
@@ -101,9 +103,7 @@ class FCSolverO2(FCSolverBase):
         """
         return self._recover_fcs("compact")
 
-    def _recover_fcs(
-        self, comp_mat_type: Literal["full", "compact"]
-    ) -> Optional[np.ndarray]:
+    def _recover_fcs(self, comp_mat_type: Literal["full", "compact"]) -> NDArray | None:
         fc2_basis = self._basis_set
 
         if self._coefs is None or fc2_basis.basis_set is None:
@@ -137,7 +137,7 @@ def reshape_nN33_nx_to_N3_n3nx(mat, N: int, n: int, n_batch: int = 1) -> csr_arr
     mat = mat.tocoo(copy=False)
 
     begin_batch, end_batch = get_batch_slice(len(mat.row), len(mat.row) // n_batch)
-    for begin, end in zip(begin_batch, end_batch):
+    for begin, end in zip(begin_batch, end_batch, strict=True):
         div, rem = np.divmod(mat.row[begin:end], 9 * N)
         mat.col[begin:end] += div * 3 * nx
         div, rem = np.divmod(rem, 9)
@@ -152,11 +152,11 @@ def reshape_nN33_nx_to_N3_n3nx(mat, N: int, n: int, n_batch: int = 1) -> csr_arr
 
 
 def prepare_normal_equation_O2(
-    disps: np.ndarray,
-    forces: np.ndarray,
-    compact_compress_mat_fc2,
-    compress_eigvecs_fc2,
-    atomic_decompr_idx_fc2: np.ndarray,
+    disps: NDArray,
+    forces: NDArray,
+    compact_compress_mat_fc2: NDArray | csr_array,
+    compress_eigvecs_fc2: BlockMatrixNode,
+    atomic_decompr_idx_fc2: NDArray,
     batch_size: int = 100,
     use_sparse_disps: bool = False,
     use_mkl: bool = False,
@@ -178,7 +178,7 @@ def prepare_normal_equation_O2(
     """
     N3 = disps.shape[1]
     N = N3 // 3
-    n_compr_fc2 = compact_compress_mat_fc2.shape[1]
+    n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
 
     n_batch = 1
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
@@ -190,7 +190,7 @@ def prepare_normal_equation_O2(
     t_all1 = time.time()
     const_fc2 = -1.0
     compact_compress_mat_fc2 *= const_fc2
-    for begin_i, end_i in zip(begin_batch_atom, end_batch_atom):
+    for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
         if verbose:
             print("-----", flush=True)
             print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
@@ -214,7 +214,7 @@ def prepare_normal_equation_O2(
                 flush=True,
             )
 
-        for begin, end in zip(begin_batch, end_batch):
+        for begin, end in zip(begin_batch, end_batch, strict=True):
             t1 = time.time()
             X2 = dot_product_sparse(
                 disps[begin:end],
@@ -248,11 +248,11 @@ def prepare_normal_equation_O2(
 
 
 def run_solver_O2(
-    disps: np.ndarray,
-    forces: np.ndarray,
-    compact_compress_mat_fc2,
-    compress_eigvecs_fc2,
-    atomic_decompr_idx_fc2: np.ndarray,
+    disps: NDArray,
+    forces: NDArray,
+    compact_compress_mat_fc2: NDArray | csr_array,
+    compress_eigvecs_fc2: BlockMatrixNode,
+    atomic_decompr_idx_fc2: NDArray,
     batch_size: int = 100,
     use_sparse_disps: bool = False,
     use_mkl: bool = False,

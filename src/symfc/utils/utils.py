@@ -108,7 +108,7 @@ def compute_sg_permutations(
     n_atom = positions.shape[0]
     decimals = _find_optimal_decimals(positions)
     sorted_ids, sorted_positions = argsort_positions(positions, decimals=decimals)
-    for r, t in zip(rotations, translations):
+    for r, t in zip(rotations, translations, strict=True):
         if (r != np.eye(3, dtype=int)).any():
             continue
         trans_positions = positions + t
@@ -135,7 +135,7 @@ def compute_sg_permutations(
     unique_t = []
     r2ur = []
     unique_rotated_positions = []
-    for r, t in zip(rotations, translations):
+    for r, t in zip(rotations, translations, strict=True):
         is_found = False
         for j, ur in enumerate(unique_r):
             if (r == ur).all():
@@ -210,7 +210,7 @@ def compute_sg_permutations_stable(
     trans_perms = []
     pure_trans = []
     """Bottleneck part"""
-    for r, t in zip(rotations, translations):
+    for r, t in zip(rotations, translations, strict=True):
         if (r != np.eye(3, dtype=int)).any():
             continue
         trans_positions = positions + t
@@ -228,7 +228,7 @@ def compute_sg_permutations_stable(
     unique_t = []
     r2ur = []
     unique_rotated_positions = []
-    for r, t in zip(rotations, translations):
+    for r, t in zip(rotations, translations, strict=True):
         is_found = False
         for j, ur in enumerate(unique_r):
             if (r == ur).all():

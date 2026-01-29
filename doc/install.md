@@ -9,7 +9,7 @@ PyPI and conda-forge packages are available.
 
 - numpy
 - scipy
-- spglib (optional)
+- spglib
 
 ## Installation from source code
 

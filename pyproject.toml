@@ -13,10 +13,10 @@ authors = [
 maintainers = [
     {name = "Atsushi Togo", email = "atztogo@gmail.com"}
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "numpy",
-    "scipy != 1.11.0, != 1.11.1, != 1.11.2",
+    "scipy != 1.11.0, != 1.11.1, != 1.11.2, !=1.17.0",
     "spglib>=2.5",
 ]
 license-files = ["LICENSE"]

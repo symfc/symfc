@@ -219,7 +219,7 @@ def _update_perm_decompr_indices(
     n_comb = combinations.shape[0]
     n_perms = len(permutations)
     n_perms_sym = n_perms // n_perms_group
-    for begin, end in zip(*get_batch_slice(n_comb, n_comb // n_batch)):
+    for begin, end in zip(*get_batch_slice(n_comb, n_comb // n_batch), strict=True):
         if verbose:
             print("Permutation basis:", str(end) + "/" + str(n_comb), flush=True)
         combs_perm = combinations[begin:end][:, permutations].reshape((-1, 4))

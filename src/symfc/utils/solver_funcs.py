@@ -1,11 +1,14 @@
 """Solver functions."""
 
+from __future__ import annotations
+
 import numpy as np
+from numpy.typing import NDArray
 from scipy.linalg.lapack import get_lapack_funcs
 from scipy.sparse import csr_array
 
 
-def solve_linear_equation(A: np.ndarray, b: np.ndarray):
+def solve_linear_equation(A: NDArray, b: NDArray) -> NDArray:
     """Solve linear equation using lapack in scipy.
 
     numpy and scipy implementations
@@ -18,7 +21,7 @@ def solve_linear_equation(A: np.ndarray, b: np.ndarray):
     return x
 
 
-def fit(X: np.ndarray, y: np.ndarray):
+def fit(X: NDArray, y: NDArray) -> NDArray:
     """Solve a normal equation in least-squares.
 
     (X.T @ X) @ coefs = X.T @ y
@@ -30,7 +33,7 @@ def fit(X: np.ndarray, y: np.ndarray):
     return coefs
 
 
-def get_batch_slice(n_data: int, batch_size: int):
+def get_batch_slice(n_data: int, batch_size: int) -> tuple[list[int], list[int]]:
     """Calculate slice indices for a given batch size."""
     begin_batch = list(range(0, n_data, batch_size))
     if len(begin_batch) > 1:
@@ -45,8 +48,8 @@ def get_batch_slice(n_data: int, batch_size: int):
 
 
 def get_displacement_sparse_matrix(
-    atoms: np.ndarray,
-    displacements: np.ndarray,
+    atoms: NDArray,
+    displacements: NDArray,
     n_atom: int,
     tol: float = 1e-15,
 ) -> csr_array:
