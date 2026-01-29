@@ -66,7 +66,7 @@ def _find_submatrix_eigenvectors(
     verbose: bool = False,
 ):
     """Find eigenvectors in division part of submatrix division algorithm."""
-    p_size = p.shape[0]
+    p_size = p.shape[0]  # type: ignore
     repeat = _should_repeat_division(p_size, depth)
     batch_size = _calculate_batch_size_division(p_size, depth, batch_size)
 
@@ -143,7 +143,7 @@ def _find_complement_eigenvectors(
     verbose: bool = False,
 ) -> EigenvectorResult:
     """Find eigenvectors in complementary part of submatrix division algorithm."""
-    p_size = p.shape[0]
+    p_size = p.shape[0]  # type: ignore
     repeat = _should_repeat_division(p_size, depth, threshold_small=LARGE_BLOCK_SIZE)
     if p_size >= LARGE_BLOCK_SIZE and p_size <= VERY_LARGE_BLOCK_SIZE:
         repeat = depth < 4  # slightly different threshold for complement
@@ -232,14 +232,14 @@ def _run_division(
         sibling = link_block_matrix_nodes(
             result.eigvecs,
             sibling,
-            rows=np.arange(p.shape[0]),
+            rows=np.arange(p.shape[0]),  # type: ignore
             col_begin=col_id,
         )
         col_id += result.n_eigvecs
         cmplt_eigvals = result.cmplt_eigvals
         cmplt_eigvecs = result.cmplt_eigvecs
 
-    block = root_block_matrix((p.shape[0], col_id), first_child=sibling)
+    block = root_block_matrix((p.shape[0], col_id), first_child=sibling)  # type: ignore
     return EigenvectorResult(
         eigvecs=block,
         cmplt_eigvals=cmplt_eigvals,
@@ -277,7 +277,7 @@ def eigsh_projector_division(
        the compression matrix.
     5. Collect all eigenvectors with e = 1.
     """
-    p_size = p.shape[0]
+    p_size = p.shape[0]  # type: ignore
     if p_size < MIN_BLOCK_SIZE:
         return eigh_projector(p, atol=atol, rtol=rtol, verbose=verbose)
 
@@ -372,7 +372,8 @@ def eigsh_projector_sumrule(
 
         del p_block
 
-    block = root_block_matrix((p.shape[0], col_id), first_child=sibling)
+    block = root_block_matrix((p.shape[0], col_id), first_child=sibling)  # type: ignore
+    assert block is not None
     if verbose:
         print("---------------------------------------------------", flush=True)
         print("Tree of FC basis block matrices:", flush=True)

@@ -22,9 +22,11 @@ def eigh_projector(
     atol: float = DEFAULT_EIGVAL_TOL,
     rtol: float = 0.0,
     verbose: bool = True,
-) -> NDArray:
+) -> NDArray | None:
     """Solve eigenvalue problem using numpy and eliminate eigenvectors with e < 1.0."""
-    return eigh(p, atol=atol, rtol=rtol, verbose=verbose).eigvecs
+    eigvecs = eigh(p, atol=atol, rtol=rtol, verbose=verbose).eigvecs
+    assert not isinstance(eigvecs, BlockMatrixNode)
+    return eigvecs
 
 
 def eigsh_projector(
