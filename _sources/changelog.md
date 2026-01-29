@@ -2,6 +2,11 @@
 
 # Change Log
 
+## Jan-29-2026: Version 1.6.1
+
+- Refactored `matrix.py` and `eig_tools*.py`.
+A- dded dependency constraint to exclude scipy 1.7.0.
+
 ## Nov-30-2025: Version 1.6.0
 
 - Sparse solver for FC2.
