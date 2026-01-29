@@ -9,7 +9,7 @@ from symfc.utils.eig_tools_sparse import (
     CompressionProjector,
     _extract_sparse_projector_data,
     _recover_eigvecs_from_uniq_eigvecs,
-    _solve_eigsh,
+    _solve_blocked_projector,
     eigsh_projector,
 )
 
@@ -91,13 +91,18 @@ def test_DataCSR():
         assert size == 4
 
 
-def test_solve_eigsh():
-    """Test _solve_eigsh."""
+def test_solve_blocked_projector():
+    """Test _solve_blocked_projector."""
     proj = _set_projector()
     group = find_projector_blocks(proj)
-    eigvecs = _solve_eigsh(proj, group)
-    assert len(eigvecs.data) == 12
-    np.testing.assert_allclose(eigvecs.data, 0.5)
+    data = _extract_sparse_projector_data(proj, group)
+    uniq_eigvecs = _solve_blocked_projector(data)
+    for i, (eigvecs, labels) in enumerate(uniq_eigvecs.values()):
+        if i == 0:
+            assert len(labels) == 0
+        elif i == 1:
+            assert len(labels) == 3
+            np.testing.assert_allclose(eigvecs, 0.5)
 
 
 def test_recover_eigvecs_from_uniq_eigvecs():
