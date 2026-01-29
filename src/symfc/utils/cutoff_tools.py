@@ -4,6 +4,12 @@ import itertools
 from typing import Union
 
 import numpy as np
+import spglib
+
+try:
+    spglib.error.OLD_ERROR_HANDLING = False
+except AttributeError:
+    pass
 
 from symfc.utils.utils import SymfcAtoms
 
@@ -229,11 +235,6 @@ class FCCutoff:
         (Not applicable to structures with strange lattice shape)
 
         """
-        try:
-            import spglib
-        except ImportError as exc:
-            raise ModuleNotFoundError("Spglib python module was not found.") from exc
-
         reduced_bases = spglib.niggli_reduce(self._supercell.cell)  # type: ignore
         trans_mat_float = self._supercell.cell @ np.linalg.inv(reduced_bases)  # type: ignore
         trans_mat = np.rint(trans_mat_float).astype(int)
