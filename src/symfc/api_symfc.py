@@ -25,6 +25,7 @@ from symfc.utils.eig_tools import (
     eigsh_projector,
     eigsh_projector_sumrule,
 )
+from symfc.utils.matrix import BlockMatrixNode
 from symfc.utils.utils import SymfcAtoms
 
 
@@ -612,7 +613,7 @@ def eigh(
     atol: float = 1e-8,
     rtol: float = 0.0,
     log_level: int = 0,
-) -> NDArray:
+) -> NDArray | None:
     """Solve eigenvalue problem for projector in numpy ndarray.
 
     Parameters
@@ -640,7 +641,7 @@ def eigsh(
     rtol: float = 0.0,
     is_large_block: bool = False,
     log_level: int = 0,
-) -> csr_array | NDArray:
+) -> csr_array | NDArray | BlockMatrixNode:
     """Solve eigenvalue problem for projector in scipy sparse csr_array.
 
     Parameters

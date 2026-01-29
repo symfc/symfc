@@ -12,7 +12,7 @@ from symfc.utils.eig_tools_core import (
     eigh_projector,
     find_projector_blocks,
 )
-from symfc.utils.matrix import matrix_rank
+from symfc.utils.matrix import BlockMatrixNode, matrix_rank
 
 # Threshold constants for eigenvalue solvers
 SPARSE_DATA_LIMIT = 2147483647
@@ -67,13 +67,13 @@ class CompressionProjector:
         col_p = np.unique(col_p)
         size = len(col_p)
 
-        if p.shape[1] == size:
+        if p.shape[1] == size:  # type: ignore
             self._compressed_proj = p
             return self._compressed_proj
 
         self._compr = csr_array(
             (np.ones(size), (col_p, np.arange(size))),
-            shape=(p.shape[1], size),
+            shape=(p.shape[1], size),  # type: ignore
             dtype="int",
         )
         # Matrix compression using p = compr.T @ p @ compr
@@ -220,7 +220,9 @@ def _solve_eigsh(
 ) -> csr_array:
     """Solve eigenvalue problem for matrix p."""
     p_data = _extract_sparse_projector_data(p, group)
-    uniq_eigvecs = {"one": [np.array([[1.0]]), []]}
+    uniq_eigvecs: dict[str | tuple, tuple[NDArray | None, list]] = {
+        "one": (np.array([[1.0]]), [])
+    }
     for p_block, block_label, block_size in p_data:
         if block_size == 1 and not np.isclose(p_block[0], 0.0):
             uniq_eigvecs["one"][1].append(block_label)
@@ -232,7 +234,8 @@ def _solve_eigsh(
             except KeyError:
                 p_numpy = p_block.reshape((block_size, block_size))
                 res = eigh_projector(p_numpy, atol=atol, rtol=rtol, verbose=verbose)
-                uniq_eigvecs[key] = [res.eigvecs, [block_label]]
+                assert not isinstance(res.eigvecs, BlockMatrixNode)
+                uniq_eigvecs[key] = (res.eigvecs, [block_label])
 
     eigvecs = _recover_eigvecs_from_uniq_eigvecs(uniq_eigvecs, group, p.shape[0])  # type: ignore
     return eigvecs

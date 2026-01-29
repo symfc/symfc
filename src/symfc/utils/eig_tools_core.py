@@ -34,7 +34,7 @@ class EigenvectorResult:
     eigvecs: NDArray | BlockMatrixNode | None
     cmplt_eigvals: NDArray | None = None
     cmplt_eigvecs: NDArray | None = None
-    compress: NDArray | None = None
+    compress: BlockMatrixNode | None = None
 
     @property
     def n_eigvecs(self) -> int:
@@ -44,7 +44,7 @@ class EigenvectorResult:
         return self.eigvecs.shape[1]
 
     @property
-    def block_eigvecs(self) -> BlockMatrixNode:
+    def block_eigvecs(self) -> BlockMatrixNode | None:
         """Return eigenvectors in BlockMatrixNode."""
         if self.eigvecs is None:
             return None
