@@ -88,34 +88,27 @@ class BlockMatrixNode:
         col_begin: int,
         col_end: int,
         data: NDArray | None = None,
+        compress: BlockMatrixNode | None = None,
+        eigvals: NDArray | None = None,
         next_sibling: BlockMatrixNode | None = None,
         first_child: BlockMatrixNode | None = None,
-        compress: BlockMatrixNode | None = None,
-        root: bool = False,
-        eigvals: NDArray | None = None,
         index: int | None = None,  # Used in test only
     ):
         self._rows = np.array(rows, dtype=int)
         self._col_begin = col_begin
         self._col_end = col_end
-        self._data = data
-        self._next_sibling = next_sibling
-        self._first_child = first_child
-        self._compress = compress
-        self._root = root
-        self._eigvals = eigvals
+        self._shape = (len(self._rows), self._col_end - self._col_begin)
         self._index = index  # Used in test only
 
-        self._shape = (len(self._rows), self._col_end - self._col_begin)
+        self._data = data
+        self._compress = compress
+        self._eigvals = eigvals
 
-        self._rows_root: NDArray
-        self._col_begin_root: int
-        self._col_end_root: int
+        self._root = True
+        self._next_sibling = next_sibling
+        self.first_child = first_child
 
         self._check_errors()
-
-        if self._root:
-            self.set_root_indices()
 
     @property
     def rows(self) -> NDArray:
@@ -152,20 +145,20 @@ class BlockMatrixNode:
         """Return shape of block matrix."""
         return self._shape
 
-    @property
-    def rows_root(self) -> NDArray:
-        """Return row indices compatible with root node and full matrix."""
-        return self._rows_root
-
-    @property
-    def col_begin_root(self) -> int:
-        """Return column begin index compatible with root node and full matrix."""
-        return self._col_begin_root
-
-    @property
-    def col_end_root(self) -> int:
-        """Return column end index compatible with root node and full matrix."""
-        return self._col_end_root
+    #    @property
+    #    def rows_root(self) -> NDArray:
+    #        """Return row indices compatible with root node and full matrix."""
+    #        return self._rows_root
+    #
+    #    @property
+    #    def col_begin_root(self) -> int:
+    #        """Return column begin index compatible with root node and full matrix."""
+    #        return self._col_begin_root
+    #
+    #    @property
+    #    def col_end_root(self) -> int:
+    #        """Return column end index compatible with root node and full matrix."""
+    #        return self._col_end_root
 
     @property
     def next_sibling(self) -> BlockMatrixNode | None:
@@ -181,6 +174,13 @@ class BlockMatrixNode:
     def first_child(self) -> BlockMatrixNode | None:
         """Return first child node."""
         return self._first_child
+
+    @first_child.setter
+    def first_child(self, value: BlockMatrixNode):
+        """Set first child node."""
+        self._first_child = value
+        if value is not None:
+            self.set_root_indices()
 
     @property
     def compress(self) -> BlockMatrixNode | None:
@@ -272,26 +272,26 @@ class BlockMatrixNode:
         parent_col_begin: int | None = None,
     ):
         """Set row and columns indices compatible with root node and full matrix."""
-        if parent_rows is not None and parent_col_begin is None:
-            raise ValueError("parent_col_begin is required when parent_rows is set.")
+        # if parent_rows is not None and parent_col_begin is None:
+        #     raise ValueError("parent_col_begin is required when parent_rows is set.")
+        if parent_rows is None:
+            parent_rows = self._rows
+        else:
+            self._rows = parent_rows[self._rows]
+            self._root = False
 
-        if parent_rows is not None:
-            assert parent_col_begin is not None
-            self._rows_root = parent_rows[self.rows]
-            self._col_begin_root = self.col_begin + parent_col_begin
-            self._col_end_root = self.col_end + parent_col_begin
-            if self._root:
-                self._root = False
+        if parent_col_begin is None:
+            parent_col_begin = self._col_begin
+        else:
+            self._col_begin += parent_col_begin
+            self._col_end += parent_col_begin
 
+        print("---")
+        print(self._index)
+        print(parent_rows)
+        print(self._rows)
         if self._first_child is not None:
-            if parent_rows is None:
-                self._first_child.set_root_indices(self.rows, self.col_begin)
-            else:
-                assert parent_col_begin is not None
-                self._first_child.set_root_indices(
-                    parent_rows[self.rows],
-                    parent_col_begin + self.col_begin,
-                )
+            self._first_child.set_root_indices(self._rows, self._col_begin)
 
         if self._next_sibling is not None:
             self._next_sibling.set_root_indices(parent_rows, parent_col_begin)
@@ -329,10 +329,13 @@ class BlockMatrixNode:
             raise RuntimeError("Dimension of input numpy array must be one or two.")
 
         for b in self.traverse_data_nodes():
-            res = b.data @ mat[b.col_begin_root : b.col_end_root]
+            # res = b.data @ mat[b.col_begin_root : b.col_end_root]
+            print(b.col_begin)
+            print(b.col_end)
+            res = b.data @ mat[b.col_begin : b.col_end]
             if b.compress is not None:
                 res = b.compress.dot(res)
-            prod[b.rows_root] += res
+            prod[b.rows] += res
 
         return prod
 
