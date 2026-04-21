@@ -319,11 +319,13 @@ class BlockMatrixNode:
             self._col_begin += parent_col_begin
             self._col_end += parent_col_begin
 
+        # TODO: Reconsider
         print(parent_col_begin)
         if self._first_child is not None:
             # self._first_child.set_root_indices(self._rows, self._col_begin)
             self._first_child.set_root_indices(parent_rows, parent_col_begin)
 
+        # TODO: Reconsider
         if self._next_sibling is not None and not self._root:
             self._next_sibling.set_root_indices(parent_rows, parent_col_begin)
 
