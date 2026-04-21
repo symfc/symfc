@@ -319,10 +319,12 @@ class BlockMatrixNode:
             self._col_begin += parent_col_begin
             self._col_end += parent_col_begin
 
+        print(parent_col_begin)
         if self._first_child is not None:
-            self._first_child.set_root_indices(self._rows, self._col_begin)
+            # self._first_child.set_root_indices(self._rows, self._col_begin)
+            self._first_child.set_root_indices(parent_rows, parent_col_begin)
 
-        if self._next_sibling is not None:
+        if self._next_sibling is not None and not self._root:
             self._next_sibling.set_root_indices(parent_rows, parent_col_begin)
 
         return self
@@ -342,6 +344,8 @@ class BlockMatrixNode:
 
         full = np.zeros(self._full_shape, dtype="double")  # type: ignore
         for b in self.traverse_data_nodes():
+            print(b.rows, b.col_begin, b.col_end)
+            print(b.decompress())
             full[b.rows, b.col_begin : b.col_end] = b.decompress()
         return full
 

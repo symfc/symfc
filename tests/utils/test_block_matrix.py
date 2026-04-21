@@ -263,7 +263,9 @@ def test_block_matrix_large():
         first_child=block1_3,
         index=3,
     )
+    print(block1.recover())
 
+    print("B###")
     block2_1 = BlockMatrixNode(
         rows=[0, 1],
         col_begin=0,
@@ -295,7 +297,9 @@ def test_block_matrix_large():
         next_sibling=block1,
         index=7,
     )
+    print(block2.recover())
 
+    print("B###")
     block3_1 = BlockMatrixNode(
         rows=[0, 1],
         col_begin=0,
@@ -327,7 +331,10 @@ def test_block_matrix_large():
         next_sibling=block2,
         index=11,
     )
+    print("B###")
+    print(block3.recover())
 
+    print("C###")
     cblock1 = BlockMatrixNode(
         rows=[0, 1],
         col_begin=0,
@@ -361,6 +368,7 @@ def test_block_matrix_large():
     eigvecs = np.array([[1, 0], [2, 1]])
     mat[4:8, 0:2] = cmplt.dot(eigvecs)
 
+    print("###")
     block4 = BlockMatrixNode(
         rows=[4, 5, 6, 7],
         col_begin=0,
@@ -370,6 +378,7 @@ def test_block_matrix_large():
         compress=cmplt,
         index=12,
     )
+    print("###")
 
     bm = BlockMatrixNode(
         rows=[0, 1, 2, 3, 4, 5, 6, 7],
@@ -378,6 +387,7 @@ def test_block_matrix_large():
         first_child=block4,
         index=13,
     )
+    print(bm.recover())
 
     mat2 = np.array([[3, 1], [5, 7], [2, 8], [5, 9], [3, 2], [4, 5], [7, 2], [2, 1]])
     vec2 = np.array([3, 1, 5, 7, 2, 3, 3, 1])
