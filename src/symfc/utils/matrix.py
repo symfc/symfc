@@ -98,6 +98,7 @@ class BlockMatrixNode:
         self._col_begin = col_begin
         self._col_end = col_end
         self._shape = (len(self._rows), self._col_end - self._col_begin)
+        self._full_shape = (np.max(self._rows) + 1, self._col_end)
         self._index = index  # Used in test only
 
         self._data = data
@@ -145,20 +146,10 @@ class BlockMatrixNode:
         """Return shape of block matrix."""
         return self._shape
 
-    #    @property
-    #    def rows_root(self) -> NDArray:
-    #        """Return row indices compatible with root node and full matrix."""
-    #        return self._rows_root
-    #
-    #    @property
-    #    def col_begin_root(self) -> int:
-    #        """Return column begin index compatible with root node and full matrix."""
-    #        return self._col_begin_root
-    #
-    #    @property
-    #    def col_end_root(self) -> int:
-    #        """Return column end index compatible with root node and full matrix."""
-    #        return self._col_end_root
+    @property
+    def full_shape(self) -> tuple:
+        """Return full shape of block matrix including empty elements."""
+        return self._full_shape
 
     @property
     def next_sibling(self) -> BlockMatrixNode | None:
@@ -272,8 +263,6 @@ class BlockMatrixNode:
         parent_col_begin: int | None = None,
     ):
         """Set row and columns indices compatible with root node and full matrix."""
-        # if parent_rows is not None and parent_col_begin is None:
-        #     raise ValueError("parent_col_begin is required when parent_rows is set.")
         if parent_rows is None:
             parent_rows = self._rows
         else:
@@ -286,10 +275,10 @@ class BlockMatrixNode:
             self._col_begin += parent_col_begin
             self._col_end += parent_col_begin
 
-        print("---")
-        print(self._index)
-        print(parent_rows)
-        print(self._rows)
+        # print("---")
+        # print(self._index)
+        # print(parent_rows)
+        # print(self._rows)
         if self._first_child is not None:
             self._first_child.set_root_indices(self._rows, self._col_begin)
 
@@ -297,6 +286,35 @@ class BlockMatrixNode:
             self._next_sibling.set_root_indices(parent_rows, parent_col_begin)
 
         return self
+
+    def __matmul__(self, mat: NDArray) -> NDArray:
+        """Calculate dot product block_mat @ mat."""
+        if not isinstance(mat, np.ndarray):
+            raise RuntimeError("Matrix must be NDArray.")
+        return self.dot(mat)
+
+    def dot(self, mat: NDArray) -> NDArray:
+        """Calculate dot product block_mat @ mat."""
+        if not self._root:
+            raise RuntimeError("Node must be root of tree.")
+
+        if mat.shape[0] < self._full_shape[1]:
+            raise RuntimeError("Input matrix shape not consistent with block matrix.")
+
+        if len(mat.shape) == 1:
+            prod = np.zeros(self._full_shape[0])
+        elif len(mat.shape) == 2:
+            prod = np.zeros((self._full_shape[0], mat.shape[1]))
+        else:
+            raise RuntimeError("Dimension of input numpy array must be one or two.")
+
+        for b in self.traverse_data_nodes():
+            res = b.data @ mat[b.col_begin : b.col_end]
+            if b.compress is not None:
+                res = b.compress.dot(res)
+            prod[b.rows] += res
+
+        return prod
 
     def decompress(self) -> NDArray:
         """Decompress compressed data matrix."""
@@ -311,33 +329,10 @@ class BlockMatrixNode:
         if not self._root:
             raise RuntimeError("Node must be root of tree.")
 
-        full = np.zeros(self.shape, dtype="double")  # type: ignore
+        full = np.zeros(self.full_shape, dtype="double")  # type: ignore
         for b in self.traverse_data_nodes():
-            full[b.rows_root, b.col_begin_root : b.col_end_root] = b.decompress()
+            full[b.rows, b.col_begin : b.col_end] = b.decompress()
         return full
-
-    def dot(self, mat: NDArray) -> NDArray:
-        """Calculate dot product block_mat @ mat."""
-        if not self._root:
-            raise RuntimeError("Node must be root of tree.")
-
-        if len(mat.shape) == 1:
-            prod = np.zeros(self.shape[0])
-        elif len(mat.shape) == 2:
-            prod = np.zeros((self.shape[0], mat.shape[1]))
-        else:
-            raise RuntimeError("Dimension of input numpy array must be one or two.")
-
-        for b in self.traverse_data_nodes():
-            # res = b.data @ mat[b.col_begin_root : b.col_end_root]
-            print(b.col_begin)
-            print(b.col_end)
-            res = b.data @ mat[b.col_begin : b.col_end]
-            if b.compress is not None:
-                res = b.compress.dot(res)
-            prod[b.rows] += res
-
-        return prod
 
     def transpose_dot(self, mat: NDArray) -> NDArray:
         """Calculate dot product block_mat.T @ mat."""
