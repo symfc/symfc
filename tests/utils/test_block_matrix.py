@@ -72,21 +72,28 @@ def test_root_indices_in_block_matrix():
     assert block1.shape == (4, 4)
     assert block1.full_shape == (8, 7)
 
-    # dot
-    mat_ones = np.ones((8, 4))
-    mat_prod = block1.dot(mat_ones)
-
-    true = mat[:4, :4] @ np.ones((4, 4))
-    np.testing.assert_allclose(mat_prod[4:], true)
-
     # recover
     np_matrix = block1.recover()
     assert np_matrix.shape == (8, 7)
     np.testing.assert_allclose(np_matrix[4:, 3:], mat[:4, :4])
 
-    # @ operator
-    mat_prod = block1 @ mat_ones
+    # dot
+    mat_ones = np.ones((8, 4))
+    mat_prod = block1.dot(mat_ones)
+    true = mat[:4, :4] @ np.ones((4, 4))
     np.testing.assert_allclose(mat_prod[4:], true)
+
+    # @ operator
+    mat_ones = np.ones((8, 4))
+    mat_prod = block1 @ mat_ones
+    true = mat[:4, :4] @ np.ones((4, 4))
+    np.testing.assert_allclose(mat_prod[4:], true)
+
+    # transpose_dot
+    mat_ones = np.ones((8, 4))
+    mat_prod = block1.transpose_dot(mat_ones)
+    true = mat[:4, :4].T @ np.ones((4, 4))
+    np.testing.assert_allclose(mat_prod[3:], true)
 
 
 # def test_compressed_block_matrix():

@@ -69,15 +69,13 @@ class BlockMatrixNode:
     col_begin : int
     col_end : int
     shape : tuple (readonly)
-    rows_root : NDArray (readonly)
-    col_begin_root : int (readonly)
-    col_end_root : int (readonly)
+    full_shape : tuple (readonly)
+    data : NDArray | None (readonly)
+    compress : BlockMatrixNode | None (readonly)
+    eigvals : NDArray | None
     next_sibling : BlockMatrixNode | None
     first_child : BlockMatrixNode | None (readonly)
-    compress : BlockMatrixNode | None (readonly)
-    data : NDArray | None (readonly)
     root : bool
-    eigvals : NDArray | None
     index : int (readonly)
 
     """
@@ -316,6 +314,31 @@ class BlockMatrixNode:
 
         return prod
 
+    def transpose_dot(self, mat: NDArray) -> NDArray:
+        """Calculate dot product block_mat.T @ mat."""
+        if not self._root:
+            raise RuntimeError("Node must be root of tree.")
+
+        if mat.shape[0] < self._full_shape[0]:
+            raise RuntimeError("Input matrix shape not consistent with block matrix.")
+
+        if len(mat.shape) == 1:
+            prod = np.zeros(self._full_shape[1])
+        elif len(mat.shape) == 2:
+            prod = np.zeros((self._full_shape[1], mat.shape[1]))
+        else:
+            raise RuntimeError("Dimension of input numpy array must be one or two.")
+
+        for b in self.traverse_data_nodes():
+            assert b.data is not None
+            if b.compress is not None:
+                res = b.data.T @ b.compress.transpose_dot(mat[b.rows])
+            else:
+                res = b.data.T @ mat[b.rows]
+            prod[b.col_begin : b.col_end] += res
+
+        return prod
+
     def decompress(self) -> NDArray:
         """Decompress compressed data matrix."""
         if self._data is None:
@@ -333,28 +356,6 @@ class BlockMatrixNode:
         for b in self.traverse_data_nodes():
             full[b.rows, b.col_begin : b.col_end] = b.decompress()
         return full
-
-    def transpose_dot(self, mat: NDArray) -> NDArray:
-        """Calculate dot product block_mat.T @ mat."""
-        if not self._root:
-            raise RuntimeError("Node must be root of tree.")
-
-        if len(mat.shape) == 1:
-            prod = np.zeros(self.shape[1])
-        elif len(mat.shape) == 2:
-            prod = np.zeros((self.shape[1], mat.shape[1]))
-        else:
-            raise RuntimeError("Dimension of input numpy array must be one or two.")
-
-        for b in self.traverse_data_nodes():
-            assert b.data is not None
-            if b.compress is not None:
-                res = b.data.T @ b.compress.transpose_dot(mat[b.rows_root])
-            else:
-                res = b.data.T @ mat[b.rows_root]
-            prod[b.col_begin_root : b.col_end_root] += res
-
-        return prod
 
     def compress_matrix(
         self, mat: NDArray | csr_array, use_mkl: bool = False
