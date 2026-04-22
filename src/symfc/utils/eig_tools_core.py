@@ -41,6 +41,8 @@ class EigenvectorResult:
         """Return shape of eigenvectors."""
         if self.eigvecs is None:
             return 0
+        if isinstance(self.eigvecs, BlockMatrixNode):
+            return self.eigvecs.data_shape[1]
         return self.eigvecs.shape[1]
 
     @property

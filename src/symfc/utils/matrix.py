@@ -62,17 +62,17 @@ class TransposedBlockMatrixNode:
     def __init__(self, block: BlockMatrixNode):
         """Init method."""
         self._block = block
-        self._full_shape = self._block.full_shape
+        self._shape = self._block.shape
 
     def __matmul__(self, mat: NDArray):
         """Calculate dot product block.T @ mat."""
-        if mat.shape[0] < self._full_shape[0]:
+        if mat.shape[0] < self._shape[0]:
             raise RuntimeError("Input matrix shape not consistent with block matrix.")
 
         if len(mat.shape) == 1:
-            prod = np.zeros(self._full_shape[1])
+            prod = np.zeros(self._shape[1])
         elif len(mat.shape) == 2:
-            prod = np.zeros((self._full_shape[1], mat.shape[1]))
+            prod = np.zeros((self._shape[1], mat.shape[1]))
         else:
             raise RuntimeError("Dimension of input numpy array must be one or two.")
 
@@ -99,8 +99,8 @@ class BlockMatrixNode:
     rows : NDArray
     col_begin : int
     col_end : int
+    data_shape : tuple (readonly)
     shape : tuple (readonly)
-    full_shape : tuple (readonly)
     data : NDArray | None (readonly)
     compress : BlockMatrixNode | None (readonly)
     eigvals : NDArray | None
@@ -168,12 +168,12 @@ class BlockMatrixNode:
         return self._col_end
 
     @property
-    def shape(self) -> tuple:
-        """Return shape of block matrix."""
+    def data_shape(self) -> tuple:
+        """Return data shape of block matrix."""
         return (len(self._rows), self._col_end - self._col_begin)
 
     @property
-    def full_shape(self) -> tuple:
+    def shape(self) -> tuple:
         """Return full shape of block matrix including empty elements."""
         return (np.max(self._rows) + 1, self._col_end)
 
@@ -244,13 +244,13 @@ class BlockMatrixNode:
             if self._compress is not None:
                 raise RuntimeError("Data is required with compress matrix.")
         elif self._compress is None:
-            if self._data.shape != self.shape:
+            if self._data.shape != self.data_shape:
                 raise RuntimeError("Data shape is inconsistent with rows and columns.")
         else:
-            assert self._compress.shape is not None
-            if self._compress.shape[0] != self.shape[0]:
+            assert self._compress.data_shape is not None
+            if self._compress.data_shape[0] != self.data_shape[0]:
                 raise RuntimeError("Data shape is inconsistent with rows.")
-            if self._data.shape[1] != self.shape[1]:
+            if self._data.shape[1] != self.data_shape[1]:
                 raise RuntimeError("Data shape is inconsistent with columns.")
 
     def traverse_data_nodes(self) -> Iterator[BlockMatrixNode]:
@@ -268,10 +268,16 @@ class BlockMatrixNode:
             header = "-"
         else:
             header = "  " * (depth - 1) + "|--"
-        print(header, self.shape, end=", ", flush=True)
+        print(header, self.data_shape, end=", ", flush=True)
         if self._data is not None:
             if self._compress is not None:
-                print("data:", self._compress.shape, "@", self._data.shape, flush=True)
+                print(
+                    "data:",
+                    self._compress.data_shape,
+                    "@",
+                    self._data.shape,
+                    flush=True,
+                )
             else:
                 print("data: True", flush=True)
         else:
@@ -333,7 +339,7 @@ class BlockMatrixNode:
         if self._data is None:
             raise ValueError("No data in this node.")
         if self._compress is not None:
-            return self._compress.dot(self._data)
+            return self._compress @ self._data
         return self._data
 
     def recover(self) -> NDArray:
@@ -341,7 +347,7 @@ class BlockMatrixNode:
         if not self._root:
             raise RuntimeError("Node must be root of tree.")
 
-        full = np.zeros(self.full_shape, dtype="double")  # type: ignore
+        full = np.zeros(self.shape, dtype="double")  # type: ignore
         for b in self.traverse_data_nodes():
             full[b.rows, b.col_begin : b.col_end] = b.decompress()
         return full
@@ -351,13 +357,13 @@ class BlockMatrixNode:
         if not self._root:
             raise RuntimeError("Node must be root of tree.")
 
-        if mat.shape[0] < self.full_shape[1]:
+        if mat.shape[0] < self.shape[1]:
             raise RuntimeError("Input matrix shape not consistent with block matrix.")
 
         if len(mat.shape) == 1:
-            prod = np.zeros(self.full_shape[0])
+            prod = np.zeros(self.shape[0])
         elif len(mat.shape) == 2:
-            prod = np.zeros((self.full_shape[0], mat.shape[1]))
+            prod = np.zeros((self.shape[0], mat.shape[1]))
         else:
             raise RuntimeError("Dimension of input numpy array must be one or two.")
 
@@ -384,10 +390,7 @@ class BlockMatrixNode:
             raise RuntimeError("Node must be root of tree.")
 
         if is_sparse(mat):
-            return self.compress_sparse_matrix(
-                mat,
-                use_mkl=use_mkl,
-            )  # type: ignore
+            return self.compress_sparse_matrix(mat, use_mkl=use_mkl)  # type: ignore
         return self.compress_dense_matrix(
             mat,
             disable_simple_products=disable_simple_products,
@@ -406,11 +409,11 @@ class BlockMatrixNode:
         if not self._root:
             raise RuntimeError("Node must be root of tree.")
 
-        if not disable_simple_products and self.full_shape[1] < 10000:
+        if not disable_simple_products and self.shape[1] < 10000:
             recover = self.recover()
             return recover.T @ mat @ recover
 
-        res = np.zeros((self.full_shape[1], self.full_shape[1]))
+        res = np.zeros((self.shape[1], self.shape[1]))
         for i, b1 in enumerate(self.traverse_data_nodes()):
             assert b1.eigvals is not None
             col_begin1, col_end1 = b1.col_begin, b1.col_end
@@ -441,7 +444,7 @@ class BlockMatrixNode:
         if mat.shape[0] < 30000:  # type: ignore
             use_mkl = False
 
-        res = np.zeros((self.full_shape[1], self.full_shape[1]))
+        res = np.zeros((self.shape[1], self.shape[1]))
         for i, b1 in enumerate(self.traverse_data_nodes()):
             assert b1.eigvals is not None
             col_begin1, col_end1 = b1.col_begin, b1.col_end
@@ -482,6 +485,8 @@ def link_block_matrix_nodes(
         return next_sibling
 
     if isinstance(eigvecs, BlockMatrixNode):
+        if eigvecs.data_shape[1] == 0:
+            return next_sibling
         block = eigvecs
         block.change_indices(rows=rows, col_begin=col_begin)
         block.next_sibling = next_sibling
