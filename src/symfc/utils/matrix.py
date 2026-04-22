@@ -320,7 +320,6 @@ class BlockMatrixNode:
             self._col_end += parent_col_begin
 
         if self._first_child is not None:
-            # self._first_child.set_root_indices(self._rows, self._col_begin)
             self._first_child.set_root_indices(parent_rows, parent_col_begin)
 
         if self._root:
@@ -346,8 +345,6 @@ class BlockMatrixNode:
 
         full = np.zeros(self._full_shape, dtype="double")  # type: ignore
         for b in self.traverse_data_nodes():
-            print(b.rows, b.col_begin, b.col_end)
-            print(b.decompress())
             full[b.rows, b.col_begin : b.col_end] = b.decompress()
         return full
 
@@ -519,7 +516,6 @@ def link_block_matrix_nodes(
         block.col_end = col_begin + block.shape[1]  # type: ignore
         block.next_sibling = next_sibling
         block.eigvals = eigvals
-        block.root = False
         return block
 
     col_end = col_begin + eigvecs.shape[1]  # type: ignore
@@ -536,18 +532,10 @@ def link_block_matrix_nodes(
 
 
 def root_block_matrix(
-    shape: tuple | None = None,
-    data: NDArray | None = None,
-    first_child: BlockMatrixNode | None = None,
+    shape: tuple,
+    first_child: BlockMatrixNode,
 ) -> BlockMatrixNode | None:
     """Return root block matrix."""
-    if shape is None and data is None:
-        raise RuntimeError("Shape or data is required.")
-
-    if data is not None:
-        shape = data.shape
-
-    assert shape is not None
     if shape[1] == 0:
         return None
 
@@ -556,8 +544,6 @@ def root_block_matrix(
         col_begin=0,
         col_end=shape[1],
         first_child=first_child,
-        data=data,
-        root=True,
     )
 
 
@@ -573,11 +559,11 @@ def block_matrix_sandwich(
 
     res = np.zeros((bm1.shape[1], bm2.shape[1]))
     for b1 in bm1.traverse_data_nodes():
-        col_begin1, col_end1 = b1.col_begin_root, b1.col_end_root
+        col_begin1, col_end1 = b1.col_begin, b1.col_end
         data1 = b1.decompress()
         for b2 in bm2.traverse_data_nodes():
-            col_begin2, col_end2 = b2.col_begin_root, b2.col_end_root
+            col_begin2, col_end2 = b2.col_begin, b2.col_end
             data2 = b2.decompress()
-            prod = data1.T @ mat[np.ix_(b1.rows_root, b2.rows_root)] @ data2
+            prod = data1.T @ mat[np.ix_(b1.rows, b2.rows)] @ data2
             res[col_begin1:col_end1, col_begin2:col_end2] += prod
     return res
