@@ -369,31 +369,6 @@ class BlockMatrixNode:
 
         return prod
 
-    def transpose_dot(self, mat: NDArray) -> NDArray:
-        """Calculate dot product block_mat.T @ mat."""
-        if not self._root:
-            raise RuntimeError("Node must be root of tree.")
-
-        if mat.shape[0] < self.full_shape[0]:
-            raise RuntimeError("Input matrix shape not consistent with block matrix.")
-
-        if len(mat.shape) == 1:
-            prod = np.zeros(self.full_shape[1])
-        elif len(mat.shape) == 2:
-            prod = np.zeros((self.full_shape[1], mat.shape[1]))
-        else:
-            raise RuntimeError("Dimension of input numpy array must be one or two.")
-
-        for b in self.traverse_data_nodes():
-            assert b.data is not None
-            if b.compress is not None:
-                res = b.data.T @ b.compress.transpose_dot(mat[b.rows])
-            else:
-                res = b.data.T @ mat[b.rows]
-            prod[b.col_begin : b.col_end] += res
-
-        return prod
-
     def compress_matrix(
         self,
         mat: NDArray | csr_array,

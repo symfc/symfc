@@ -90,12 +90,6 @@ def test_root_indices_in_block_matrix():
     true = mat[:4, :4] @ np.ones((4, 4))
     np.testing.assert_allclose(mat_prod[4:], true)
 
-    # transpose_dot
-    mat_ones = np.ones((8, 4))
-    mat_prod = block1.transpose_dot(mat_ones)
-    true = mat[:4, :4].T @ np.ones((4, 4))
-    np.testing.assert_allclose(mat_prod[3:], true)
-
     # block.T @ mat
     mat_ones = np.ones((8, 4))
     mat_prod = block1.T @ mat_ones
@@ -393,3 +387,6 @@ def test_block_matrix_large():
     bm.change_indices(rows=perm)
     mat = mat[perm]
     np.testing.assert_array_equal(bm @ mat2, mat @ mat2)
+
+
+# TODO: Add tests for root_block_matrix and link_block_matrix_nodes
