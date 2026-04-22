@@ -114,7 +114,7 @@ class FCSparseSolverO2(FCSolverBase):
             raise ValueError("Invalid comp_mat_type.")
 
         N = self._natom
-        fc2 = fc2_basis.blocked_basis_set.dot(self._coefs)
+        fc2 = fc2_basis.blocked_basis_set @ self._coefs
         fc2 = np.array(
             (comp_mat_fc2 @ fc2).reshape((-1, N, 3, 3)), dtype="double", order="C"
         )

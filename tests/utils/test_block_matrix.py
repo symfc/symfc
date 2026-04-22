@@ -390,7 +390,6 @@ def test_block_matrix_large():
 
     # Row index permutation
     perm = np.array([2, 1, 0, 4, 3, 6, 5, 7])
-    bm.rows = perm
-    bm.set_root_indices()
+    bm.change_indices(rows=perm)
     mat = mat[perm]
     np.testing.assert_array_equal(bm @ mat2, mat @ mat2)
