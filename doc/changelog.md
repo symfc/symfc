@@ -2,6 +2,10 @@
 
 # Change Log
 
+## Apr-23-2026: Version 1.7.0
+
+- Refactoring of block matrix class.
+
 ## Jan-29-2026: Version 1.6.1
 
 - Refactored `matrix.py` and `eig_tools*.py`.
