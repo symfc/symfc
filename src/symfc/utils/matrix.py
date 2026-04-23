@@ -542,14 +542,18 @@ def root_block_matrix(
 
 
 def block_matrix_sandwich(
-    bm1: BlockMatrixNode, bm2: BlockMatrixNode, mat: NDArray
+    bm1: BlockMatrixNode,
+    bm2: BlockMatrixNode,
+    mat: NDArray,
+    disable_simple_products: bool = False,
 ) -> NDArray:
     """Calculate block1.T @ mat @ block2."""
     if not bm1.root or not bm2.root:
         raise RuntimeError("Nodes must be root of tree.")
 
-    if bm1.shape[1] < 20000 and bm2.shape[1] < 20000:
-        return bm1.recover().T @ mat @ bm2.recover()
+    if not disable_simple_products:
+        if bm1.shape[1] < 20000 and bm2.shape[1] < 20000:
+            return bm1.recover().T @ mat @ bm2.recover()
 
     res = np.zeros((bm1.shape[1], bm2.shape[1]))
     for b1 in bm1.traverse_data_nodes():

@@ -3,7 +3,12 @@
 import numpy as np
 from scipy.sparse import csr_array
 
-from symfc.utils.matrix import BlockMatrixNode
+from symfc.utils.matrix import (
+    BlockMatrixNode,
+    block_matrix_sandwich,
+    link_block_matrix_nodes,
+    root_block_matrix,
+)
 
 
 def test_root_indices_in_block_matrix():
@@ -211,7 +216,7 @@ def test_compress_method():
     np.testing.assert_allclose(compr_block1, np.eye(2))
 
 
-def test_block_matrix_large():
+def test_large_block_matrix():
     """Test BlockMatrix."""
     mat = np.array(
         [
@@ -364,13 +369,8 @@ def test_block_matrix_large():
         index=12,
     )
 
-    bm = BlockMatrixNode(
-        rows=[0, 1, 2, 3, 4, 5, 6, 7],
-        col_begin=0,
-        col_end=8,
-        first_child=block4,
-        index=13,
-    )
+    bm = BlockMatrixNode(shape=(8, 8), first_child=block4, index=13)
+    bm = root_block_matrix(shape=(8, 8), first_child=block4)
 
     mat2 = np.array([[3, 1], [5, 7], [2, 8], [5, 9], [3, 2], [4, 5], [7, 2], [2, 1]])
     vec2 = np.array([3, 1, 5, 7, 2, 3, 3, 1])
@@ -389,5 +389,61 @@ def test_block_matrix_large():
     mat = mat[perm]
     np.testing.assert_array_equal(bm @ mat2, mat @ mat2)
 
+    # Test attributes
+    bm.print_nodes()
+    bm.traverse_data_nodes()
 
-# TODO: Add tests for root_block_matrix and link_block_matrix_nodes
+    np.testing.assert_equal(bm.rows, perm)
+    assert bm.col_begin == 0
+    assert bm.col_end == 8
+    assert bm.data_shape == (8, 8)
+    assert bm.shape == (8, 8)
+    assert bm.n_eigvecs == 8
+    assert bm.next_sibling is None
+    assert isinstance(bm.first_child, BlockMatrixNode)
+    assert bm.compress is None
+    assert bm.data is None
+    assert bm.root
+    assert bm.eigvals is None
+
+
+def test_link_block_matrices():
+    """Test link_block_matrix_nodes and block_matrix_sandwich."""
+    mat = np.array(
+        [
+            [5, 4, 3, 2, 7, 4, 0, 0],
+            [4, 3, 2, 1, 8, 3, 0, 0],
+            [0, 0, 6, 2, 8, 7, 7, 2],
+            [0, 0, 1, 4, 3, 3, 1, 8],
+            [0, 0, 0, 0, 5, 3, 9, 1],
+            [0, 0, 0, 0, 3, 4, 1, 2],
+            [0, 0, 0, 0, 7, 8, 0, 0],
+            [0, 0, 0, 0, 7, 2, 0, 0],
+        ]
+    )
+
+    block1_1 = BlockMatrixNode(shape=(2, 2), data=mat[0:2, 0:2])
+    block1_2 = BlockMatrixNode(shape=(2, 2), data=mat[0:2, 2:4])
+    block1_2 = link_block_matrix_nodes(block1_2, block1_1, rows=[0, 1], col_begin=2)
+    block1_3 = BlockMatrixNode(shape=(2, 2), data=mat[2:4, 2:4])
+    block1_3 = link_block_matrix_nodes(block1_3, block1_2, rows=[2, 3], col_begin=2)
+    block1 = root_block_matrix(shape=(4, 4), first_child=block1_3)
+
+    block2_1 = BlockMatrixNode(shape=(2, 2), data=mat[0:2, 4:6])
+    block2_2 = BlockMatrixNode(shape=(2, 2), data=mat[2:4, 4:6])
+    block2_2 = link_block_matrix_nodes(block2_2, block2_1, rows=[2, 3], col_begin=0)
+    block2_3 = BlockMatrixNode(shape=(2, 2), data=mat[2:4, 6:8])
+    block2_3 = link_block_matrix_nodes(block2_3, block2_2, rows=[2, 3], col_begin=2)
+    block2 = root_block_matrix(shape=(4, 4), first_child=block2_3)
+    block2 = link_block_matrix_nodes(block2, block1, rows=[0, 1, 2, 3], col_begin=4)
+    bm = root_block_matrix(shape=(8, 8), first_child=block2)
+
+    mat1 = np.zeros((8, 8))
+    mat1[:4] = mat[:4]
+    np.testing.assert_allclose(bm.recover(), mat1, atol=1e-7)
+
+    sand = block_matrix_sandwich(bm, bm, mat)
+    true = mat1.T @ mat @ mat1
+    np.testing.assert_allclose(sand, true)
+    sand = block_matrix_sandwich(bm, bm, mat, disable_simple_products=True)
+    np.testing.assert_allclose(sand, true)
