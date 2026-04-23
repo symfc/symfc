@@ -121,7 +121,7 @@ class BlockMatrixNode:
         col_end: int | None = None,
         shape: tuple | None = None,
         data: NDArray | None = None,
-        compress: BlockMatrixNode | None = None,
+        compress: NDArray | BlockMatrixNode | None = None,
         eigvals: NDArray | None = None,
         next_sibling: BlockMatrixNode | None = None,
         first_child: BlockMatrixNode | None = None,
@@ -271,9 +271,15 @@ class BlockMatrixNode:
             if self._data.shape != self.data_shape:
                 raise RuntimeError("Data shape is inconsistent with rows and columns.")
         else:
-            assert self._compress.data_shape is not None
-            if self._compress.data_shape[0] != self.data_shape[0]:
-                raise RuntimeError("Data shape is inconsistent with rows.")
+            if isinstance(self._compress, BlockMatrixNode):
+                assert self._compress.data_shape is not None
+                if self._compress.data_shape[0] != self.data_shape[0]:
+                    raise RuntimeError("Data shape is inconsistent with rows.")
+            else:
+                assert self._compress.shape is not None
+                if self._compress.shape[0] != self.data_shape[0]:
+                    raise RuntimeError("Data shape is inconsistent with rows.")
+
             if self._data.shape[1] != self.data_shape[1]:
                 raise RuntimeError("Data shape is inconsistent with columns.")
 
