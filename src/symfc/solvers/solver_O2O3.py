@@ -164,11 +164,11 @@ class FCSolverO2O3(FCSolverBase):
             raise ValueError("Invalid comp_mat_type.")
 
         N = self._natom
-        fc2 = fc2_basis.blocked_basis_set.dot(self._coefs[0])
+        fc2 = fc2_basis.blocked_basis_set @ self._coefs[0]
         fc2 = np.array(
             (comp_mat_fc2 @ fc2).reshape((-1, N, 3, 3)), dtype="double", order="C"
         )
-        fc3 = fc3_basis.blocked_basis_set.dot(self._coefs[1])
+        fc3 = fc3_basis.blocked_basis_set @ self._coefs[1]
         fc3 = np.array(
             (comp_mat_fc3 @ fc3).reshape((-1, N, N, 3, 3, 3)),
             dtype="double",
@@ -349,8 +349,8 @@ def prepare_normal_equation_O2O3(
     mat22 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
     mat23 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc3, mat23)
     mat33 = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc3, mat33)
-    mat2y = compress_eigvecs_fc2.transpose_dot(mat2y)
-    mat3y = compress_eigvecs_fc3.transpose_dot(mat3y)
+    mat2y = compress_eigvecs_fc2.T @ mat2y
+    mat3y = compress_eigvecs_fc3.T @ mat3y
 
     XTX = np.block([[mat22, mat23], [mat23.T, mat33]])
     XTy = np.hstack([mat2y, mat3y])
