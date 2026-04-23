@@ -121,7 +121,7 @@ class FCSolverO3(FCSolverBase):
             raise ValueError("Invalid comp_mat_type.")
 
         N = self._natom
-        fc3 = fc3_basis.blocked_basis_set.dot(self._coefs)
+        fc3 = fc3_basis.blocked_basis_set @ self._coefs
         fc3 = np.array(
             (comp_mat_fc3 @ fc3).reshape((-1, N, N, 3, 3, 3)),
             dtype="double",
@@ -214,7 +214,7 @@ def prepare_normal_equation_O3(
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
 
     XTX = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc3, mat33)
-    XTy = compress_eigvecs_fc3.transpose_dot(mat3y)
+    XTy = compress_eigvecs_fc3.T @ mat3y
 
     compact_compress_mat_fc3 /= const_fc3
     t_all2 = time.time()

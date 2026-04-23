@@ -117,7 +117,7 @@ class FCSolverO2(FCSolverBase):
             raise ValueError("Invalid comp_mat_type.")
 
         N = self._natom
-        fc2 = fc2_basis.blocked_basis_set.dot(self._coefs)
+        fc2 = fc2_basis.blocked_basis_set @ self._coefs
         fc2 = np.array(
             (comp_mat_fc2 @ fc2).reshape((-1, N, 3, 3)), dtype="double", order="C"
         )
@@ -234,7 +234,7 @@ def prepare_normal_equation_O2(
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
     XTX = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
-    XTy = compress_eigvecs_fc2.transpose_dot(mat2y)
+    XTy = compress_eigvecs_fc2.T @ mat2y
 
     compact_compress_mat_fc2 /= const_fc2
     t_all2 = time.time()

@@ -41,15 +41,18 @@ def eigsh_projector(
 
     """
     compr = CompressionProjector(p)
-    group = find_projector_blocks(compr.compressed_projector, verbose=verbose)
+    cp = compr.compressed_projector
+    group = find_projector_blocks(cp, verbose=verbose)
     if verbose:
         rank = matrix_rank(compr.compressed_projector)
         print("Rank of projector:", rank, flush=True)
         print("Number of blocks in projector:", len(group), flush=True)
 
-    eigvecs = _solve_eigsh(
-        compr.compressed_projector, group, atol=atol, rtol=rtol, verbose=verbose
+    cp_data = _extract_sparse_projector_data(cp, group)
+    uniq_eigvecs = _solve_blocked_projector(
+        cp_data, atol=atol, rtol=rtol, verbose=verbose
     )
+    eigvecs = _recover_eigvecs_from_uniq_eigvecs(uniq_eigvecs, group, cp.shape[0])  # type: ignore
     return compr.recover(eigvecs)
 
 
@@ -211,15 +214,13 @@ def _extract_sparse_projector_data(p: csr_array, group: dict) -> DataCSR:
     return p_data
 
 
-def _solve_eigsh(
-    p: csr_array,
-    group: dict,
+def _solve_blocked_projector(
+    p_data: DataCSR,
     atol: float = DEFAULT_EIGVAL_TOL,
     rtol: float = 0.0,
     verbose: bool = True,
-) -> csr_array:
-    """Solve eigenvalue problem for matrix p."""
-    p_data = _extract_sparse_projector_data(p, group)
+) -> dict:
+    """Solve eigenvalue problem for grouped data of matrix p in DataCSR form."""
     uniq_eigvecs: dict[str | tuple, tuple[NDArray | None, list]] = {
         "one": (np.array([[1.0]]), [])
     }
@@ -236,6 +237,4 @@ def _solve_eigsh(
                 res = eigh_projector(p_numpy, atol=atol, rtol=rtol, verbose=verbose)
                 assert not isinstance(res.eigvecs, BlockMatrixNode)
                 uniq_eigvecs[key] = (res.eigvecs, [block_label])
-
-    eigvecs = _recover_eigvecs_from_uniq_eigvecs(uniq_eigvecs, group, p.shape[0])  # type: ignore
-    return eigvecs
+    return uniq_eigvecs
