@@ -28,7 +28,10 @@ def dot_product_sparse(
 ) -> csr_array:
     """Compute dot-product of sparse matrices."""
     if use_mkl:
-        return dot_product_mkl(A, B, dense=dense)
+        try:
+            return dot_product_mkl(A, B, dense=dense)
+        except NameError:
+            pass
     return A @ B
 
 
@@ -69,9 +72,9 @@ class TransposedBlockMatrixNode:
         if mat.shape[0] < self._shape[0]:
             raise RuntimeError("Input matrix shape not consistent with block matrix.")
 
-        if len(mat.shape) == 1:
+        if mat.ndim == 1:
             prod = np.zeros(self._shape[1])
-        elif len(mat.shape) == 2:
+        elif mat.ndim == 2:
             prod = np.zeros((self._shape[1], mat.shape[1]))
         else:
             raise RuntimeError("Dimension of input numpy array must be one or two.")
@@ -113,9 +116,10 @@ class BlockMatrixNode:
 
     def __init__(
         self,
-        rows: NDArray | Sequence[int],
-        col_begin: int,
-        col_end: int,
+        rows: NDArray | Sequence[int] | None = None,
+        col_begin: int | None = None,
+        col_end: int | None = None,
+        shape: tuple | None = None,
         data: NDArray | None = None,
         compress: BlockMatrixNode | None = None,
         eigvals: NDArray | None = None,
@@ -123,9 +127,24 @@ class BlockMatrixNode:
         first_child: BlockMatrixNode | None = None,
         index: int | None = None,  # Used in test only
     ):
-        self._rows = np.array(rows, dtype=int)
-        self._col_begin = col_begin
-        self._col_end = col_end
+        if shape is None:
+            if rows is None:
+                raise RuntimeError("Rows or shape must be provided.")
+            if col_begin is None:
+                raise RuntimeError("col_begin or shape must be provided.")
+            if col_end is None:
+                raise RuntimeError("col_end or shape must be provided.")
+
+            self._rows = np.array(rows, dtype=int)
+            self._col_begin = col_begin
+            self._col_end = col_end
+        else:
+            if len(shape) != 2:
+                raise RuntimeError("shape size must be two.")
+            self._rows = np.arange(shape[0])
+            self._col_begin = 0
+            self._col_end = shape[1]
+
         self._index = index  # Used in test only
 
         self._data = data
@@ -176,6 +195,11 @@ class BlockMatrixNode:
     def shape(self) -> tuple:
         """Return full shape of block matrix including empty elements."""
         return (np.max(self._rows) + 1, self._col_end)
+
+    @property
+    def n_eigvecs(self) -> tuple:
+        """Return number of eigenvectors in block matrix."""
+        return self._col_end - self._col_begin
 
     @property
     def next_sibling(self) -> BlockMatrixNode | None:
@@ -268,20 +292,20 @@ class BlockMatrixNode:
             header = "-"
         else:
             header = "  " * (depth - 1) + "|--"
-        print(header, self.data_shape, end=", ", flush=True)
+        print(header, self.data_shape, end="", flush=True)
         if self._data is not None:
             if self._compress is not None:
                 print(
-                    "data:",
+                    ", data:",
                     self._compress.data_shape,
                     "@",
                     self._data.shape,
                     flush=True,
                 )
             else:
-                print("data: True", flush=True)
+                print(", data: True", flush=True)
         else:
-            print("data: False", flush=True)
+            print(flush=True)
 
         if self._first_child is not None:
             self._first_child.print_nodes(depth=depth + 1)
@@ -360,9 +384,9 @@ class BlockMatrixNode:
         if mat.shape[0] < self.shape[1]:
             raise RuntimeError("Input matrix shape not consistent with block matrix.")
 
-        if len(mat.shape) == 1:
+        if mat.ndim == 1:
             prod = np.zeros(self.shape[0])
-        elif len(mat.shape) == 2:
+        elif mat.ndim == 2:
             prod = np.zeros((self.shape[0], mat.shape[1]))
         else:
             raise RuntimeError("Dimension of input numpy array must be one or two.")
@@ -487,11 +511,11 @@ def link_block_matrix_nodes(
     if isinstance(eigvecs, BlockMatrixNode):
         if eigvecs.data_shape[1] == 0:
             return next_sibling
-        block = eigvecs
-        block.change_indices(rows=rows, col_begin=col_begin)
-        block.next_sibling = next_sibling
-        block.eigvals = eigvals
-        return block
+        eigvecs.change_indices(rows=rows, col_begin=col_begin)
+        eigvecs.next_sibling = next_sibling
+        if eigvals is not None:
+            eigvecs.eigvals = eigvals
+        return eigvecs
 
     col_end = col_begin + eigvecs.shape[1]  # type: ignore
     block = BlockMatrixNode(
@@ -499,9 +523,9 @@ def link_block_matrix_nodes(
         col_begin=col_begin,
         col_end=col_end,
         data=eigvecs,
-        next_sibling=next_sibling,
         compress=compress,
         eigvals=eigvals,
+        next_sibling=next_sibling,
     )
     return block
 
@@ -514,12 +538,7 @@ def root_block_matrix(
     if shape[1] == 0:
         return None
 
-    return BlockMatrixNode(
-        rows=np.arange(shape[0]),
-        col_begin=0,
-        col_end=shape[1],
-        first_child=first_child,
-    )
+    return BlockMatrixNode(shape=shape, first_child=first_child)
 
 
 def block_matrix_sandwich(

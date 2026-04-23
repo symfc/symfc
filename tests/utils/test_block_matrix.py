@@ -70,8 +70,9 @@ def test_root_indices_in_block_matrix():
     assert not block1_1.root
     assert not block1_2.root
     assert not block1_3.root
-    assert block1.shape == (4, 4)
-    assert block1.full_shape == (8, 7)
+    assert block1.data_shape == (4, 4)
+    assert block1.shape == (8, 7)
+    assert block1.n_eigvecs == 4
 
     # recover
     np_matrix = block1.recover()
@@ -140,7 +141,7 @@ def test_compressed_block_matrix():
     assert not cblock2.root
     assert not cblock3.root
     assert cmplt.shape == (4, 2)
-    assert cmplt.full_shape == (4, 2)
+    assert cmplt.data_shape == (4, 2)
 
     eigvecs = np.array([[1, 0], [2, 1]])
     block = BlockMatrixNode(
