@@ -130,7 +130,7 @@ class FCBasisSetO3(FCBasisSetBase):
         n_lp = self.translation_permutations.shape[0]
         return self._n_a_compression_matrix / np.sqrt(n_lp)
 
-    def run(self, apply_sum_rule: bool = False) -> FCBasisSetO3:
+    def run(self, apply_sum_rule: bool = True) -> FCBasisSetO3:
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
 
