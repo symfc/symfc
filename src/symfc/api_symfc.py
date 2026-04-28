@@ -220,7 +220,11 @@ class Symfc:
         if (
             self._displacements is not None and self._forces is not None
         ) or self.use_fd:
-            self.compute_basis_set(max_order=max_order, orders=orders)
+            self.compute_basis_set(
+                max_order=max_order,
+                orders=orders,
+                apply_sum_rule=False,
+            )
             self.solve(
                 max_order=max_order,
                 orders=orders,
@@ -456,6 +460,7 @@ class Symfc:
         self,
         max_order: int | None = None,
         orders: list | None = None,
+        apply_sum_rule: bool = True,
     ) -> Symfc:
         """Run basis set calculations.
 
@@ -465,6 +470,8 @@ class Symfc:
             Maximum fc order.
         orders: list
             Orders of force constants.
+        apply_sum_rule: bool
+            Consider translational sum rule or not.
         """
         for order in self._check_orders(max_order, orders):
             if order == 2:
@@ -483,7 +490,7 @@ class Symfc:
                     cutoff=self._cutoff[3],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
-                ).run(apply_sum_rule=True)
+                ).run(apply_sum_rule=apply_sum_rule)
                 self._basis_set[3] = basis_set_o3
             elif order == 4:
                 basis_set_o4 = FCBasisSetO4(
