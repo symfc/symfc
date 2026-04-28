@@ -174,7 +174,7 @@ def prepare_normal_equation_O2(
     atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
 
-    n_batch = 1
+    n_batch = N // 10
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
 
