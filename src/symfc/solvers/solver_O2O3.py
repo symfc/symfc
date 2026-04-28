@@ -251,9 +251,9 @@ def prepare_normal_equation_O2O3(
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
     n_compr_fc3 = compact_compress_mat_fc3.shape[1]  # type: ignore
 
-    n_batch = (N // 128 + 1) * (n_compr_fc3 // 30000 + 1)
+    n_batch = (N // 30 + 1) * (n_compr_fc3 // 30000 + 1)
     n_batch = min(N, n_batch)
-    # n_batch = 2
+    # n_batch = 4
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
 
