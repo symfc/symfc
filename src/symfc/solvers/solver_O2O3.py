@@ -251,9 +251,8 @@ def prepare_normal_equation_O2O3(
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
     n_compr_fc3 = compact_compress_mat_fc3.shape[1]  # type: ignore
 
-    n_batch = (N // 30 + 1) * (n_compr_fc3 // 30000 + 1)
+    n_batch = (N // 30 + 1) * (n_compr_fc3 // 20000 + 1)
     n_batch = min(N, n_batch)
-    # n_batch = 4
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
 
@@ -298,11 +297,8 @@ def prepare_normal_equation_O2O3(
 
         t2 = time.time()
         if verbose:
-            print(
-                "Time (Solver_compr_matrix_reshape):",
-                "{:.3f}".format(t2 - t1),
-                flush=True,
-            )
+            time_pr = "{:.3f}".format(t2 - t1)
+            print("Time (Solver_compr_matrix_reshape):", time_pr, flush=True)
 
         for begin, end in zip(begin_batch, end_batch, strict=True):
             t1 = time.time()
@@ -329,7 +325,7 @@ def prepare_normal_equation_O2O3(
             if verbose:
                 print("Solver_block:", end, "/", disps.shape[0], flush=True)
                 print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
-            del X3
+            del X2, X3
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
@@ -349,11 +345,8 @@ def prepare_normal_equation_O2O3(
     compact_compress_mat_fc3 /= const_fc3
     t_all2 = time.time()
     if verbose:
-        print(
-            "Time (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):",
-            "{:.3f}".format(t_all2 - t_all1),
-            flush=True,
-        )
+        header = "Time (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):"
+        print(header, "{:.3f}".format(t_all2 - t_all1), flush=True)
     return XTX, XTy
 
 

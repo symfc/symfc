@@ -91,29 +91,13 @@ class FCSolverO2O3O4(FCSolverBase):
         fc2_basis: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[0])
         fc3_basis: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[1])
         fc4_basis: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[2])
-        compress_mat_fc2 = fc2_basis.compact_compression_matrix
-        basis_set_fc2 = fc2_basis.blocked_basis_set
-        compress_mat_fc3 = fc3_basis.compact_compression_matrix
-        basis_set_fc3 = fc3_basis.blocked_basis_set
-        compress_mat_fc4 = fc4_basis.compact_compression_matrix
-        basis_set_fc4 = fc4_basis.blocked_basis_set
-
-        atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
-        atomic_decompr_idx_fc3 = fc3_basis.atomic_decompr_idx
-        atomic_decompr_idx_fc4 = fc4_basis.atomic_decompr_idx
 
         self._coefs = run_solver_O2O3O4(
             d,
             f,
-            compress_mat_fc2,
-            compress_mat_fc3,
-            compress_mat_fc4,
-            basis_set_fc2,
-            basis_set_fc3,
-            basis_set_fc4,
-            atomic_decompr_idx_fc2,
-            atomic_decompr_idx_fc3,
-            atomic_decompr_idx_fc4,
+            fc2_basis,
+            fc3_basis,
+            fc4_basis,
             batch_size=batch_size,
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
@@ -250,18 +234,12 @@ def reshape_nNNN3333_nx_to_N3N3N3_n3nx(mat, N, n, n_batch=36):
 def prepare_normal_equation_O2O3O4(
     disps,
     forces,
-    compact_compress_mat_fc2,
-    compact_compress_mat_fc3,
-    compact_compress_mat_fc4,
-    compress_eigvecs_fc2,
-    compress_eigvecs_fc3,
-    compress_eigvecs_fc4,
-    atomic_decompr_idx_fc2,
-    atomic_decompr_idx_fc3,
-    atomic_decompr_idx_fc4,
-    batch_size=36,
-    use_mkl=False,
-    verbose=False,
+    fc2_basis: FCBasisSetO2,
+    fc3_basis: FCBasisSetO3,
+    fc4_basis: FCBasisSetO4,
+    batch_size: int = 36,
+    use_mkl: bool = False,
+    verbose: bool = False,
 ):
     r"""Calculate X.T @ X and X.T @ y.
 
@@ -289,14 +267,18 @@ def prepare_normal_equation_O2O3O4(
     NN = N**2
     NNN = N**3
 
-    # n_basis_fc2 = compress_eigvecs_fc2.shape[1]
-    # n_basis_fc3 = compress_eigvecs_fc3.shape[1]
-    # n_basis_fc4 = compress_eigvecs_fc4.shape[1]
+    compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
+    compact_compress_mat_fc3 = fc3_basis.compact_compression_matrix
+    compact_compress_mat_fc4 = fc4_basis.compact_compression_matrix
+    atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
+    atomic_decompr_idx_fc3 = fc3_basis.atomic_decompr_idx
+    atomic_decompr_idx_fc4 = fc4_basis.atomic_decompr_idx
+
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]
     n_compr_fc3 = compact_compress_mat_fc3.shape[1]
     n_compr_fc4 = compact_compress_mat_fc4.shape[1]
 
-    n_batch = (n_compr_fc3 // 10000 + n_compr_fc4 // 5000 + 1) * (N // 50 + 1)
+    n_batch = (n_compr_fc3 // 10000 + n_compr_fc4 // 5000 + 1) * (N // 20 + 1)
     n_batch = min(N, n_batch)
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
@@ -356,11 +338,8 @@ def prepare_normal_equation_O2O3O4(
         )
         t2 = time.time()
         if verbose:
-            print(
-                "Time (Solver_compr_matrix_reshape):",
-                "{:.3f}".format(t2 - t1),
-                flush=True,
-            )
+            time_pr = "{:.3f}".format(t2 - t1)
+            print("Time (Solver_compr_matrix_reshape):", time_pr, flush=True)
 
         for begin, end in zip(begin_batch, end_batch, strict=True):
             t1 = time.time()
@@ -398,9 +377,14 @@ def prepare_normal_equation_O2O3O4(
             if verbose:
                 print("Solver_block:", end, "/", disps.shape[0], flush=True)
                 print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
+            del X2, X3, X4
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
+
+    compress_eigvecs_fc2 = fc2_basis.blocked_basis_set
+    compress_eigvecs_fc3 = fc3_basis.blocked_basis_set
+    compress_eigvecs_fc4 = fc4_basis.blocked_basis_set
 
     mat22 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
     mat23 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc3, mat23)
@@ -422,29 +406,20 @@ def prepare_normal_equation_O2O3O4(
     compact_compress_mat_fc4 /= const_fc4
     t_all2 = time.time()
     if verbose:
-        print(
-            "Time (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):",
-            "{:.3f}".format(t_all2 - t_all1),
-            flush=True,
-        )
+        header = "Time (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):"
+        print(header, "{:.3f}".format(t_all2 - t_all1), flush=True)
     return XTX, XTy
 
 
 def run_solver_O2O3O4(
     disps,
     forces,
-    compact_compress_mat_fc2,
-    compact_compress_mat_fc3,
-    compact_compress_mat_fc4,
-    compress_eigvecs_fc2,
-    compress_eigvecs_fc3,
-    compress_eigvecs_fc4,
-    atomic_decompr_idx_fc2,
-    atomic_decompr_idx_fc3,
-    atomic_decompr_idx_fc4,
-    batch_size=36,
-    use_mkl=False,
-    verbose=False,
+    fc2_basis: FCBasisSetO2,
+    fc3_basis: FCBasisSetO3,
+    fc4_basis: FCBasisSetO4,
+    batch_size: int = 36,
+    use_mkl: bool = False,
+    verbose: bool = False,
 ):
     """Estimate coeffs. in X @ coeffs = y.
 
@@ -461,22 +436,16 @@ def run_solver_O2O3O4(
     XTX, XTy = prepare_normal_equation_O2O3O4(
         disps,
         forces,
-        compact_compress_mat_fc2,
-        compact_compress_mat_fc3,
-        compact_compress_mat_fc4,
-        compress_eigvecs_fc2,
-        compress_eigvecs_fc3,
-        compress_eigvecs_fc4,
-        atomic_decompr_idx_fc2,
-        atomic_decompr_idx_fc3,
-        atomic_decompr_idx_fc4,
+        fc2_basis,
+        fc3_basis,
+        fc4_basis,
         batch_size=batch_size,
         use_mkl=use_mkl,
         verbose=verbose,
     )
     coefs = solve_linear_equation(XTX, XTy)
-    n_basis_fc2 = compress_eigvecs_fc2.shape[1]
-    n_basis_fc3 = compress_eigvecs_fc3.shape[1]
+    n_basis_fc2 = fc2_basis.blocked_basis_set.shape[1]
+    n_basis_fc3 = fc3_basis.blocked_basis_set.shape[1]
     coefs_fc2, coefs_fc3, coefs_fc4 = (
         coefs[:n_basis_fc2],
         coefs[n_basis_fc2 : n_basis_fc2 + n_basis_fc3],

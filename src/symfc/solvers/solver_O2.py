@@ -9,7 +9,7 @@ import numpy as np
 from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2
-from symfc.utils.matrix import BlockMatrixNode, block_matrix_sandwich
+from symfc.utils.matrix import block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
 try:
@@ -62,17 +62,10 @@ class FCSolverO2(FCSolverBase):
         d = displacements.reshape(n_data, -1)
 
         fc2_basis = self._basis_set
-        compress_mat_fc2 = fc2_basis.compact_compression_matrix
-        basis_set_fc2 = fc2_basis.blocked_basis_set
-
-        atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
-
         self._coefs = run_solver_O2(
             d,
             f,
-            compress_mat_fc2,
-            basis_set_fc2,
-            atomic_decompr_idx_fc2,
+            fc2_basis,
             batch_size=batch_size,
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
@@ -154,9 +147,7 @@ def reshape_nN33_nx_to_N3_n3nx(mat, N: int, n: int, n_batch: int = 1) -> csr_arr
 def prepare_normal_equation_O2(
     disps: NDArray,
     forces: NDArray,
-    compact_compress_mat_fc2: NDArray | csr_array,
-    compress_eigvecs_fc2: BlockMatrixNode,
-    atomic_decompr_idx_fc2: NDArray,
+    fc2_basis: FCBasisSetO2,
     batch_size: int = 100,
     use_sparse_disps: bool = False,
     use_mkl: bool = False,
@@ -178,6 +169,9 @@ def prepare_normal_equation_O2(
     """
     N3 = disps.shape[1]
     N = N3 // 3
+
+    compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
+    atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
 
     n_batch = 1
@@ -208,11 +202,8 @@ def prepare_normal_equation_O2(
         )
         t2 = time.time()
         if verbose:
-            print(
-                "Time (Solver_compr_matrix_reshape):",
-                "{:.3f}".format(t2 - t1),
-                flush=True,
-            )
+            time_pr = "{:.3f}".format(t2 - t1)
+            print("Time (Solver_compr_matrix_reshape):", time_pr, flush=True)
 
         for begin, end in zip(begin_batch, end_batch, strict=True):
             t1 = time.time()
@@ -233,26 +224,23 @@ def prepare_normal_equation_O2(
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
+
+    compress_eigvecs_fc2 = fc2_basis.blocked_basis_set
     XTX = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
     XTy = compress_eigvecs_fc2.T @ mat2y
 
     compact_compress_mat_fc2 /= const_fc2
     t_all2 = time.time()
     if verbose:
-        print(
-            " (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):",
-            "{:.3f}".format(t_all2 - t_all1),
-            flush=True,
-        )
+        header = " (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):"
+        print(header, "{:.3f}".format(t_all2 - t_all1), flush=True)
     return XTX, XTy
 
 
 def run_solver_O2(
     disps: NDArray,
     forces: NDArray,
-    compact_compress_mat_fc2: NDArray | csr_array,
-    compress_eigvecs_fc2: BlockMatrixNode,
-    atomic_decompr_idx_fc2: NDArray,
+    fc2_basis: FCBasisSetO2,
     batch_size: int = 100,
     use_sparse_disps: bool = False,
     use_mkl: bool = False,
@@ -270,9 +258,7 @@ def run_solver_O2(
     XTX, XTy = prepare_normal_equation_O2(
         disps,
         forces,
-        compact_compress_mat_fc2,
-        compress_eigvecs_fc2,
-        atomic_decompr_idx_fc2,
+        fc2_basis,
         batch_size=batch_size,
         use_sparse_disps=use_sparse_disps,
         use_mkl=use_mkl,

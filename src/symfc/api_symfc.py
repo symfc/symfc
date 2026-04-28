@@ -499,7 +499,7 @@ class Symfc:
                     cutoff=self._cutoff[4],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
-                ).run()
+                ).run(apply_sum_rule=apply_sum_rule)
                 self._basis_set[4] = basis_set_o4
         return self
 
