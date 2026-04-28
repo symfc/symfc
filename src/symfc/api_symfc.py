@@ -483,7 +483,7 @@ class Symfc:
                     cutoff=self._cutoff[3],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
-                ).run()
+                ).run(apply_sum_rule=True)
                 self._basis_set[3] = basis_set_o3
             elif order == 4:
                 basis_set_o4 = FCBasisSetO4(

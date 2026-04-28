@@ -11,7 +11,7 @@ from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3
 from symfc.solvers.solver_O2 import reshape_nN33_nx_to_N3_n3nx
-from symfc.utils.matrix import BlockMatrixNode, block_matrix_sandwich
+from symfc.utils.matrix import block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
 try:
@@ -86,37 +86,17 @@ class FCSolverO2O3(FCSolverBase):
 
         fc2_basis: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[0])
         fc3_basis: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[1])
-        compress_mat_fc2 = fc2_basis.compact_compression_matrix
-        basis_set_fc2 = fc2_basis.blocked_basis_set
-        compress_mat_fc3 = fc3_basis.compact_compression_matrix
-        basis_set_fc3 = fc3_basis.blocked_basis_set
 
-        atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
-        atomic_decompr_idx_fc3 = fc3_basis.atomic_decompr_idx
-
-        if (
-            compress_mat_fc2 is None
-            or compress_mat_fc3 is None
-            or basis_set_fc2 is None
-            or basis_set_fc3 is None
-        ):
-            raise ValueError(
-                "Compression matrices or basis sets are not set. "
-                "Call run() method to compute them."
-            )
         self._coefs = run_solver_O2O3(
             d,
             f,
-            compress_mat_fc2,
-            compress_mat_fc3,
-            basis_set_fc2,
-            basis_set_fc3,
-            atomic_decompr_idx_fc2,
-            atomic_decompr_idx_fc3,
+            fc2_basis,
+            fc3_basis,
             batch_size=batch_size,
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )
+
         return self
 
     @property
@@ -229,12 +209,8 @@ def reshape_nNN333_nx_to_N3N3_n3nx(mat, N, n, n_batch=9):
 def prepare_normal_equation_O2O3(
     disps: np.ndarray,
     forces: np.ndarray,
-    compact_compress_mat_fc2: csr_array,
-    compact_compress_mat_fc3: csr_array,
-    compress_eigvecs_fc2: BlockMatrixNode,
-    compress_eigvecs_fc3: BlockMatrixNode,
-    atomic_decompr_idx_fc2: np.ndarray,
-    atomic_decompr_idx_fc3: np.ndarray,
+    fc2_basis: FCBasisSetO2,
+    fc3_basis: FCBasisSetO3,
     batch_size: int = 100,
     use_mkl: bool = False,
     verbose: bool = False,
@@ -261,11 +237,23 @@ def prepare_normal_equation_O2O3(
     N = N3 // 3
     NN = N * N
 
+    compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
+    compact_compress_mat_fc3 = fc3_basis.compact_compression_matrix
+    atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
+    atomic_decompr_idx_fc3 = fc3_basis.atomic_decompr_idx
+
+    if compact_compress_mat_fc2 is None or compact_compress_mat_fc3 is None:
+        raise ValueError(
+            "Compression matrices or basis sets are not set. "
+            "Call run() method to compute them."
+        )
+
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
     n_compr_fc3 = compact_compress_mat_fc3.shape[1]  # type: ignore
 
-    n_batch = (N // 256 + 1) * (n_compr_fc3 // 30000 + 1)
+    n_batch = (N // 128 + 1) * (n_compr_fc3 // 30000 + 1)
     n_batch = min(N, n_batch)
+    # n_batch = 2
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
 
@@ -346,6 +334,8 @@ def prepare_normal_equation_O2O3(
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
 
+    compress_eigvecs_fc2 = fc2_basis.blocked_basis_set
+    compress_eigvecs_fc3 = fc3_basis.blocked_basis_set
     mat22 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
     mat23 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc3, mat23)
     mat33 = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc3, mat33)
@@ -370,12 +360,8 @@ def prepare_normal_equation_O2O3(
 def run_solver_O2O3(
     disps: np.ndarray,
     forces: np.ndarray,
-    compact_compress_mat_fc2: csr_array,
-    compact_compress_mat_fc3: csr_array,
-    compress_eigvecs_fc2: BlockMatrixNode,
-    compress_eigvecs_fc3: BlockMatrixNode,
-    atomic_decompr_idx_fc2: np.ndarray,
-    atomic_decompr_idx_fc3: np.ndarray,
+    fc2_basis: FCBasisSetO2,
+    fc3_basis: FCBasisSetO3,
     batch_size: int = 100,
     use_mkl: bool = False,
     verbose: bool = False,
@@ -394,18 +380,14 @@ def run_solver_O2O3(
     XTX, XTy = prepare_normal_equation_O2O3(
         disps,
         forces,
-        compact_compress_mat_fc2,
-        compact_compress_mat_fc3,
-        compress_eigvecs_fc2,
-        compress_eigvecs_fc3,
-        atomic_decompr_idx_fc2,
-        atomic_decompr_idx_fc3,
+        fc2_basis,
+        fc3_basis,
         batch_size=batch_size,
         use_mkl=use_mkl,
         verbose=verbose,
     )
     coefs = solve_linear_equation(XTX, XTy)
-    n_basis_fc2 = compress_eigvecs_fc2.shape[1]
+    n_basis_fc2 = fc2_basis.blocked_basis_set.shape[1]
     coefs_fc2, coefs_fc3 = coefs[:n_basis_fc2], coefs[n_basis_fc2:]
 
     return coefs_fc2, coefs_fc3
