@@ -30,6 +30,7 @@ def test_fc_basis_set_o4():
     numbers = [1, 1, 1, 1, 1, 1, 1, 1]
     supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
     sbs = FCBasisSetO4(supercell, log_level=1).run()
+    sbs.compute_blocked_basis_set()
 
     assert sbs.basis_set.shape[0] == 115
     assert sbs.basis_set.shape[1] == 72
@@ -37,6 +38,7 @@ def test_fc_basis_set_o4():
     assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(18.0)
 
     sbs = FCBasisSetO4(supercell, cutoff=3.5, log_level=1).run()
+    sbs.compute_blocked_basis_set()
     assert sbs.basis_set.shape[0] == 11
     assert sbs.basis_set.shape[1] == 2
     compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
@@ -63,6 +65,7 @@ def test_fc_basis_set_o4_wurtzite():
     numbers = [1, 1, 2, 2]
     supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
     sbs = FCBasisSetO4(supercell, log_level=1).run()
+    sbs.compute_blocked_basis_set()
 
     assert sbs.basis_set.shape[0] == 120
     assert sbs.basis_set.shape[1] == 34
@@ -70,6 +73,7 @@ def test_fc_basis_set_o4_wurtzite():
     assert np.linalg.norm(compact_basis) ** 2 == pytest.approx(34.0)
 
     sbs = FCBasisSetO4(supercell, cutoff=3.0, log_level=1).run()
+    sbs.compute_blocked_basis_set()
     assert sbs.basis_set.shape[0] == 34
     assert sbs.basis_set.shape[1] == 2
     compact_basis = sbs.compact_compression_matrix @ sbs.basis_set
@@ -114,9 +118,11 @@ def test_fc_basis_set_o3_wurtzite_221():
     assert sbs.basis_set.shape[1] == 2749
     """
     sbs = FCBasisSetO4(supercell, cutoff=4.0, log_level=1).run()
+    sbs.compute_blocked_basis_set()
     assert sbs.basis_set.shape[0] == 948
     assert sbs.basis_set.shape[1] == 515
 
     sbs = FCBasisSetO4(supercell, cutoff=3.5, log_level=1).run()
+    sbs.compute_blocked_basis_set()
     assert sbs.basis_set.shape[0] == 61
     assert sbs.basis_set.shape[1] == 4

@@ -32,21 +32,16 @@ def test_api_NaCl_222_with_dataset_fd(
 
     fc2_basis = symfc.basis_set[2]
     compress_mat_fc2 = fc2_basis.compact_compression_matrix
-    basis_set_fc2 = fc2_basis.blocked_basis_set
-
-    atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
 
     coefs = run_solver_O2(
         d,
         f,
-        compress_mat_fc2,
-        basis_set_fc2,
-        atomic_decompr_idx_fc2,
+        fc2_basis,
         use_sparse_disps=True,
         use_mkl=False,
     )
 
-    fc = fc2_basis.blocked_basis_set.dot(coefs)
+    fc = fc2_basis.blocked_basis_set @ coefs
     fc = np.array(
         (compress_mat_fc2 @ fc).reshape((-1, n_atom, 3, 3)), dtype="double", order="C"
     )

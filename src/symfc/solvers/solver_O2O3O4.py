@@ -232,8 +232,8 @@ def reshape_nNNN3333_nx_to_N3N3N3_n3nx(mat, N, n, n_batch=36):
 
 
 def prepare_normal_equation_O2O3O4(
-    disps,
-    forces,
+    disps: np.ndarray,
+    forces: np.ndarray,
     fc2_basis: FCBasisSetO2,
     fc3_basis: FCBasisSetO3,
     fc4_basis: FCBasisSetO4,
@@ -412,8 +412,8 @@ def prepare_normal_equation_O2O3O4(
 
 
 def run_solver_O2O3O4(
-    disps,
-    forces,
+    disps: np.ndarray,
+    forces: np.ndarray,
     fc2_basis: FCBasisSetO2,
     fc3_basis: FCBasisSetO3,
     fc4_basis: FCBasisSetO4,
