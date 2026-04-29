@@ -13,6 +13,7 @@ from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3
 from symfc.solvers.solver_O2 import reshape_nN33_nx_to_N3_n3nx
 from symfc.utils.matrix import block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
+from symfc.utils.solver_utils import calc_sum_xtx
 
 try:
     from symfc.utils.matrix import dot_product_sparse
@@ -318,7 +319,8 @@ def prepare_normal_equation_O2O3(
 
             mat22 += X2.T @ X2
             mat23 += X2.T @ X3
-            mat33 += X3.T @ X3
+            mat33 = calc_sum_xtx(mat33, X3, verbose=verbose)
+            # mat33 = X3.T @ X3
             mat2y += X2.T @ y
             mat3y += X3.T @ y
             t2 = time.time()
