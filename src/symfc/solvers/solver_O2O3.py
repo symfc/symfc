@@ -11,7 +11,11 @@ from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3
 from symfc.solvers.solver_O2 import reshape_nN33_nx_to_N3_n3nx
-from symfc.utils.matrix import block_matrix_sandwich
+from symfc.utils.matrix import (
+    block_matrix_sandwich,
+    link_block_matrix_nodes,
+    root_block_matrix,
+)
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 from symfc.utils.solver_utils import calc_sum_xtx
 
@@ -257,11 +261,15 @@ def prepare_normal_equation_O2O3(
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
 
-    mat22 = np.zeros((n_compr_fc2, n_compr_fc2), dtype=float)
-    mat23 = np.zeros((n_compr_fc2, n_compr_fc3), dtype=float)
-    mat33 = np.zeros((n_compr_fc3, n_compr_fc3), dtype=float)
-    mat2y = np.zeros(n_compr_fc2, dtype=float)
-    mat3y = np.zeros(n_compr_fc3, dtype=float)
+    #    mat22 = np.zeros((n_compr_fc2, n_compr_fc2), dtype=float)
+    #    mat23 = np.zeros((n_compr_fc2, n_compr_fc3), dtype=float)
+    #    mat33 = np.zeros((n_compr_fc3, n_compr_fc3), dtype=float)
+
+    n_compr = n_compr_fc2 + n_compr_fc3
+    matx = np.zeros((n_compr, n_compr), dtype=float)
+    maty = np.zeros(n_compr, dtype=float)
+    # mat2y = np.zeros(n_compr_fc2, dtype=float)
+    # mat3y = np.zeros(n_compr_fc3, dtype=float)
 
     t_all1 = time.time()
     const_fc2 = -1.0
@@ -319,11 +327,9 @@ def prepare_normal_equation_O2O3(
             ).reshape((-1, n_compr_fc3))
             y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
 
-            mat22 += X2.T @ X2
-            mat23 += X2.T @ X3
-            mat33 = calc_sum_xtx(mat33, X3, verbose=verbose)
-            mat2y += X2.T @ y
-            mat3y += X3.T @ y
+            X = np.hstack([X2, X3])
+            matx = calc_sum_xtx(matx, X, verbose=verbose)
+            maty += X.T @ y
             t2 = time.time()
             if verbose:
                 print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
@@ -334,15 +340,41 @@ def prepare_normal_equation_O2O3(
 
     compress_eigvecs_fc2 = fc2_basis.blocked_basis_set
     compress_eigvecs_fc3 = fc3_basis.blocked_basis_set
-    mat22 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
-    mat23 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc3, mat23)
-    mat33 = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc3, mat33)
-    XTX = np.block([[mat22, mat23], [mat23.T, mat33]])
-    del mat33
+    shape2 = compress_eigvecs_fc2.shape
+    shape3 = compress_eigvecs_fc3.shape
 
-    mat2y = compress_eigvecs_fc2.T @ mat2y
-    mat3y = compress_eigvecs_fc3.T @ mat3y
-    XTy = np.hstack([mat2y, mat3y])
+    compress_eigvecs_fc3 = link_block_matrix_nodes(
+        compress_eigvecs_fc3,
+        compress_eigvecs_fc2,
+        rows=np.arange(compress_eigvecs_fc3.shape[0]),
+        col_begin=0,
+    )
+    shape = (
+        compress_eigvecs_fc2.shape[0] + compress_eigvecs_fc3.shape[0],
+        compress_eigvecs_fc2.shape[1] + compress_eigvecs_fc3.shape[1],
+    )
+    compress_eigvecs = root_block_matrix(shape=shape, first_child=compress_eigvecs_fc3)
+
+    XTX = block_matrix_sandwich(compress_eigvecs, compress_eigvecs, matx)
+    del matx
+    #   mat22 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
+    #   mat23 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc3, mat23)
+    #   mat33 = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc3, mat33)
+    #   XTX = np.block([[mat22, mat23], [mat23.T, mat33]])
+    #   del mat33
+
+    print(compress_eigvecs.shape, maty.shape)
+    XTy = compress_eigvecs.T @ maty
+    #   mat2y = compress_eigvecs_fc2.T @ mat2y
+    #   mat3y = compress_eigvecs_fc3.T @ mat3y
+    #   XTy = np.hstack([mat2y, mat3y])
+
+    compress_eigvecs_fc2.change_indices(rows=np.arange(shape2[0]), col_begin=0)
+    compress_eigvecs_fc2.root = True
+
+    compress_eigvecs_fc3.next_sibling = None
+    compress_eigvecs_fc3.change_indices(rows=np.arange(shape3[0]), col_begin=0)
+    compress_eigvecs_fc3.root = True
 
     compact_compress_mat_fc2 /= const_fc2
     compact_compress_mat_fc3 /= const_fc3
@@ -385,5 +417,6 @@ def run_solver_O2O3(
     coefs = solve_linear_equation(XTX, XTy)
     n_basis_fc2 = fc2_basis.blocked_basis_set.shape[1]
     coefs_fc2, coefs_fc3 = coefs[:n_basis_fc2], coefs[n_basis_fc2:]
+    print(coefs_fc2[0:3])
 
     return coefs_fc2, coefs_fc3
