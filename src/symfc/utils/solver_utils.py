@@ -22,14 +22,17 @@ def calc_sum_xtx(
         xtx += x.T @ x
         return xtx
 
-    n_batch = min(int(mem_size // nbytes_threshold), 9) + 1
+    if nbytes_threshold > 5.0:
+        n_batch = min(int(mem_size // nbytes_threshold), 20) + 2
+    else:
+        n_batch = 2
 
     size = x.shape[1]
     batch_size = size // n_batch
     begin_ids, end_ids = get_batch_slice(size, batch_size)
     for i, (begin_row, end_row) in enumerate(zip(begin_ids, end_ids, strict=True)):
         if verbose:
-            print("Batch:", end_row, "/", size, flush=True)
+            print("- Batch:", end_row, "/", size, flush=True)
 
         x1 = x[:, begin_row:end_row]
         for j in range(i, len(begin_ids)):

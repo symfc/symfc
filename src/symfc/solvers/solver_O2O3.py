@@ -302,6 +302,8 @@ def prepare_normal_equation_O2O3(
             print("Time (Solver_compr_matrix_reshape):", time_pr, flush=True)
 
         for begin, end in zip(begin_batch, end_batch, strict=True):
+            if verbose:
+                print("Solver_block:", end, "/", disps.shape[0], flush=True)
             t1 = time.time()
             X2 = dot_product_sparse(
                 disps[begin:end],
@@ -320,14 +322,12 @@ def prepare_normal_equation_O2O3(
             mat22 += X2.T @ X2
             mat23 += X2.T @ X3
             mat33 = calc_sum_xtx(mat33, X3, verbose=verbose)
-            # mat33 = X3.T @ X3
             mat2y += X2.T @ y
             mat3y += X3.T @ y
             t2 = time.time()
             if verbose:
-                print("Solver_block:", end, "/", disps.shape[0], flush=True)
                 print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
-            del X2, X3
+            del X3
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
@@ -337,13 +337,12 @@ def prepare_normal_equation_O2O3(
     mat22 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
     mat23 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc3, mat23)
     mat33 = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc3, mat33)
+    XTX = np.block([[mat22, mat23], [mat23.T, mat33]])
+    del mat33
+
     mat2y = compress_eigvecs_fc2.T @ mat2y
     mat3y = compress_eigvecs_fc3.T @ mat3y
-
-    XTX = np.block([[mat22, mat23], [mat23.T, mat33]])
-    del mat22, mat23, mat33
     XTy = np.hstack([mat2y, mat3y])
-    del mat2y, mat3y
 
     compact_compress_mat_fc2 /= const_fc2
     compact_compress_mat_fc3 /= const_fc3

@@ -558,7 +558,7 @@ def block_matrix_sandwich(
         raise RuntimeError("Nodes must be root of tree.")
 
     if not disable_simple_products:
-        if bm1.shape[1] < 20000 and bm2.shape[1] < 20000:
+        if bm1.shape[1] < 3000 and bm2.shape[1] < 3000:
             return bm1.recover().T @ mat @ bm2.recover()
 
     res = np.zeros((bm1.shape[1], bm2.shape[1]))

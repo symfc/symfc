@@ -206,6 +206,8 @@ def prepare_normal_equation_O2(
             print("Time (Solver_compr_matrix_reshape):", time_pr, flush=True)
 
         for begin, end in zip(begin_batch, end_batch, strict=True):
+            if verbose:
+                print("Solver_block:", end, "/", disps.shape[0], flush=True)
             t1 = time.time()
             X2 = dot_product_sparse(
                 disps[begin:end],
@@ -218,7 +220,6 @@ def prepare_normal_equation_O2(
             mat2y += X2.T @ y
             t2 = time.time()
             if verbose:
-                print("Solver_block:", end, "/", disps.shape[0], flush=True)
                 print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
             del X2
 
