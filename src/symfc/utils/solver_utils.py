@@ -17,14 +17,17 @@ def calc_sum_xtx(
     if xtx is None:
         return x.T @ x
 
+    if nbytes_threshold < 0.0:
+        nbytes_threshold = 0.0
+
     mem_size = (xtx.nbytes + x.nbytes) * 1e-9
     if mem_size < nbytes_threshold:
         xtx += x.T @ x
         return xtx
 
-    if nbytes_threshold > 5.0:
-        n_batch = min(int(mem_size // nbytes_threshold), 20) + 2
-    else:
+    try:
+        n_batch = min(int(mem_size / nbytes_threshold), 10) + 1
+    except ZeroDivisionError:
         n_batch = 2
 
     size = x.shape[1]
