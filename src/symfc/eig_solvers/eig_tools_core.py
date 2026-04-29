@@ -10,8 +10,8 @@ import scipy
 from numpy.typing import NDArray
 from scipy.sparse import csr_array
 
-from symfc.utils.graph import connected_components
-from symfc.utils.matrix import (
+from symfc.eig_solvers.graph import connected_components
+from symfc.eig_solvers.matrix import (
     BlockMatrixNode,
     matrix_rank,
     return_numpy_array,

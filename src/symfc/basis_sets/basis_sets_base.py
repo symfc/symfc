@@ -6,9 +6,9 @@ from abc import ABC, abstractmethod
 
 from numpy.typing import NDArray
 
+from symfc.eig_solvers.matrix import BlockMatrixNode
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.cutoff_tools import FCCutoff
-from symfc.utils.matrix import BlockMatrixNode
 from symfc.utils.utils import SymfcAtoms
 
 

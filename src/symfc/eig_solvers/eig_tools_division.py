@@ -6,12 +6,12 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_array
 
-from symfc.utils.eig_tools_core import (
+from symfc.eig_solvers.eig_tools_core import (
     EigenvectorResult,
     eigh_projector,
     find_projector_blocks,
 )
-from symfc.utils.matrix import (
+from symfc.eig_solvers.matrix import (
     BlockMatrixNode,
     link_block_matrix_nodes,
     matrix_rank,
@@ -215,6 +215,9 @@ def _run_division(
     )
     sibling = res.block_eigvecs
     col_id = res.n_eigvecs
+    print("Sibling", sibling.shape)
+    if cmplt is not None:
+        print("Cmplt", cmplt.shape)
 
     cmplt_eigvals, cmplt_eigvecs = None, None
     if cmplt is not None:
@@ -229,6 +232,11 @@ def _run_division(
             verbose=verbose,
         )
 
+        print("In Cmplt")
+        print(p.shape)
+        print("- Cmplt", cmplt.shape)
+        print(result.eigvecs.shape)
+        print(result.eigvecs.data_shape)
         sibling = link_block_matrix_nodes(
             result.eigvecs,
             sibling,

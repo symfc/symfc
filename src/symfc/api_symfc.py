@@ -11,6 +11,12 @@ from numpy.typing import NDArray
 from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetBase, FCBasisSetO2, FCBasisSetO3, FCBasisSetO4
+from symfc.eig_solvers.eig_tools import (
+    eigh_projector,
+    eigsh_projector,
+    eigsh_projector_sumrule,
+)
+from symfc.eig_solvers.matrix import BlockMatrixNode
 from symfc.solvers import (
     FCSolverO2,
     FCSolverO2O3,
@@ -20,12 +26,6 @@ from symfc.solvers import (
     FCSolverO4,
     FCSparseSolverO2,
 )
-from symfc.utils.eig_tools import (
-    eigh_projector,
-    eigsh_projector,
-    eigsh_projector_sumrule,
-)
-from symfc.utils.matrix import BlockMatrixNode
 from symfc.utils.utils import SymfcAtoms
 
 

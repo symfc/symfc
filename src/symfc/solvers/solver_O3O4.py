@@ -9,12 +9,12 @@ from typing import Literal, Optional, Union, cast
 import numpy as np
 
 from symfc.basis_sets import FCBasisSetO3, FCBasisSetO4
+from symfc.eig_solvers.matrix import block_matrix_sandwich
 from symfc.solvers.solver_O2O3 import reshape_nNN333_nx_to_N3N3_n3nx, set_disps_N3N3
 from symfc.solvers.solver_O2O3O4 import (
     reshape_nNNN3333_nx_to_N3N3N3_n3nx,
     set_disps_N3N3N3,
 )
-from symfc.utils.matrix import block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
 try:

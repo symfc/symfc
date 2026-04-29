@@ -9,7 +9,7 @@ import numpy as np
 from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2
-from symfc.utils.matrix import block_matrix_sandwich
+from symfc.eig_solvers.matrix import block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
 try:

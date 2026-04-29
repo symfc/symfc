@@ -10,9 +10,9 @@ import numpy as np
 from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3, FCBasisSetO4
+from symfc.eig_solvers.matrix import block_matrix_sandwich
 from symfc.solvers.solver_O2 import reshape_nN33_nx_to_N3_n3nx
 from symfc.solvers.solver_O2O3 import reshape_nNN333_nx_to_N3N3_n3nx, set_disps_N3N3
-from symfc.utils.matrix import block_matrix_sandwich
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
 try:

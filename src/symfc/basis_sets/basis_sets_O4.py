@@ -8,12 +8,12 @@ from typing import Optional
 import numpy as np
 from scipy.sparse import csr_array
 
-from symfc.spg_reps import SpgRepsO4
-from symfc.utils.eig_tools import (
+from symfc.eig_solvers.eig_tools import (
     eigsh_projector,
     eigsh_projector_sumrule,
 )
-from symfc.utils.matrix import BlockMatrixNode
+from symfc.eig_solvers.matrix import BlockMatrixNode
+from symfc.spg_reps import SpgRepsO4
 
 try:
     from symfc.utils.matrix import dot_product_sparse
