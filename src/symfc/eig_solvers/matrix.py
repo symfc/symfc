@@ -208,6 +208,11 @@ class BlockMatrixNode:
         """Return compression matrix node."""
         return self._compress
 
+    @compress.setter
+    def compress(self, value: BlockMatrixNode):
+        """Setter of compression matrix node."""
+        self._compress = value
+
     @property
     def data(self) -> NDArray | None:
         """Return data matrix node either compressed or original."""
@@ -338,8 +343,8 @@ class BlockMatrixNode:
         mapping, diff_col = None, 0
         if rows is not None:
             mapping = dict()
-            print(self._rows, len(self._rows))
-            print(rows, len(rows))
+            # print(self._rows, len(self._rows))
+            # print(rows, len(rows))
             for old, new in zip(self._rows, rows, strict=True):
                 mapping[old] = new
         if col_begin is not None:
@@ -359,7 +364,6 @@ class BlockMatrixNode:
     def reset_indices(self):
         """Reset indices of self and children and link to siblings."""
         self.next_sibling = None
-        print(self.data_shape[0])
         self.change_indices(rows=np.arange(self.data_shape[0]), col_begin=0)
         self.root = True
         return self
@@ -518,7 +522,10 @@ def link_block_matrix_nodes(
         if eigvecs.data_shape[1] == 0:
             return next_sibling
         eigvecs.change_indices(rows=rows, col_begin=col_begin)
+        # eigvecs.change_indices()
         eigvecs.next_sibling = next_sibling
+        if compress is not None:
+            eigvecs.compress = compress
         if eigvals is not None:
             eigvecs.eigvals = eigvals
         return eigvecs
