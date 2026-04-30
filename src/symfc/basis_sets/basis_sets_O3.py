@@ -8,7 +8,7 @@ from typing import Optional, Union
 import numpy as np
 from scipy.sparse import coo_array, csr_array
 
-from symfc.eig_solvers.eig_tools import (
+from symfc.eig_solvers.api_eig_tools import (
     eigsh_projector,
     eigsh_projector_sumrule,
 )

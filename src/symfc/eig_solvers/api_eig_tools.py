@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 from scipy.sparse import csr_array
 
 from symfc.eig_solvers.eig_tools_core import eigh_projector as eigh
-from symfc.eig_solvers.eig_tools_division import (
+from symfc.eig_solvers.eig_tools_recursive import (
     eigsh_projector_sumrule as eigsh_sumrule,
 )
 from symfc.eig_solvers.eig_tools_sparse import eigsh_projector as eigsh

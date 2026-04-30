@@ -338,8 +338,14 @@ class BlockMatrixNode:
     def reset_indices(self):
         """Reset indices of self and children and link to siblings."""
         self.next_sibling = None
-        self.change_row_indices(mapping=np.arange(self.data_shape[0]))
-        self.change_column_indices(shift=0)
+        mapping = dict()
+        new_rows = np.arange(len(self._rows))
+        for old, new in zip(self._rows, new_rows, strict=True):
+            mapping[old] = new
+        self.change_row_indices(mapping=mapping)
+
+        shift = -self._col_begin
+        self.change_column_indices(shift=shift)
         self.root = True
         return self
 
