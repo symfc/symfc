@@ -171,7 +171,7 @@ class FCBasisSetO4(FCBasisSetBase):
             print("Time (c_pt @ c_rpt)                :", time_pr, flush=True)
             print("---", flush=True)
             time_pr = "{:.3f}".format(tt5 - tt1)
-            print("Time (Basis FC3, coset @ perm @ ltrans):", time_pr, flush=True)
+            print("Time (Basis FC4, coset @ perm @ ltrans):", time_pr, flush=True)
             print("---", flush=True)
 
         if apply_sum_rule:

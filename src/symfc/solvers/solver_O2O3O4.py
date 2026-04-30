@@ -66,7 +66,7 @@ class FCSolverO2O3O4(FCSolverBase):
         self,
         displacements: np.ndarray,
         forces: np.ndarray,
-        batch_size: int = 36,
+        batch_size: int = 25,
     ) -> FCSolverO2O3O4:
         """Solve force constants.
 
@@ -271,7 +271,7 @@ def prepare_normal_equation_O2O3O4(
     fc2_basis: FCBasisSetO2,
     fc3_basis: FCBasisSetO3,
     fc4_basis: FCBasisSetO4,
-    batch_size: int = 36,
+    batch_size: int = 25,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
@@ -432,7 +432,7 @@ def run_solver_O2O3O4(
     fc2_basis: FCBasisSetO2,
     fc3_basis: FCBasisSetO3,
     fc4_basis: FCBasisSetO4,
-    batch_size: int = 36,
+    batch_size: int = 25,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
