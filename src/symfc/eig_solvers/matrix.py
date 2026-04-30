@@ -201,7 +201,9 @@ class BlockMatrixNode:
         """Set first child node."""
         self._first_child = value
         if value is not None:
-            self.set_root_indices()
+            # TODO: Col begin?
+            self.change_row_indices(mapping=self._rows)
+            self.change_column_indices(shift=self._col_begin)
 
     @property
     def compress(self) -> BlockMatrixNode | None:
@@ -304,67 +306,40 @@ class BlockMatrixNode:
             self._next_sibling.print_nodes(depth=depth)
         return self
 
-    def set_root_indices(
-        self,
-        parent_rows: NDArray | dict | None = None,
-        parent_col_begin: int | None = None,
-    ):
-        """Set row and columns indices compatible with root node and full matrix."""
-        if parent_rows is None:
-            parent_rows = self._rows
-        else:
-            # self._rows = parent_rows[self._rows]
-            self._rows = np.array([parent_rows[r] for r in self._rows])
+    def change_row_indices(self, mapping: NDArray | dict, depth: int = 0):
+        """Change row indices using given mapping."""
+        self._rows = np.array([mapping[r] for r in self._rows])
+        if depth > 0:
             self._root = False
 
-        if parent_col_begin is None:
-            parent_col_begin = self._col_begin
-        else:
-            self._col_begin += parent_col_begin
-            self._col_end += parent_col_begin
-
         if self._first_child is not None:
-            self._first_child.set_root_indices(parent_rows, parent_col_begin)
+            self._first_child.change_row_indices(mapping, depth + 1)
 
-        if self._root:
-            return self
-
-        if self._next_sibling is not None:
-            self._next_sibling.set_root_indices(parent_rows, parent_col_begin)
+        if depth > 0 and self._next_sibling is not None:
+            self._next_sibling.change_row_indices(mapping, depth)
 
         return self
 
-    def change_indices(
-        self,
-        rows: NDArray | None = None,
-        col_begin: int | None = None,
-    ):
-        """Change row and column indices."""
-        mapping, diff_col = None, 0
-        if rows is not None:
-            mapping = dict()
-            # print(self._rows, len(self._rows))
-            # print(rows, len(rows))
-            for old, new in zip(self._rows, rows, strict=True):
-                mapping[old] = new
-        if col_begin is not None:
-            diff_col = col_begin - self._col_begin
-        self.set_root_indices(mapping, diff_col)
+    def change_column_indices(self, shift: int, depth: int = 0):
+        """Change column indices using given shift value."""
+        self._col_begin += shift
+        self._col_end += shift
+        if depth > 0:
+            self._root = False
 
-        if rows is not None:
-            self._rows = np.array(rows)
+        if self._first_child is not None:
+            self._first_child.change_column_indices(shift, depth + 1)
 
-        if col_begin is not None:
-            size = self._col_end - self._col_begin
-            self._col_begin = col_begin
-            self._col_end = col_begin + size  # type: ignore
+        if depth > 0 and self._next_sibling is not None:
+            self._next_sibling.change_column_indices(shift, depth)
 
         return self
 
     def reset_indices(self):
         """Reset indices of self and children and link to siblings."""
         self.next_sibling = None
-        self.change_indices(rows=np.arange(self.data_shape[0]), col_begin=0)
+        self.change_row_indices(mapping=np.arange(self.data_shape[0]))
+        self.change_column_indices(shift=0)
         self.root = True
         return self
 
@@ -521,8 +496,11 @@ def link_block_matrix_nodes(
     if isinstance(eigvecs, BlockMatrixNode):
         if eigvecs.data_shape[1] == 0:
             return next_sibling
-        eigvecs.change_indices(rows=rows, col_begin=col_begin)
-        # eigvecs.change_indices()
+
+        col_shift = col_begin - eigvecs.col_begin
+        eigvecs.change_row_indices(mapping=rows)
+        eigvecs.change_column_indices(shift=col_shift)
+
         eigvecs.next_sibling = next_sibling
         if compress is not None:
             eigvecs.compress = compress

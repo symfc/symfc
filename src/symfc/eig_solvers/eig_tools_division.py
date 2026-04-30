@@ -29,110 +29,6 @@ MAX_BATCH_SIZE = 20000
 DEFAULT_EIGVAL_TOL = 1e-8
 
 
-# def _should_repeat_division(
-#     p_size: int, depth: int, threshold_small: int = MIN_BLOCK_SIZE
-# ) -> bool:
-#     """Determine if division should be repeated based on size and depth."""
-#     if p_size < threshold_small:
-#         return False
-#     elif p_size > VERY_LARGE_BLOCK_SIZE:
-#         return depth < 8
-#     else:
-#         return depth < 3
-#
-#
-# def _calculate_batch_size_division(
-#     p_size: int, depth: int, batch_size: int | None = None
-# ) -> int:
-#     """Calculate batch size for submatrix division."""
-#     if batch_size is not None:
-#         return batch_size
-#
-#     if depth == 1:
-#         return max(p_size // 10, MIN_BLOCK_SIZE)
-#     elif depth == 2:
-#         return max(p_size // 5, MIN_BLOCK_SIZE // 2)
-#     elif depth == 3:
-#         return p_size // 2
-#     else:
-#         return min(int(round(p_size / 1.3)), MAX_BATCH_SIZE)
-#
-#
-# def _calculate_batch_size_complement(cmplt_size: int, p_size: int, depth: int) -> int:
-#     """Calculate batch size for complement eigenvector computation."""
-#     if depth == 1:
-#         return max(cmplt_size // 3, p_size // 15)
-#     elif depth == 2:
-#         return int(round(cmplt_size / 1.5))
-#     elif depth == 3:
-#         return int(round(cmplt_size / 1.3))
-#     else:
-#         return min(int(round(cmplt_size / 1.2)), MAX_BATCH_SIZE)
-#
-
-# def _find_complement_eigenvectors(
-#     p: NDArray | csr_array,
-#     cmplt: BlockMatrixNode,
-#     atol: float = DEFAULT_EIGVAL_TOL,
-#     rtol: float = 0.0,
-#     depth: int = 0,
-#     return_cmplt: bool = True,
-#     use_mkl: bool = False,
-#     verbose: bool = False,
-# ) -> EigenvectorResult:
-#     """Find eigenvectors in complementary part of submatrix division algorithm."""
-#     p_size = p.shape[0]  # type: ignore
-#     repeat = _should_repeat_division(p_size, depth, threshold_small=LARGE_BLOCK_SIZE)
-#     if p_size >= LARGE_BLOCK_SIZE and p_size <= VERY_LARGE_BLOCK_SIZE:
-#         repeat = depth < 4  # slightly different threshold for complement
-#
-#     batch_size_cmplt = _calculate_batch_size_complement(cmplt.shape[1], p_size, depth)
-#
-#     header = "  " * (depth - 1) + "(" + str(depth) + ")"
-#     if verbose:
-#         print(header, "Complementary block size:", cmplt.shape[1], flush=True)
-#         print(header, "Compute compressed projector.", flush=True)
-#
-#     p_cmr = cmplt.compress_matrix(p, use_mkl=use_mkl)
-#     if not repeat:
-#         if verbose:
-#             print(header, "Use standard solver.", flush=True)
-#         res = eigh_projector(p_cmr, atol=atol, rtol=rtol, verbose=verbose)
-#     else:
-#         if verbose:
-#             print(header, "Use submatrix size of", batch_size_cmplt, flush=True)
-#         res = eigsh_projector_division(
-#             p_cmr,
-#             atol=atol,
-#             rtol=rtol,
-#             depth=depth,
-#             batch_size=batch_size_cmplt,
-#             return_cmplt=return_cmplt,
-#             use_mkl=use_mkl,
-#             verbose=verbose,
-#         )
-#
-#     if verbose:
-#         print(header, " ", res.n_eigvecs, "eigenvectors found.", flush=True)
-#
-#     res.compress = cmplt
-#     block = res.block_eigvecs
-#
-#     cmplt_eigvals, cmplt_eigvecs = None, None
-#     if return_cmplt:
-#         cmplt_small = res.cmplt_eigvecs
-#         if cmplt_small is not None and cmplt_small.shape[1] > 0:
-#             cmplt_eigvals = res.cmplt_eigvals
-#             cmplt_eigvecs = cmplt.dot(cmplt_small)
-#
-#     return EigenvectorResult(
-#         eigvecs=block,
-#         cmplt_eigvals=cmplt_eigvals,
-#         cmplt_eigvecs=cmplt_eigvecs,
-#     )
-#
-
-
 def _find_submatrix_eigenvectors(
     p: NDArray | csr_array,
     batch_size: int | None = None,
@@ -248,7 +144,7 @@ def eigsh_projector_division(
             col_id += res.n_eigvecs
             break
 
-        batch_size = (iter1 + 1) * 500
+        batch_size = (iter1 + 1) * 300
         res, res_cmplt = _find_submatrix_eigenvectors(
             p,
             batch_size=batch_size,
