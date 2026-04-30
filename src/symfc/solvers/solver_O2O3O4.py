@@ -10,10 +10,16 @@ import numpy as np
 from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3, FCBasisSetO4
-from symfc.eig_solvers.matrix import block_matrix_sandwich
+from symfc.eig_solvers.matrix import (
+    BlockMatrixNode,
+    block_matrix_sandwich_sym,
+    link_block_matrix_nodes,
+    root_block_matrix,
+)
 from symfc.solvers.solver_O2 import reshape_nN33_nx_to_N3_n3nx
 from symfc.solvers.solver_O2O3 import reshape_nNN333_nx_to_N3N3_n3nx, set_disps_N3N3
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
+from symfc.utils.solver_utils import calc_sum_xtx
 
 try:
     from symfc.utils.matrix import dot_product_sparse
@@ -231,6 +237,34 @@ def reshape_nNNN3333_nx_to_N3N3N3_n3nx(mat, N, n, n_batch=36):
     return mat
 
 
+def _get_linked_compress_eigvecs(
+    compress_eigvecs_fc2: BlockMatrixNode,
+    compress_eigvecs_fc3: BlockMatrixNode,
+    compress_eigvecs_fc4: BlockMatrixNode,
+):
+    """Return linked compressed eigenvectors."""
+    shape2 = compress_eigvecs_fc2.shape
+    shape3 = compress_eigvecs_fc3.shape
+    shape4 = compress_eigvecs_fc4.shape
+
+    _ = link_block_matrix_nodes(
+        compress_eigvecs_fc3,
+        compress_eigvecs_fc2,
+        rows=np.arange(shape2[0], shape2[0] + shape3[0]),
+        col_begin=shape2[1],
+    )
+    _ = link_block_matrix_nodes(
+        compress_eigvecs_fc4,
+        compress_eigvecs_fc3,
+        rows=np.arange(shape2[0] + shape3[0], shape2[0] + shape3[0] + shape4[0]),
+        col_begin=shape2[1] + shape3[1],
+    )
+
+    shape = (shape2[0] + shape3[0] + shape4[0], shape2[1] + shape3[1] + shape4[1])
+    compress_eigvecs = root_block_matrix(shape=shape, first_child=compress_eigvecs_fc4)
+    return compress_eigvecs
+
+
 def prepare_normal_equation_O2O3O4(
     disps: np.ndarray,
     forces: np.ndarray,
@@ -283,15 +317,9 @@ def prepare_normal_equation_O2O3O4(
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
 
-    mat22 = np.zeros((n_compr_fc2, n_compr_fc2), dtype=float)
-    mat23 = np.zeros((n_compr_fc2, n_compr_fc3), dtype=float)
-    mat24 = np.zeros((n_compr_fc2, n_compr_fc4), dtype=float)
-    mat33 = np.zeros((n_compr_fc3, n_compr_fc3), dtype=float)
-    mat34 = np.zeros((n_compr_fc3, n_compr_fc4), dtype=float)
-    mat44 = np.zeros((n_compr_fc4, n_compr_fc4), dtype=float)
-    mat2y = np.zeros(n_compr_fc2, dtype=float)
-    mat3y = np.zeros(n_compr_fc3, dtype=float)
-    mat4y = np.zeros(n_compr_fc4, dtype=float)
+    n_compr = n_compr_fc2 + n_compr_fc3 + n_compr_fc4
+    matx = np.zeros((n_compr, n_compr), dtype=float)
+    maty = np.zeros(n_compr, dtype=float)
 
     t_all1 = time.time()
     const_fc2 = -1.0
@@ -342,64 +370,51 @@ def prepare_normal_equation_O2O3O4(
             print("Time (Solver_compr_matrix_reshape):", time_pr, flush=True)
 
         for begin, end in zip(begin_batch, end_batch, strict=True):
+            if verbose:
+                print("Solver_block:", end, "/", disps.shape[0], flush=True)
             t1 = time.time()
-            X2 = dot_product_sparse(
+            X = np.zeros((n_atom_batch * 3 * (end - begin), n_compr))
+            X[:, :n_compr_fc2] = dot_product_sparse(
                 disps[begin:end],
                 compr_mat_fc2,
                 use_mkl=use_mkl,
                 dense=True,
             ).reshape((-1, n_compr_fc2))
             disps_N3N3 = set_disps_N3N3(disps[begin:end], sparse=False)
-            X3 = dot_product_sparse(
+            X[:, n_compr_fc2 : n_compr_fc2 + n_compr_fc3] = dot_product_sparse(
                 disps_N3N3,
                 compr_mat_fc3,
                 use_mkl=use_mkl,
                 dense=True,
             ).reshape((-1, n_compr_fc3))
-            X4 = dot_product_sparse(
+            X[:, n_compr_fc2 + n_compr_fc3 :] = dot_product_sparse(
                 set_disps_N3N3N3(disps[begin:end], sparse=False, disps_N3N3=disps_N3N3),
                 compr_mat_fc4,
                 use_mkl=use_mkl,
                 dense=True,
             ).reshape((-1, n_compr_fc4))
-
             y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
-            mat22 += X2.T @ X2
-            mat23 += X2.T @ X3
-            mat24 += X2.T @ X4
-            mat33 += X3.T @ X3
-            mat34 += X3.T @ X4
-            mat44 += X4.T @ X4
-            mat2y += X2.T @ y
-            mat3y += X3.T @ y
-            mat4y += X4.T @ y
+
+            matx = calc_sum_xtx(matx, X, verbose=verbose)
+            maty += X.T @ y
             t2 = time.time()
             if verbose:
-                print("Solver_block:", end, "/", disps.shape[0], flush=True)
                 print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
-            del X2, X3, X4
+
+    compress_eigvecs = _get_linked_compress_eigvecs(
+        fc2_basis.blocked_basis_set,
+        fc3_basis.blocked_basis_set,
+        fc4_basis.blocked_basis_set,
+    )
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
+    XTX = block_matrix_sandwich_sym(compress_eigvecs, matx)
+    XTy = compress_eigvecs.T @ maty
 
-    compress_eigvecs_fc2 = fc2_basis.blocked_basis_set
-    compress_eigvecs_fc3 = fc3_basis.blocked_basis_set
-    compress_eigvecs_fc4 = fc4_basis.blocked_basis_set
-
-    mat22 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
-    mat23 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc3, mat23)
-    mat24 = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc4, mat24)
-    mat33 = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc3, mat33)
-    mat34 = block_matrix_sandwich(compress_eigvecs_fc3, compress_eigvecs_fc4, mat34)
-    mat44 = block_matrix_sandwich(compress_eigvecs_fc4, compress_eigvecs_fc4, mat44)
-    mat2y = compress_eigvecs_fc2.T @ mat2y
-    mat3y = compress_eigvecs_fc3.T @ mat3y
-    mat4y = compress_eigvecs_fc4.T @ mat4y
-
-    XTX = np.block(
-        [[mat22, mat23, mat24], [mat23.T, mat33, mat34], [mat24.T, mat34.T, mat44]]
-    )
-    XTy = np.hstack([mat2y, mat3y, mat4y])
+    fc2_basis.blocked_basis_set.reset_indices()
+    fc3_basis.blocked_basis_set.reset_indices()
+    fc4_basis.blocked_basis_set.reset_indices()
 
     compact_compress_mat_fc2 /= const_fc2
     compact_compress_mat_fc3 /= const_fc3

@@ -3,9 +3,10 @@
 import numpy as np
 from scipy.sparse import csr_array
 
-from symfc.utils.matrix import (
+from symfc.eig_solvers.matrix import (
     BlockMatrixNode,
     block_matrix_sandwich,
+    block_matrix_sandwich_sym,
     link_block_matrix_nodes,
     root_block_matrix,
 )
@@ -385,7 +386,7 @@ def test_large_block_matrix():
 
     # Row index permutation
     perm = np.array([2, 1, 0, 4, 3, 6, 5, 7])
-    bm.change_indices(rows=perm)
+    bm.change_row_indices(mapping=perm)
     mat = mat[perm]
     np.testing.assert_array_equal(bm @ mat2, mat @ mat2)
 
@@ -405,6 +406,15 @@ def test_large_block_matrix():
     assert bm.data is None
     assert bm.root
     assert bm.eigvals is None
+
+    # Rest indices
+    np.testing.assert_allclose(
+        bm @ np.ones(8), [32.0, 21.0, 25.0, 22.0, 20.0, 22.0, 15.0, 24.0]
+    )
+    bm.reset_indices()
+    np.testing.assert_allclose(
+        bm @ np.ones(8), [25.0, 21.0, 32.0, 20.0, 22.0, 15.0, 22.0, 24.0]
+    )
 
 
 def test_link_block_matrices():
@@ -446,4 +456,13 @@ def test_link_block_matrices():
     true = mat1.T @ mat @ mat1
     np.testing.assert_allclose(sand, true)
     sand = block_matrix_sandwich(bm, bm, mat, disable_simple_products=True)
+    np.testing.assert_allclose(sand, true)
+
+    mat_t = mat + mat.T
+    true = mat1.T @ mat_t @ mat1
+
+    sand = block_matrix_sandwich_sym(bm, mat_t, disable_simple_products=False)
+    np.testing.assert_allclose(sand, true)
+
+    sand = block_matrix_sandwich_sym(bm, mat_t, disable_simple_products=True)
     np.testing.assert_allclose(sand, true)

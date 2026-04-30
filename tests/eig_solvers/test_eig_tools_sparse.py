@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from scipy.sparse import csr_array
 
-from symfc.utils.eig_tools_core import find_projector_blocks
-from symfc.utils.eig_tools_sparse import (
+from symfc.eig_solvers.eig_tools_core import find_projector_blocks
+from symfc.eig_solvers.eig_tools_sparse import (
     CompressionProjector,
     _extract_sparse_projector_data,
     _recover_eigvecs_from_uniq_eigvecs,

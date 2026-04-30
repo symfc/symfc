@@ -202,8 +202,8 @@ class BlockMatrixNode:
         self._first_child = value
         if value is not None:
             # TODO: Col begin?
-            self.change_row_indices(mapping=self._rows)
-            self.change_column_indices(shift=self._col_begin)
+            self.change_row_indices(mapping=self._rows, change_root=False)
+            self.change_column_indices(shift=self._col_begin, change_root=False)
 
     @property
     def compress(self) -> BlockMatrixNode | None:
@@ -306,9 +306,15 @@ class BlockMatrixNode:
             self._next_sibling.print_nodes(depth=depth)
         return self
 
-    def change_row_indices(self, mapping: NDArray | dict, depth: int = 0):
+    def change_row_indices(
+        self,
+        mapping: NDArray | dict,
+        depth: int = 0,
+        change_root: bool = True,
+    ):
         """Change row indices using given mapping."""
-        self._rows = np.array([mapping[r] for r in self._rows])
+        if change_root:
+            self._rows = np.array([mapping[r] for r in self._rows])
         if depth > 0:
             self._root = False
 
@@ -320,10 +326,16 @@ class BlockMatrixNode:
 
         return self
 
-    def change_column_indices(self, shift: int, depth: int = 0):
+    def change_column_indices(
+        self,
+        shift: int,
+        depth: int = 0,
+        change_root: bool = True,
+    ):
         """Change column indices using given shift value."""
-        self._col_begin += shift
-        self._col_end += shift
+        if change_root:
+            self._col_begin += shift
+            self._col_end += shift
         if depth > 0:
             self._root = False
 

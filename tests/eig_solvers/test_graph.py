@@ -3,7 +3,7 @@
 import numpy as np
 from scipy.sparse import csr_array
 
-from symfc.utils.graph import connected_components
+from symfc.eig_solvers.graph import connected_components
 
 
 def test_connected_components():
