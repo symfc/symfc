@@ -26,9 +26,9 @@ def calc_sum_xtx(
         return xtx
 
     try:
-        n_batch = min(int(mem_size / nbytes_threshold), 10) + 1
+        n_batch = min(int(mem_size / nbytes_threshold), 10) + 2
     except ZeroDivisionError:
-        n_batch = 2
+        n_batch = 3
 
     size = x.shape[1]
     batch_size = size // n_batch

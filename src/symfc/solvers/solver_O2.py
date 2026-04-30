@@ -9,7 +9,7 @@ import numpy as np
 from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2
-from symfc.eig_solvers.matrix import block_matrix_sandwich
+from symfc.eig_solvers.matrix import block_matrix_sandwich_sym
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
 try:
@@ -227,7 +227,7 @@ def prepare_normal_equation_O2(
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
 
     compress_eigvecs_fc2 = fc2_basis.blocked_basis_set
-    XTX = block_matrix_sandwich(compress_eigvecs_fc2, compress_eigvecs_fc2, mat22)
+    XTX = block_matrix_sandwich_sym(compress_eigvecs_fc2, mat22)
     XTy = compress_eigvecs_fc2.T @ mat2y
 
     compact_compress_mat_fc2 /= const_fc2

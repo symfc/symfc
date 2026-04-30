@@ -12,7 +12,7 @@ from scipy.sparse import csr_array
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3
 from symfc.eig_solvers.matrix import (
     BlockMatrixNode,
-    block_matrix_sandwich,
+    block_matrix_sandwich_sym,
     link_block_matrix_nodes,
     root_block_matrix,
 )
@@ -348,15 +348,14 @@ def prepare_normal_equation_O2O3(
             if verbose:
                 print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
 
-    if verbose:
-        print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
-
     compress_eigvecs = _get_linked_compress_eigvecs(
         fc2_basis.blocked_basis_set,
         fc3_basis.blocked_basis_set,
     )
 
-    XTX = block_matrix_sandwich(compress_eigvecs, compress_eigvecs, matx)
+    if verbose:
+        print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
+    XTX = block_matrix_sandwich_sym(compress_eigvecs, matx)
     XTy = compress_eigvecs.T @ maty
 
     fc2_basis.blocked_basis_set.reset_indices()

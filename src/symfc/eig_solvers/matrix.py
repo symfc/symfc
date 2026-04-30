@@ -562,3 +562,32 @@ def block_matrix_sandwich(
             prod = data1.T @ mat[np.ix_(b1.rows, b2.rows)] @ data2
             res[col_begin1:col_end1, col_begin2:col_end2] += prod
     return res
+
+
+def block_matrix_sandwich_sym(
+    bm1: BlockMatrixNode,
+    mat: NDArray,
+    disable_simple_products: bool = False,
+) -> NDArray:
+    """Calculate block1.T @ mat @ block1."""
+    if not bm1.root:
+        raise RuntimeError("Nodes must be root of tree.")
+
+    if not disable_simple_products:
+        if bm1.shape[1] < 3000:
+            return bm1.recover().T @ mat @ bm1.recover()
+
+    res = np.zeros((bm1.shape[1], bm1.shape[1]))
+    for i, b1 in enumerate(bm1.traverse_data_nodes()):
+        col_begin1, col_end1 = b1.col_begin, b1.col_end
+        data1 = b1.decompress()
+        for j, b2 in enumerate(bm1.traverse_data_nodes()):
+            if i <= j:
+                col_begin2, col_end2 = b2.col_begin, b2.col_end
+                data2 = b2.decompress()
+                prod = data1.T @ mat[np.ix_(b1.rows, b2.rows)] @ data2
+                res[col_begin1:col_end1, col_begin2:col_end2] += prod
+                if i < j:
+                    res[col_begin2:col_end2, col_begin1:col_end1] += prod.T
+
+    return res
