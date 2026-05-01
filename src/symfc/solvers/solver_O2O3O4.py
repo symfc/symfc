@@ -7,7 +7,6 @@ from collections.abc import Sequence
 from typing import Literal, Optional, Union, cast
 
 import numpy as np
-from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3, FCBasisSetO4
 from symfc.eig_solvers.matrix import (
@@ -16,10 +15,17 @@ from symfc.eig_solvers.matrix import (
     link_block_matrix_nodes,
     root_block_matrix,
 )
-from symfc.solvers.solver_O2 import reshape_nN33_nx_to_N3_n3nx
-from symfc.solvers.solver_O2O3 import reshape_nNN333_nx_to_N3N3_n3nx, set_disps_N3N3
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 from symfc.utils.solver_utils import calc_sum_xtx
+from symfc.utils.solver_utils_O2 import reshape_compr_mat_O2
+from symfc.utils.solver_utils_O3 import (
+    reshape_compr_mat_O3,
+    set_disps_N3N3,
+)
+from symfc.utils.solver_utils_O4 import (
+    reshape_compr_mat_O4,
+    set_disps_N3N3N3,
+)
 
 try:
     from symfc.utils.matrix import dot_product_sparse
@@ -163,6 +169,8 @@ class FCSolverO2O3O4(FCSolverBase):
         fc2 = np.array(
             (comp_mat_fc2 @ fc2).reshape((-1, N, 3, 3)), dtype="double", order="C"
         )
+        if self._log_level > 0:
+            print("Recovering FC3.", flush=True)
         fc3 = fc3_basis.blocked_basis_set @ self._coefs[1]
         fc3 = np.array(
             (comp_mat_fc3 @ fc3).reshape((-1, N, N, 3, 3, 3)),
@@ -179,64 +187,6 @@ class FCSolverO2O3O4(FCSolverBase):
         )
 
         return fc2, fc3, fc4
-
-
-def set_disps_N3N3N3(disps, sparse=True, disps_N3N3=None):
-    """Calculate Kronecker products of displacements.
-
-    Parameter
-    ---------
-    disps: shape=(n_supercell, N3)
-
-    Return
-    ------
-    disps_3rd: shape=(n_supercell, N3N3N3)
-    """
-    n_supercell = disps.shape[0]
-    if disps_N3N3 is not None:
-        disps_3rd = (disps_N3N3[:, :, None] * disps[:, None, :]).reshape(
-            (n_supercell, -1)
-        )
-    else:
-        disps_3rd = (
-            disps[:, :, None, None] * disps[:, None, :, None] * disps[:, None, None, :]
-        ).reshape((n_supercell, -1))
-
-    if sparse:
-        return csr_array(disps_3rd)
-    return disps_3rd
-
-
-def reshape_nNNN3333_nx_to_N3N3N3_n3nx(mat, N, n, n_batch=36):
-    """Reorder and reshape a sparse matrix (nNNN3333,nx)->(N3N3N3,n3nx).
-
-    Return reordered csr_matrix used for FC4.
-    """
-    _, nx = mat.shape
-    NNN333 = N**3 * 27
-    n3nx = n * 3 * nx
-    mat = mat.tocoo(copy=False)
-
-    begin_batch, end_batch = get_batch_slice(len(mat.row), len(mat.row) // n_batch)
-    for begin, end in zip(begin_batch, end_batch, strict=True):
-        div, rem = np.divmod(mat.row[begin:end], 81 * N * N * N)
-        mat.col[begin:end] += div * 3 * nx
-        div, rem = np.divmod(rem, 81 * N * N)
-        mat.row[begin:end] = div * 27 * N * N
-        div, rem = np.divmod(rem, 81 * N)
-        mat.row[begin:end] += div * 9 * N
-        div, rem = np.divmod(rem, 81)
-        mat.row[begin:end] += div * 3
-        div, rem = np.divmod(rem, 27)
-        mat.col[begin:end] += div * nx
-        div, rem = np.divmod(rem, 9)
-        mat.row[begin:end] += div * 9 * N * N
-        div, rem = np.divmod(rem, 3)
-        mat.row[begin:end] += div * 3 * N + rem
-
-    mat.resize((NNN333, n3nx))
-    mat = mat.tocsr(copy=False)
-    return mat
 
 
 def _get_linked_compress_eigvecs(
@@ -300,8 +250,6 @@ def prepare_normal_equation_O2O3O4(
     """
     N3 = disps.shape[1]
     N = N3 // 3
-    NN = N**2
-    NNN = N**3
 
     compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
     compact_compress_mat_fc3 = fc3_basis.compact_compression_matrix
@@ -337,34 +285,14 @@ def prepare_normal_equation_O2O3O4(
         n_atom_batch = end_i - begin_i
 
         t1 = time.time()
-        decompr_idx = (
-            atomic_decompr_idx_fc2[begin_i * N : end_i * N, None] * 9
-            + np.arange(9)[None, :]
-        ).reshape(-1)
-        compr_mat_fc2 = reshape_nN33_nx_to_N3_n3nx(
-            compact_compress_mat_fc2[decompr_idx],
-            N,
-            n_atom_batch,
+        compr_mat_fc2 = reshape_compr_mat_O2(
+            compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
         )
-
-        decompr_idx = (
-            atomic_decompr_idx_fc3[begin_i * NN : end_i * NN, None] * 27
-            + np.arange(27)[None, :]
-        ).reshape(-1)
-        compr_mat_fc3 = reshape_nNN333_nx_to_N3N3_n3nx(
-            compact_compress_mat_fc3[decompr_idx],
-            N,
-            n_atom_batch,
+        compr_mat_fc3 = reshape_compr_mat_O3(
+            compact_compress_mat_fc3, atomic_decompr_idx_fc3, N, begin_i, end_i
         )
-
-        decompr_idx = (
-            atomic_decompr_idx_fc4[begin_i * NNN : end_i * NNN, None] * 81
-            + np.arange(81)[None, :]
-        ).reshape(-1)
-        compr_mat_fc4 = reshape_nNNN3333_nx_to_N3N3N3_n3nx(
-            compact_compress_mat_fc4[decompr_idx],
-            N,
-            n_atom_batch,
+        compr_mat_fc4 = reshape_compr_mat_O4(
+            compact_compress_mat_fc4, atomic_decompr_idx_fc4, N, begin_i, end_i
         )
         t2 = time.time()
         if verbose:
@@ -395,6 +323,7 @@ def prepare_normal_equation_O2O3O4(
                 use_mkl=use_mkl,
                 dense=True,
             ).reshape((-1, n_compr_fc4))
+            del disps_N3N3
             y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
 
             matx = calc_sum_xtx(matx, X, verbose=verbose)

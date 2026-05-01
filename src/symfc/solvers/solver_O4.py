@@ -9,11 +9,11 @@ import numpy as np
 
 from symfc.basis_sets import FCBasisSetO4
 from symfc.eig_solvers.matrix import block_matrix_sandwich
-from symfc.solvers.solver_O2O3O4 import (
-    reshape_nNNN3333_nx_to_N3N3N3_n3nx,
+from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
+from symfc.utils.solver_utils_O4 import (
+    reshape_compr_mat_O4,
     set_disps_N3N3N3,
 )
-from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 
 try:
     from symfc.utils.matrix import dot_product_sparse
@@ -160,7 +160,6 @@ def prepare_normal_equation_O4(
     """
     N3 = disps.shape[1]
     N = N3 // 3
-    NNN = N**3
     n_compr_fc4 = compact_compress_mat_fc4.shape[1]
 
     n_batch = (n_compr_fc4 // 5000 + 1) * (N // 50 + 1)
@@ -178,17 +177,9 @@ def prepare_normal_equation_O4(
         if verbose:
             print("-----", flush=True)
             print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
-        n_atom_batch = end_i - begin_i
-
         t1 = time.time()
-        decompr_idx = (
-            atomic_decompr_idx_fc4[begin_i * NNN : end_i * NNN, None] * 81
-            + np.arange(81)[None, :]
-        ).reshape(-1)
-        compr_mat_fc4 = reshape_nNNN3333_nx_to_N3N3N3_n3nx(
-            compact_compress_mat_fc4[decompr_idx],
-            N,
-            n_atom_batch,
+        compr_mat_fc4 = reshape_compr_mat_O4(
+            compact_compress_mat_fc4, atomic_decompr_idx_fc4, N, begin_i, end_i
         )
         t2 = time.time()
         if verbose:

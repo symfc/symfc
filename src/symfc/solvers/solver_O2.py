@@ -6,11 +6,11 @@ import time
 from typing import Literal
 
 import numpy as np
-from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2
 from symfc.eig_solvers.matrix import block_matrix_sandwich_sym
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
+from symfc.utils.solver_utils_O2 import reshape_compr_mat_O2
 
 try:
     from symfc.utils.matrix import dot_product_sparse
@@ -40,6 +40,7 @@ class FCSolverO2(FCSolverBase):
         displacements: NDArray,
         forces: NDArray,
         batch_size: int = 100,
+        use_sparse_disps: bool = False,
     ) -> FCSolverO2:
         """Solve coefficients of basis set from displacements and forces.
 
@@ -62,14 +63,16 @@ class FCSolverO2(FCSolverBase):
         d = displacements.reshape(n_data, -1)
 
         fc2_basis = self._basis_set
-        self._coefs = run_solver_O2(
+        XTX, XTy = prepare_normal_equation_O2(
             d,
             f,
             fc2_basis,
             batch_size=batch_size,
+            use_sparse_disps=False,
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )
+        self._coefs = solve_linear_equation(XTX, XTy)
         return self
 
     @property
@@ -117,33 +120,6 @@ class FCSolverO2(FCSolverBase):
         return fc2
 
 
-def reshape_nN33_nx_to_N3_n3nx(mat, N: int, n: int, n_batch: int = 1) -> csr_array:
-    """Reorder and reshape a sparse matrix (nN33,nx)->(N3,n3nx).
-
-    mat : csr_array
-
-    Return reordered csr_matrix used for FC2.
-    """
-    _, nx = mat.shape
-    N3 = N * 3
-    n3nx = n * 3 * nx
-    mat = mat.tocoo(copy=False)
-
-    begin_batch, end_batch = get_batch_slice(len(mat.row), len(mat.row) // n_batch)
-    for begin, end in zip(begin_batch, end_batch, strict=True):
-        div, rem = np.divmod(mat.row[begin:end], 9 * N)
-        mat.col[begin:end] += div * 3 * nx
-        div, rem = np.divmod(rem, 9)
-        mat.row[begin:end] = div * 3
-        div, rem = np.divmod(rem, 3)
-        mat.col[begin:end] += div * nx
-        mat.row[begin:end] += rem
-
-    mat.resize((N3, n3nx))
-    mat = mat.tocsr(copy=False)
-    return mat
-
-
 def prepare_normal_equation_O2(
     disps: NDArray,
     forces: NDArray,
@@ -188,17 +164,10 @@ def prepare_normal_equation_O2(
         if verbose:
             print("-----", flush=True)
             print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
-        n_atom_batch = end_i - begin_i
 
         t1 = time.time()
-        decompr_idx = (
-            atomic_decompr_idx_fc2[begin_i * N : end_i * N, None] * 9
-            + np.arange(9)[None, :]
-        ).reshape(-1)
-        compr_mat_fc2 = reshape_nN33_nx_to_N3_n3nx(
-            compact_compress_mat_fc2[decompr_idx],
-            N,
-            n_atom_batch,
+        compr_mat_fc2 = reshape_compr_mat_O2(
+            compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
         )
         t2 = time.time()
         if verbose:
@@ -236,34 +205,3 @@ def prepare_normal_equation_O2(
         header = " (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):"
         print(header, "{:.3f}".format(t_all2 - t_all1), flush=True)
     return XTX, XTy
-
-
-def run_solver_O2(
-    disps: NDArray,
-    forces: NDArray,
-    fc2_basis: FCBasisSetO2,
-    batch_size: int = 100,
-    use_sparse_disps: bool = False,
-    use_mkl: bool = False,
-    verbose: bool = False,
-):
-    """Estimate coeffs. in X @ coeffs = y.
-
-    X = displacements_fc2 @ compress_mat_fc2 @ compress_eigvecs_fc2
-
-    Matrix reshapings are appropriately applied.
-    X: features (n_samples * N3, N_basis_fc2)
-    y: observations (forces), (n_samples * N3)
-
-    """
-    XTX, XTy = prepare_normal_equation_O2(
-        disps,
-        forces,
-        fc2_basis,
-        batch_size=batch_size,
-        use_sparse_disps=use_sparse_disps,
-        use_mkl=use_mkl,
-        verbose=verbose,
-    )
-    coefs = solve_linear_equation(XTX, XTy)
-    return coefs

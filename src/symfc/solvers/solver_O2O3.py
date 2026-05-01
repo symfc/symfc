@@ -7,7 +7,6 @@ from collections.abc import Sequence
 from typing import Literal, Optional, Union, cast
 
 import numpy as np
-from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3
 from symfc.eig_solvers.matrix import (
@@ -16,9 +15,13 @@ from symfc.eig_solvers.matrix import (
     link_block_matrix_nodes,
     root_block_matrix,
 )
-from symfc.solvers.solver_O2 import reshape_nN33_nx_to_N3_n3nx
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 from symfc.utils.solver_utils import calc_sum_xtx
+from symfc.utils.solver_utils_O2 import reshape_compr_mat_O2
+from symfc.utils.solver_utils_O3 import (
+    reshape_compr_mat_O3,
+    set_disps_N3N3,
+)
 
 try:
     from symfc.utils.matrix import dot_product_sparse
@@ -93,7 +96,7 @@ class FCSolverO2O3(FCSolverBase):
         fc2_basis: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[0])
         fc3_basis: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[1])
 
-        self._coefs = run_solver_O2O3(
+        XTX, XTy = prepare_normal_equation_O2O3(
             d,
             f,
             fc2_basis,
@@ -102,6 +105,9 @@ class FCSolverO2O3(FCSolverBase):
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )
+        coefs = solve_linear_equation(XTX, XTy)
+        n_basis_fc2 = fc2_basis.blocked_basis_set.shape[1]
+        self._coefs = coefs[:n_basis_fc2], coefs[n_basis_fc2:]
 
         return self
 
@@ -154,6 +160,8 @@ class FCSolverO2O3(FCSolverBase):
         fc2 = np.array(
             (comp_mat_fc2 @ fc2).reshape((-1, N, 3, 3)), dtype="double", order="C"
         )
+        if self._log_level > 0:
+            print("Recovering FC3.", flush=True)
         fc3 = fc3_basis.blocked_basis_set @ self._coefs[1]
         fc3 = np.array(
             (comp_mat_fc3 @ fc3).reshape((-1, N, N, 3, 3, 3)),
@@ -161,55 +169,6 @@ class FCSolverO2O3(FCSolverBase):
             order="C",
         )
         return fc2, fc3
-
-
-def set_disps_N3N3(disps, sparse=False):
-    """Calculate Kronecker products of displacements.
-
-    Parameter
-    ---------
-    disps: shape=(n_supercell, N3)
-
-    Return
-    ------
-    disps_2nd: shape=(n_supercell, N3N3)
-    """
-    n_supercell = disps.shape[0]
-    disps_2nd = (disps[:, :, None] * disps[:, None, :]).reshape((n_supercell, -1))
-
-    if sparse:
-        return csr_array(disps_2nd)
-    return disps_2nd
-
-
-def reshape_nNN333_nx_to_N3N3_n3nx(mat, N, n, n_batch=9):
-    """Reorder and reshape a sparse matrix (nNN333,nx)->(N3N3,n3nx).
-
-    Return reordered csr_matrix used for FC3.
-    """
-    _, nx = mat.shape
-    NN33 = N**2 * 9
-    n3nx = n * 3 * nx
-    mat = mat.tocoo(copy=False)
-
-    batch_size = len(mat.row) if len(mat.row) < n_batch else len(mat.row) // n_batch
-
-    begin_batch, end_batch = get_batch_slice(len(mat.row), batch_size)
-    for begin, end in zip(begin_batch, end_batch, strict=True):
-        div, rem = np.divmod(mat.row[begin:end], 27 * N * N)
-        mat.col[begin:end] += div * 3 * nx
-        div, rem = np.divmod(rem, 27 * N)
-        mat.row[begin:end] = div * 9 * N
-        div, rem = np.divmod(rem, 27)
-        mat.row[begin:end] += div * 3
-        div, rem = np.divmod(rem, 9)
-        mat.col[begin:end] += div * nx
-        div, rem = np.divmod(rem, 3)
-        mat.row[begin:end] += div * 3 * N + rem
-
-    mat.resize((NN33, n3nx))
-    mat = mat.tocsr(copy=False)
-    return mat
 
 
 def _get_linked_compress_eigvecs(
@@ -260,7 +219,6 @@ def prepare_normal_equation_O2O3(
     """
     N3 = disps.shape[1]
     N = N3 // 3
-    NN = N * N
 
     compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
     compact_compress_mat_fc3 = fc3_basis.compact_compression_matrix
@@ -298,26 +256,12 @@ def prepare_normal_equation_O2O3(
         n_atom_batch = end_i - begin_i
 
         t1 = time.time()
-        decompr_idx = (
-            atomic_decompr_idx_fc2[begin_i * N : end_i * N, None] * 9
-            + np.arange(9)[None, :]
-        ).reshape(-1)
-        compr_mat_fc2 = reshape_nN33_nx_to_N3_n3nx(
-            compact_compress_mat_fc2[decompr_idx],
-            N,
-            n_atom_batch,
+        compr_mat_fc2 = reshape_compr_mat_O2(
+            compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
         )
-
-        decompr_idx = (
-            atomic_decompr_idx_fc3[begin_i * NN : end_i * NN, None] * 27
-            + np.arange(27)[None, :]
-        ).reshape(-1)
-        compr_mat_fc3 = reshape_nNN333_nx_to_N3N3_n3nx(
-            compact_compress_mat_fc3[decompr_idx],
-            N,
-            n_atom_batch,
+        compr_mat_fc3 = reshape_compr_mat_O3(
+            compact_compress_mat_fc3, atomic_decompr_idx_fc3, N, begin_i, end_i
         )
-
         t2 = time.time()
         if verbose:
             time_pr = "{:.3f}".format(t2 - t1)
@@ -367,39 +311,3 @@ def prepare_normal_equation_O2O3(
         header = "Time (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):"
         print(header, "{:.3f}".format(t_all2 - t_all1), flush=True)
     return XTX, XTy
-
-
-def run_solver_O2O3(
-    disps: np.ndarray,
-    forces: np.ndarray,
-    fc2_basis: FCBasisSetO2,
-    fc3_basis: FCBasisSetO3,
-    batch_size: int = 100,
-    use_mkl: bool = False,
-    verbose: bool = False,
-):
-    """Estimate coeffs. in X @ coeffs = y.
-
-    X_fc2 = displacements_fc2 @ compress_mat_fc2 @ compress_eigvecs_fc2
-    X_fc3 = displacements_fc3 @ compress_mat_fc3 @ compress_eigvecs_fc3
-    X = np.hstack([X_fc2, X_fc3])
-
-    Matrix reshapings are appropriately applied.
-    X: features (n_samples * N3, N_basis_fc2 + N_basis_fc3)
-    y: observations (forces), (n_samples * N3)
-
-    """
-    XTX, XTy = prepare_normal_equation_O2O3(
-        disps,
-        forces,
-        fc2_basis,
-        fc3_basis,
-        batch_size=batch_size,
-        use_mkl=use_mkl,
-        verbose=verbose,
-    )
-    coefs = solve_linear_equation(XTX, XTy)
-    n_basis_fc2 = fc2_basis.blocked_basis_set.shape[1]
-    coefs_fc2, coefs_fc3 = coefs[:n_basis_fc2], coefs[n_basis_fc2:]
-
-    return coefs_fc2, coefs_fc3
