@@ -169,6 +169,8 @@ class FCSolverO2O3O4(FCSolverBase):
             dtype="double",
             order="C",
         )
+        if self._log_level > 0:
+            print("Recovering FC4.", flush=True)
         fc4 = fc4_basis.blocked_basis_set @ self._coefs[2]
         fc4 = np.array(
             (comp_mat_fc4 @ fc4).reshape((-1, N, N, N, 3, 3, 3, 3)),
@@ -247,13 +249,13 @@ def _get_linked_compress_eigvecs(
     shape3 = compress_eigvecs_fc3.shape
     shape4 = compress_eigvecs_fc4.shape
 
-    _ = link_block_matrix_nodes(
+    compress_eigvecs_fc3 = link_block_matrix_nodes(
         compress_eigvecs_fc3,
         compress_eigvecs_fc2,
         rows=np.arange(shape2[0], shape2[0] + shape3[0]),
         col_begin=shape2[1],
     )
-    _ = link_block_matrix_nodes(
+    compress_eigvecs_fc4 = link_block_matrix_nodes(
         compress_eigvecs_fc4,
         compress_eigvecs_fc3,
         rows=np.arange(shape2[0] + shape3[0], shape2[0] + shape3[0] + shape4[0]),
