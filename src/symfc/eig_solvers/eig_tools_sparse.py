@@ -8,11 +8,11 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_array
 
-from symfc.utils.eig_tools_core import (
+from symfc.eig_solvers.eig_tools_core import (
     eigh_projector,
     find_projector_blocks,
 )
-from symfc.utils.matrix import BlockMatrixNode, matrix_rank
+from symfc.eig_solvers.matrix import BlockMatrixNode, matrix_rank
 
 # Threshold constants for eigenvalue solvers
 SPARSE_DATA_LIMIT = 2147483647

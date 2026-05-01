@@ -4,13 +4,13 @@ import numpy as np
 import pytest
 from scipy.sparse import csr_array
 
-from symfc.utils.eig_tools_core import (
+from symfc.eig_solvers.eig_tools_core import (
     EigenvectorResult,
     _divide_eigenvectors,
     eigh_projector,
     find_projector_blocks,
 )
-from symfc.utils.matrix import root_block_matrix
+from symfc.eig_solvers.matrix import root_block_matrix
 
 
 def _set_projector():

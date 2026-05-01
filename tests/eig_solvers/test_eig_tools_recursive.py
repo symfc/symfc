@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from scipy.sparse import csr_array
 
-from symfc.utils.eig_tools_division import (
+from symfc.eig_solvers.eig_tools_recursive import (
     _calculate_batch_size_division,
     _find_complement_eigenvectors,
     _find_submatrix_eigenvectors,

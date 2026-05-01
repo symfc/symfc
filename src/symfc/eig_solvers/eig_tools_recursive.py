@@ -6,12 +6,12 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_array
 
-from symfc.utils.eig_tools_core import (
+from symfc.eig_solvers.eig_tools_core import (
     EigenvectorResult,
     eigh_projector,
     find_projector_blocks,
 )
-from symfc.utils.matrix import (
+from symfc.eig_solvers.matrix import (
     BlockMatrixNode,
     link_block_matrix_nodes,
     matrix_rank,

@@ -5,10 +5,12 @@ from __future__ import annotations
 from numpy.typing import NDArray
 from scipy.sparse import csr_array
 
-from symfc.utils.eig_tools_core import eigh_projector as eigh
-from symfc.utils.eig_tools_division import eigsh_projector_sumrule as eigsh_sumrule
-from symfc.utils.eig_tools_sparse import eigsh_projector as eigsh
-from symfc.utils.matrix import BlockMatrixNode
+from symfc.eig_solvers.eig_tools_core import eigh_projector as eigh
+from symfc.eig_solvers.eig_tools_recursive import (
+    eigsh_projector_sumrule as eigsh_sumrule,
+)
+from symfc.eig_solvers.eig_tools_sparse import eigsh_projector as eigsh
+from symfc.eig_solvers.matrix import BlockMatrixNode
 
 # Threshold constants for eigenvalue solvers
 MIN_BLOCK_SIZE = 500

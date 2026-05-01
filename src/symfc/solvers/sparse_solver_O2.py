@@ -8,10 +8,13 @@ import numpy as np
 from numpy.typing import NDArray
 
 from symfc.basis_sets import FCBasisSetO2
-from symfc.utils.solver_funcs import get_displacement_sparse_matrix
+from symfc.utils.solver_funcs import (
+    get_displacement_sparse_matrix,
+    solve_linear_equation,
+)
 
 from .solver_base import FCSolverBase
-from .solver_O2 import run_solver_O2
+from .solver_O2 import prepare_normal_equation_O2
 
 
 class FCSparseSolverO2(FCSolverBase):
@@ -58,22 +61,17 @@ class FCSparseSolverO2(FCSolverBase):
         d = get_displacement_sparse_matrix(atoms, displacements, n_atom)
 
         fc2_basis = self._basis_set
-        compress_mat_fc2 = fc2_basis.compact_compression_matrix
-        basis_set_fc2 = fc2_basis.blocked_basis_set
-
-        atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
-
-        self._coefs = run_solver_O2(
+        XTX, XTy = prepare_normal_equation_O2(
             d,
             f,
-            compress_mat_fc2,
-            basis_set_fc2,
-            atomic_decompr_idx_fc2,
+            fc2_basis,
             batch_size=batch_size,
-            use_sparse_disps=True,
+            use_sparse_disps=False,
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )
+        self._coefs = solve_linear_equation(XTX, XTy)
+
         return self
 
     @property

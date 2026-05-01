@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from scipy.sparse import csr_array
 
-from symfc.utils.eig_tools import (
+from symfc.eig_solvers.api_eig_tools import (
     eigh_projector,
     eigsh_projector,
     eigsh_projector_sumrule,

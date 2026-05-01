@@ -9,11 +9,11 @@ import scipy
 from pypolymlp.core.interface_vasp import Poscar
 from pypolymlp.utils.structure_utils import supercell_diagonal
 from scipy.sparse import csr_array
+from symfc.utils.eig_tools import eigsh_projector, eigsh_projector_sumrule
 
 from symfc import Symfc
 from symfc.basis_sets.basis_sets_O2 import FCBasisSetO2
 from symfc.spg_reps import SpgRepsBase
-from symfc.utils.eig_tools import eigsh_projector, eigsh_projector_sumrule
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O2 import (
     get_lat_trans_compr_matrix,

@@ -8,12 +8,12 @@ from typing import Optional
 import numpy as np
 from scipy.sparse import csr_array
 
-from symfc.spg_reps import SpgRepsO4
-from symfc.utils.eig_tools import (
+from symfc.eig_solvers.api_eig_tools import (
     eigsh_projector,
     eigsh_projector_sumrule,
 )
-from symfc.utils.matrix import BlockMatrixNode
+from symfc.eig_solvers.matrix import BlockMatrixNode
+from symfc.spg_reps import SpgRepsO4
 
 try:
     from symfc.utils.matrix import dot_product_sparse
@@ -124,11 +124,11 @@ class FCBasisSetO4(FCBasisSetBase):
         n_lp = self.translation_permutations.shape[0]
         return self._n_a_compression_matrix / np.sqrt(n_lp)
 
-    def run(self) -> FCBasisSetO4:
+    def run(self, apply_sum_rule: bool = True) -> FCBasisSetO4:
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
 
-        tt0 = time.time()
+        tt1 = time.time()
         c_pt = compr_permutation_lat_trans_O4(
             trans_perms,
             atomic_decompr_idx=self._atomic_decompr_idx,
@@ -156,67 +156,66 @@ class FCBasisSetO4(FCBasisSetBase):
         tt4 = time.time()
 
         n_a_compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
+        self._n_a_compression_matrix = n_a_compress_mat
         tt5 = time.time()
 
+        if self._log_level:
+            print("---", flush=True)
+            time_pr = "{:.3f}".format(tt2 - tt1)
+            print("Time (perm @ ltrans)               :", time_pr, flush=True)
+            time_pr = "{:.3f}".format(tt3 - tt2)
+            print("Time (coset)                       :", time_pr, flush=True)
+            time_pr = "{:.3f}".format(tt4 - tt3)
+            print("Time (eigh(coset @ perm @ ltrans)) :", time_pr, flush=True)
+            time_pr = "{:.3f}".format(tt5 - tt4)
+            print("Time (c_pt @ c_rpt)                :", time_pr, flush=True)
+            print("---", flush=True)
+            time_pr = "{:.3f}".format(tt5 - tt1)
+            print("Time (Basis FC4, coset @ perm @ ltrans):", time_pr, flush=True)
+            print("---", flush=True)
+
+        if apply_sum_rule:
+            self.compute_blocked_basis_set()
+            tt6 = time.time()
+            if self._log_level:
+                print("---", flush=True)
+                time_pr = "{:.3f}".format(tt6 - tt1)
+                print("Time (Basis FC3)                   :", time_pr, flush=True)
+                print("---", flush=True)
+                shape = self._blocked_basis_set.shape
+                print("Final size of basis set:", shape, flush=True)
+
+        return self
+
+    def compute_blocked_basis_set(self):
+        """Compute blocked basis set."""
+        if self._n_a_compression_matrix is None:
+            raise RuntimeError("Compression matrix not found.")
+
+        trans_perms = self._spg_reps.translation_permutations
+        t1 = time.time()
         proj = compressed_projector_sum_rules_O4(
             trans_perms,
-            n_a_compress_mat,
+            self._n_a_compression_matrix,
             atomic_decompr_idx=self._atomic_decompr_idx,
             fc_cutoff=self._fc_cutoff,
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )
-        tt6 = time.time()
-        eigvecs = eigsh_projector_sumrule(
+        t2 = time.time()
+        self._blocked_basis_set = eigsh_projector_sumrule(
             proj,
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )
+        t3 = time.time()
 
         if self._log_level:
-            print("Final size of basis set:", eigvecs.shape, flush=True)
-        tt7 = time.time()
-
-        if self._log_level:
-            print(
-                "Time (perm @ ltrans)               :",
-                "{:.3f}".format(tt2 - tt0),
-                flush=True,
-            )
-            print(
-                "Time (coset)                       :",
-                "{:.3f}".format(tt3 - tt2),
-                flush=True,
-            )
-            print(
-                "Time (eigh(coset @ perm @ ltrans)) :",
-                "{:.3f}".format(tt4 - tt3),
-                flush=True,
-            )
-            print(
-                "Time (c_pt @ c_rpt)                :",
-                "{:.3f}".format(tt5 - tt4),
-                flush=True,
-            )
-            print(
-                "Time (proj(sum))                   :",
-                "{:.3f}".format(tt6 - tt5),
-                flush=True,
-            )
-            print(
-                "Time (eigh(sum))                   :",
-                "{:.3f}".format(tt7 - tt6),
-                flush=True,
-            )
-            print("---")
-            print(
-                "Time (Basis FC4)                   :",
-                "{:.3f}".format(tt7 - tt0),
-                flush=True,
-            )
-
-        self._blocked_basis_set = eigvecs
-        self._n_a_compression_matrix = n_a_compress_mat
+            print("---", flush=True)
+            time_pr = "{:.3f}".format(t2 - t1)
+            print("Time (proj(sum))                   :", time_pr, flush=True)
+            time_pr = "{:.3f}".format(t3 - t2)
+            print("Time (eigh(sum))                   :", time_pr, flush=True)
 
         return self
 
