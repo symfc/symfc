@@ -300,6 +300,7 @@ def prepare_normal_equation_O2O3(
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
     XTX = block_matrix_sandwich_sym(compress_eigvecs, matx)
+    del matx
     XTy = compress_eigvecs.T @ maty
 
     fc2_basis.blocked_basis_set.reset_indices()
