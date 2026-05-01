@@ -117,6 +117,10 @@ class FCBasisSetO1(FCBasisSetBase):
 
         return self
 
+    def compute_blocked_basis_set(self):
+        """Compute blocked basis set."""
+        pass
+
     def _get_c_trans(self) -> csr_array:
         trans_perms = self._spg_reps.translation_permutations
         n_lp, N = trans_perms.shape
