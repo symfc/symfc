@@ -104,7 +104,7 @@ class FCSolverO2O3O4(FCSolverBase):
         fc3_basis: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[1])
         fc4_basis: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[2])
 
-        self._coefs = run_solver_O2O3O4(
+        XTX, XTy = prepare_normal_equation_O2O3O4(
             d,
             f,
             fc2_basis,
@@ -114,6 +114,15 @@ class FCSolverO2O3O4(FCSolverBase):
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )
+        coefs = solve_linear_equation(XTX, XTy)
+        n_basis_fc2 = fc2_basis.blocked_basis_set.shape[1]
+        n_basis_fc3 = fc3_basis.blocked_basis_set.shape[1]
+        coefs_fc2, coefs_fc3, coefs_fc4 = (
+            coefs[:n_basis_fc2],
+            coefs[n_basis_fc2 : n_basis_fc2 + n_basis_fc3],
+            coefs[n_basis_fc2 + n_basis_fc3 :],
+        )
+        self._coefs = coefs_fc2, coefs_fc3, coefs_fc4
         return self
 
     @property
@@ -323,7 +332,6 @@ def prepare_normal_equation_O2O3O4(
                 use_mkl=use_mkl,
                 dense=True,
             ).reshape((-1, n_compr_fc4))
-            del disps_N3N3
             y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
 
             matx = calc_sum_xtx(matx, X, verbose=verbose)
@@ -355,47 +363,3 @@ def prepare_normal_equation_O2O3O4(
         header = "Time (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):"
         print(header, "{:.3f}".format(t_all2 - t_all1), flush=True)
     return XTX, XTy
-
-
-def run_solver_O2O3O4(
-    disps: np.ndarray,
-    forces: np.ndarray,
-    fc2_basis: FCBasisSetO2,
-    fc3_basis: FCBasisSetO3,
-    fc4_basis: FCBasisSetO4,
-    batch_size: int = 25,
-    use_mkl: bool = False,
-    verbose: bool = False,
-):
-    """Estimate coeffs. in X @ coeffs = y.
-
-    X_fc2 = displacements_fc2 @ compress_mat_fc2 @ compress_eigvecs_fc2
-    X_fc3 = displacements_fc3 @ compress_mat_fc3 @ compress_eigvecs_fc3
-    X_fc4 = displacements_fc4 @ compress_mat_fc4 @ compress_eigvecs_fc4
-    X = np.hstack([X_fc2, X_fc3, X_fc4])
-
-    Matrix reshapings are appropriately applied.
-    X: features (n_samples * N3, N_basis_fc2 + N_basis_fc3 + N_basis_fc4)
-    y: observations (forces), (n_samples * N3)
-
-    """
-    XTX, XTy = prepare_normal_equation_O2O3O4(
-        disps,
-        forces,
-        fc2_basis,
-        fc3_basis,
-        fc4_basis,
-        batch_size=batch_size,
-        use_mkl=use_mkl,
-        verbose=verbose,
-    )
-    coefs = solve_linear_equation(XTX, XTy)
-    n_basis_fc2 = fc2_basis.blocked_basis_set.shape[1]
-    n_basis_fc3 = fc3_basis.blocked_basis_set.shape[1]
-    coefs_fc2, coefs_fc3, coefs_fc4 = (
-        coefs[:n_basis_fc2],
-        coefs[n_basis_fc2 : n_basis_fc2 + n_basis_fc3],
-        coefs[n_basis_fc2 + n_basis_fc3 :],
-    )
-
-    return coefs_fc2, coefs_fc3, coefs_fc4
