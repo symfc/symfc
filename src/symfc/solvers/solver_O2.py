@@ -205,3 +205,26 @@ def prepare_normal_equation_O2(
         header = " (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):"
         print(header, "{:.3f}".format(t_all2 - t_all1), flush=True)
     return XTX, XTy
+
+
+def run_solver_O2(
+    disps: NDArray,
+    forces: NDArray,
+    fc2_basis: FCBasisSetO2,
+    batch_size: int = 100,
+    use_sparse_disps: bool = False,
+    use_mkl: bool = False,
+    verbose: bool = False,
+):
+    """Run FC solver for O2."""
+    XTX, XTy = prepare_normal_equation_O2(
+        disps,
+        forces,
+        fc2_basis,
+        batch_size=batch_size,
+        use_sparse_disps=use_sparse_disps,
+        use_mkl=use_mkl,
+        verbose=verbose,
+    )
+    coefs = solve_linear_equation(XTX, XTy)
+    return coefs
