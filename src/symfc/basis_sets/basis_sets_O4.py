@@ -180,7 +180,7 @@ class FCBasisSetO4(FCBasisSetBase):
             if self._log_level:
                 print("---", flush=True)
                 time_pr = "{:.3f}".format(tt6 - tt1)
-                print("Time (Basis FC3)                   :", time_pr, flush=True)
+                print("Time (Basis FC4)                   :", time_pr, flush=True)
                 print("---", flush=True)
                 shape = self._blocked_basis_set.shape
                 print("Final size of basis set:", shape, flush=True)

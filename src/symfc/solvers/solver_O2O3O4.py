@@ -208,13 +208,13 @@ def _get_linked_compress_eigvecs(
     shape3 = compress_eigvecs_fc3.shape
     shape4 = compress_eigvecs_fc4.shape
 
-    compress_eigvecs_fc3 = link_block_matrix_nodes(
+    _ = link_block_matrix_nodes(
         compress_eigvecs_fc3,
         compress_eigvecs_fc2,
         rows=np.arange(shape2[0], shape2[0] + shape3[0]),
         col_begin=shape2[1],
     )
-    compress_eigvecs_fc4 = link_block_matrix_nodes(
+    _ = link_block_matrix_nodes(
         compress_eigvecs_fc4,
         compress_eigvecs_fc3,
         rows=np.arange(shape2[0] + shape3[0], shape2[0] + shape3[0] + shape4[0]),
