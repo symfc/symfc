@@ -51,29 +51,33 @@ class EigenvectorResult:
         if self.eigvecs is None:
             return None
 
-        # if isinstance(self.eigvecs, BlockMatrixNode):
-        #     if self.compress is None:
-        #         return self.eigvecs
+        if isinstance(self.eigvecs, BlockMatrixNode):
+            if self.compress is None:
+                return self.eigvecs
 
-        #     eigvecs_dense = self.compress.dot(self.eigvecs.recover())
-        #     return BlockMatrixNode(
-        #         rows=np.arange(self.compress.shape[0]),
-        #         col_begin=0,
-        #         col_end=eigvecs_dense.shape[1],
-        #         data=eigvecs_dense,
-        #     )
+            data = self.eigvecs.recover()
+        else:
+            data = self.eigvecs
+
+            # return BlockMatrixNode(
+            #     rows=np.arange(self.compress.shape[0]),
+            #     col_begin=0,
+            #     col_end=data.shape[1],
+            #     data=data,
+            #     compress=self.compress,
+            # )
 
         if self.compress is not None:
             row_shape = self.compress.shape[0]
         else:
-            row_shape = self.eigvecs.shape[0]
-        col_shape = self.eigvecs.shape[1]
+            row_shape = data.shape[0]
+        col_shape = data.shape[1]
 
         block = BlockMatrixNode(
             rows=np.arange(row_shape),
             col_begin=0,
             col_end=col_shape,
-            data=self.eigvecs,
+            data=data,
             compress=self.compress,
         )
         return block
