@@ -50,8 +50,18 @@ class EigenvectorResult:
         """Return eigenvectors in BlockMatrixNode."""
         if self.eigvecs is None:
             return None
-        if isinstance(self.eigvecs, BlockMatrixNode):
-            return self.eigvecs
+
+        # if isinstance(self.eigvecs, BlockMatrixNode):
+        #     if self.compress is None:
+        #         return self.eigvecs
+
+        #     eigvecs_dense = self.compress.dot(self.eigvecs.recover())
+        #     return BlockMatrixNode(
+        #         rows=np.arange(self.compress.shape[0]),
+        #         col_begin=0,
+        #         col_end=eigvecs_dense.shape[1],
+        #         data=eigvecs_dense,
+        #     )
 
         if self.compress is not None:
             row_shape = self.compress.shape[0]

@@ -21,6 +21,7 @@ from symfc.utils.solver_funcs import get_batch_slice
 
 # Threshold constants for eigenvalue solvers
 MIN_BLOCK_SIZE = 500
+# MIN_BLOCK_SIZE = 3000
 LARGE_BLOCK_SIZE = 5000
 VERY_LARGE_BLOCK_SIZE = 30000
 MAX_BATCH_SIZE = 20000
@@ -156,6 +157,7 @@ def _find_complement_eigenvectors(
         print(header, "Compute compressed projector.", flush=True)
 
     p_cmr = cmplt.compress_matrix(p, use_mkl=use_mkl)
+
     if not repeat:
         if verbose:
             print(header, "Use standard solver.", flush=True)
