@@ -2,7 +2,7 @@ name: symfc test using conda-forge environment
 
 on:
   pull_request:
-    branches: [ develop ]
+    branches: [develop]
 
 jobs:
   build-linux:
@@ -15,27 +15,27 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
-    - uses: actions/checkout@v4
-    - uses: conda-incubator/setup-miniconda@v3
-      with:
-        auto-update-conda: true
-        channels: conda-forge
-        channel-priority: strict
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        conda activate test
-        conda install --yes -c conda-forge python=${{ matrix.python-version }}
-        conda install --yes -c conda-forge spglib scipy numpy pytest codecov pytest-cov
-    - name: Setup symfc
-      run: |
-        conda activate test
-        pip install -e . -vvv
-    - name: Test with pytest
-      run: |
-        conda activate test
-        pytest -v --cov=./ --cov-report=xml
-    - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        verbose: true
+      - uses: actions/checkout@v5
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: test
+          auto-activate-base: false
+          miniforge-version: latest
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          conda activate test
+          conda install --yes -c conda-forge python=${{ matrix.python-version }}
+          conda install --yes -c conda-forge spglib scipy numpy pytest codecov pytest-cov
+      - name: Setup symfc
+        run: |
+          conda activate test
+          pip install -e . -vvv
+      - name: Test with pytest
+        run: |
+          conda activate test
+          pytest -v --cov=./ --cov-report=xml
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          verbose: true
