@@ -119,3 +119,50 @@ def test_find_complement_eigenvectors():
     assert res.block_eigvecs.shape == (12, 3)
     assert res.cmplt_eigvals is None
     assert res.cmplt_eigvecs is None
+
+
+def test_find_complement_eigenvectors_recursive(monkeypatch):
+    """Test _find_complement_eigenvectors with repeat=True (recursive eigsh path).
+
+    With LARGE_BLOCK_SIZE patched to 3, the complement step calls
+    eigsh_projector_division recursively, returning a BlockMatrixNode.
+    With MIN_BLOCK_SIZE patched to 3, eigsh_projector_division recurses
+    instead of falling back to eigh_projector.
+
+    Before the bug fix, the BlockMatrixNode returned by eigsh_projector_division
+    was passed directly as data= to a new BlockMatrixNode instead of calling
+    recover() first, causing a crash when the result was used.
+    """
+    import symfc.eig_solvers.eig_tools_recursive as mod
+
+    monkeypatch.setattr(mod, "MIN_BLOCK_SIZE", 3)
+    monkeypatch.setattr(mod, "LARGE_BLOCK_SIZE", 3)
+
+    proj = _set_projector()
+    _, cmplt = _find_submatrix_eigenvectors(proj, batch_size=3)
+    res = _find_complement_eigenvectors(proj, cmplt, verbose=True)
+
+    assert res.block_eigvecs.shape == (12, 3)
+    eigvecs = res.block_eigvecs.recover()
+    np.testing.assert_allclose(proj @ eigvecs, eigvecs, atol=1e-10)
+    np.testing.assert_allclose(eigvecs.T @ eigvecs, np.eye(3), atol=1e-10)
+
+
+def test_eigsh_projector_division_recursive(monkeypatch):
+    """End-to-end test of eigsh_projector_division with thresholds patched small.
+
+    Exercises the full recursive path through _find_complement_eigenvectors
+    with repeat=True, which is the code path containing the bug fix.
+    """
+    import symfc.eig_solvers.eig_tools_recursive as mod
+
+    monkeypatch.setattr(mod, "MIN_BLOCK_SIZE", 3)
+    monkeypatch.setattr(mod, "LARGE_BLOCK_SIZE", 3)
+
+    proj = _set_projector()
+    res = eigsh_projector_division(proj, verbose=True)
+
+    assert res.n_eigvecs == 3
+    eigvecs = res.block_eigvecs.recover()
+    np.testing.assert_allclose(proj @ eigvecs, eigvecs, atol=1e-10)
+    np.testing.assert_allclose(eigvecs.T @ eigvecs, np.eye(3), atol=1e-10)
