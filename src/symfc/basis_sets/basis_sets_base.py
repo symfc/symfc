@@ -6,9 +6,9 @@ from abc import ABC, abstractmethod
 
 from numpy.typing import NDArray
 
+from symfc.eig_solvers.matrix import BlockMatrixNode
 from symfc.spg_reps import SpgRepsBase
 from symfc.utils.cutoff_tools import FCCutoff
-from symfc.utils.matrix import BlockMatrixNode
 from symfc.utils.utils import SymfcAtoms
 
 
@@ -76,6 +76,8 @@ class FCBasisSetBase(ABC):
     @property
     def blocked_basis_set(self) -> BlockMatrixNode | None:
         """Return compressed basis set in blocked format."""
+        if self._blocked_basis_set is None:
+            self.compute_blocked_basis_set()
         return self._blocked_basis_set
 
     @property
@@ -107,4 +109,9 @@ class FCBasisSetBase(ABC):
     @abstractmethod
     def run(self):
         """Run basis set calculation."""
+        pass
+
+    @abstractmethod
+    def compute_blocked_basis_set(self):
+        """Compute blocked basis set."""
         pass
