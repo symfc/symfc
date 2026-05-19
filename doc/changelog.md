@@ -2,6 +2,10 @@
 
 # Change Log
 
+## May-20-2026: Version 1.7.1
+
+- Fix eigen-solver for large systems.
+
 ## Apr-23-2026: Version 1.7.0
 
 - Refactoring of block matrix class.
