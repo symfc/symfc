@@ -18,6 +18,7 @@ from symfc.eig_solvers.api_eig_tools import (
 )
 from symfc.eig_solvers.matrix import BlockMatrixNode
 from symfc.solvers import (
+    FCIterSolverO2O3,
     FCSolverO2,
     FCSolverO2O3,
     FCSolverO2O3O4,
@@ -330,6 +331,7 @@ class Symfc:
         orders: list | None = None,
         is_compact_fc: bool = True,
         batch_size: int = 100,
+        use_gradient_solver: bool = True,
     ) -> Symfc:
         """Calculate force constants.
 
@@ -398,11 +400,18 @@ class Symfc:
         elif _orders == (2, 3):
             basis_set_o2: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[2])
             basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
-            solver_o2o3 = FCSolverO2O3(
-                [basis_set_o2, basis_set_o3],
-                use_mkl=self._use_mkl,
-                log_level=self._log_level,
-            ).solve(self._displacements, self._forces, batch_size=batch_size)
+            if use_gradient_solver:
+                solver_o2o3 = FCIterSolverO2O3(
+                    [basis_set_o2, basis_set_o3],
+                    use_mkl=self._use_mkl,
+                    log_level=self._log_level,
+                ).solve(self._displacements, self._forces, batch_size=batch_size)
+            else:
+                solver_o2o3 = FCSolverO2O3(
+                    [basis_set_o2, basis_set_o3],
+                    use_mkl=self._use_mkl,
+                    log_level=self._log_level,
+                ).solve(self._displacements, self._forces, batch_size=batch_size)
 
             if is_compact_fc:
                 fc_tuple = solver_o2o3.compact_fc

@@ -11,7 +11,6 @@ import numpy as np
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3
 from symfc.eig_solvers.matrix import (
     BlockMatrixNode,
-    block_matrix_sandwich_sym,
     link_block_matrix_nodes,
     root_block_matrix,
 )
@@ -194,6 +193,7 @@ def solve_sgd_O2O3(
     fc2_basis: FCBasisSetO2,
     fc3_basis: FCBasisSetO3,
     batch_size: int = 100,
+    n_epoch: int = 1000,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
@@ -232,14 +232,12 @@ def solve_sgd_O2O3(
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
     n_compr_fc3 = compact_compress_mat_fc3.shape[1]  # type: ignore
 
-    n_batch = (N // 30 + 1) * (n_compr_fc3 // 20000 + 1)
+    n_batch = (N // 100 + 1) * (n_compr_fc3 // 20000 + 1)
     n_batch = min(N, n_batch)
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
 
     n_compr = n_compr_fc2 + n_compr_fc3
-    matx = np.zeros((n_compr, n_compr), dtype=float)
-    maty = np.zeros(n_compr, dtype=float)
 
     t_all1 = time.time()
     const_fc2 = -1.0
@@ -247,59 +245,75 @@ def solve_sgd_O2O3(
     compact_compress_mat_fc2 *= const_fc2
     compact_compress_mat_fc3 *= const_fc3
 
-    for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
+    coefs = np.ones(n_compr)
+    learning_rate = 1000
+
+    rmse = 1e10
+    for i_epoch in range(n_epoch):
         if verbose:
             print("-----", flush=True)
-            print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
-        n_atom_batch = end_i - begin_i
+            print("Epoch:", i_epoch + 1, flush=True)
 
-        t1 = time.time()
-        compr_mat_fc2 = reshape_compr_mat_O2(
-            compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
-        )
-        compr_mat_fc3 = reshape_compr_mat_O3(
-            compact_compress_mat_fc3, atomic_decompr_idx_fc3, N, begin_i, end_i
-        )
-        t2 = time.time()
-        if verbose:
-            time_pr = "{:.3f}".format(t2 - t1)
-            print("Time (Solver_compr_matrix_reshape):", time_pr, flush=True)
-
-        for begin, end in zip(begin_batch, end_batch, strict=True):
+        error_all = []
+        for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
             if verbose:
-                print("Solver_block:", end, "/", disps.shape[0], flush=True)
-            t1 = time.time()
-            X = np.zeros((n_atom_batch * 3 * (end - begin), n_compr))
-            X[:, :n_compr_fc2] = dot_product_sparse(
-                disps[begin:end],
-                compr_mat_fc2,
-                use_mkl=use_mkl,
-                dense=True,
-            ).reshape((-1, n_compr_fc2))
-            X[:, n_compr_fc2:] = dot_product_sparse(
-                set_disps_N3N3(disps[begin:end], sparse=False),
-                compr_mat_fc3,
-                use_mkl=use_mkl,
-                dense=True,
-            ).reshape((-1, n_compr_fc3))
-            _ = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
+                print("-----", flush=True)
+                print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
+            n_atom_batch = end_i - begin_i
 
-            # matx = calc_sum_xtx(matx, X, verbose=verbose)
-            # maty += X.T @ y
+            t1 = time.time()
+            compr_mat_fc2 = reshape_compr_mat_O2(
+                compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
+            )
+            compr_mat_fc3 = reshape_compr_mat_O3(
+                compact_compress_mat_fc3, atomic_decompr_idx_fc3, N, begin_i, end_i
+            )
+            t2 = time.time()
+            if verbose:
+                time_pr = "{:.3f}".format(t2 - t1)
+                print("Time (Solver_compr_matrix_reshape):", time_pr, flush=True)
+
+            # TODO: Use structure index permutation.
+            for begin, end in zip(begin_batch, end_batch, strict=True):
+                if verbose:
+                    print("Solver_block:", end, "/", disps.shape[0], flush=True)
+                t1 = time.time()
+                X = np.zeros((n_atom_batch * 3 * (end - begin), n_compr))
+                X[:, :n_compr_fc2] = dot_product_sparse(
+                    disps[begin:end],
+                    compr_mat_fc2,
+                    use_mkl=use_mkl,
+                    dense=True,
+                ).reshape((-1, n_compr_fc2))
+                X[:, n_compr_fc2:] = dot_product_sparse(
+                    set_disps_N3N3(disps[begin:end], sparse=False),
+                    compr_mat_fc3,
+                    use_mkl=use_mkl,
+                    dense=True,
+                ).reshape((-1, n_compr_fc3))
+                y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
+
+                error = X @ coefs - y
+                grad = X.T @ error
+                coefs -= learning_rate * grad
+                error_all.extend(error)
+
             t2 = time.time()
             if verbose:
                 print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
+
+        error_all = np.array(error_all)
+        rmse = np.sqrt(np.mean(error_all**2))
+        if verbose:
+            print("RMSE:", rmse, flush=True)
+        if rmse < 2e-5:
+            break
 
     compress_eigvecs = _get_linked_compress_eigvecs(
         fc2_basis.blocked_basis_set,
         fc3_basis.blocked_basis_set,
     )
-
-    if verbose:
-        print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
-    XTX = block_matrix_sandwich_sym(compress_eigvecs, matx)
-    del matx
-    XTy = compress_eigvecs.T @ maty
+    coefs = compress_eigvecs.T @ coefs
 
     fc2_basis.blocked_basis_set.reset_indices()
     fc3_basis.blocked_basis_set.reset_indices()
@@ -309,4 +323,4 @@ def solve_sgd_O2O3(
     if verbose:
         header = "Time (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):"
         print(header, "{:.3f}".format(t_all2 - t_all1), flush=True)
-    return XTX, XTy
+    return coefs
