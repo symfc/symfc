@@ -246,9 +246,9 @@ def solve_sgd_O2O3(
     compact_compress_mat_fc3 *= const_fc3
 
     coefs = np.ones(n_compr)
-    learning_rate = 1000
+    learning_rate = 100
 
-    rmse = 1e10
+    rmse_prev = 1e10
     for i_epoch in range(n_epoch):
         if verbose:
             print("-----", flush=True)
@@ -306,8 +306,10 @@ def solve_sgd_O2O3(
         rmse = np.sqrt(np.mean(error_all**2))
         if verbose:
             print("RMSE:", rmse, flush=True)
-        if rmse < 2e-5:
+
+        if np.abs(rmse - rmse_prev) < 1e-8:
             break
+        rmse_prev = rmse
 
     compress_eigvecs = _get_linked_compress_eigvecs(
         fc2_basis.blocked_basis_set,
