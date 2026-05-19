@@ -337,6 +337,7 @@ def solve_adam_O2O3(
     n_epoch: int = 1000,
     beta1: float = 0.9,
     beta2: float = 0.999,
+    tol_rmse: float = 1e-10,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
@@ -375,7 +376,7 @@ def solve_adam_O2O3(
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
     n_compr_fc3 = compact_compress_mat_fc3.shape[1]  # type: ignore
 
-    n_batch = (N // 100 + 1) * (n_compr_fc3 // 20000 + 1)
+    n_batch = (N // 128 + 1) * (n_compr_fc3 // 20000 + 1)
     n_batch = min(N, n_batch)
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
@@ -389,7 +390,7 @@ def solve_adam_O2O3(
     compact_compress_mat_fc3 *= const_fc3
 
     coefs = np.ones(n_compr)
-    learning_rate = 10
+    learning_rate = 100
 
     directions_prev = None
     magnitudes_prev = None
@@ -439,9 +440,9 @@ def solve_adam_O2O3(
                 y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
 
                 error = X @ coefs - y
-                grad = X.T @ error
                 error_all.extend(error)
 
+                grad = X.T @ error
                 if directions_prev is None:
                     directions = grad
                     magnitudes = grad**2
@@ -449,7 +450,6 @@ def solve_adam_O2O3(
                     directions = beta1 * directions_prev + (1 - beta1) * grad
                     magnitudes = beta2 * magnitudes_prev + (1 - beta2) * (grad**2)
                 normalized_directions = directions / np.sqrt(magnitudes)
-
                 coefs -= learning_rate * normalized_directions
 
                 directions_prev = directions
@@ -464,7 +464,7 @@ def solve_adam_O2O3(
         if verbose:
             print("RMSE:", rmse, flush=True)
 
-        if np.abs(rmse - rmse_prev) < 1e-9:
+        if np.abs(rmse - rmse_prev) < tol_rmse:
             break
         rmse_prev = rmse
 
