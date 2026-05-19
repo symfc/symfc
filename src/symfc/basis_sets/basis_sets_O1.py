@@ -7,8 +7,8 @@ from typing import Optional
 import numpy as np
 from scipy.sparse import csr_array
 
+from symfc.eig_solvers.api_eig_tools import eigsh_projector
 from symfc.spg_reps import SpgRepsO1
-from symfc.utils.eig_tools import eigsh_projector
 from symfc.utils.translation_tools_O1 import compressed_projector_sum_rules
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O1 import (
@@ -116,6 +116,10 @@ class FCBasisSetO1(FCBasisSetBase):
         self._basis_set = basis_set.toarray()
 
         return self
+
+    def compute_blocked_basis_set(self):
+        """Compute blocked basis set."""
+        pass
 
     def _get_c_trans(self) -> csr_array:
         trans_perms = self._spg_reps.translation_permutations

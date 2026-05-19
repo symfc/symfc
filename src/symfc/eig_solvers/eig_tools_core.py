@@ -10,8 +10,8 @@ import scipy
 from numpy.typing import NDArray
 from scipy.sparse import csr_array
 
-from symfc.utils.graph import connected_components
-from symfc.utils.matrix import (
+from symfc.eig_solvers.graph import connected_components
+from symfc.eig_solvers.matrix import (
     BlockMatrixNode,
     matrix_rank,
     return_numpy_array,
@@ -50,20 +50,25 @@ class EigenvectorResult:
         """Return eigenvectors in BlockMatrixNode."""
         if self.eigvecs is None:
             return None
+
         if isinstance(self.eigvecs, BlockMatrixNode):
-            return self.eigvecs
+            if self.compress is None:
+                return self.eigvecs
+            data = self.eigvecs.recover()
+        else:
+            data = self.eigvecs
 
         if self.compress is not None:
             row_shape = self.compress.shape[0]
         else:
-            row_shape = self.eigvecs.shape[0]
-        col_shape = self.eigvecs.shape[1]
+            row_shape = data.shape[0]
+        col_shape = data.shape[1]
 
         block = BlockMatrixNode(
             rows=np.arange(row_shape),
             col_begin=0,
             col_end=col_shape,
-            data=self.eigvecs,
+            data=data,
             compress=self.compress,
         )
         return block

@@ -5,12 +5,12 @@ from __future__ import annotations
 import numpy as np
 from scipy.sparse import csr_array
 
-from symfc.spg_reps import SpgRepsO2
-from symfc.utils.eig_tools import (
+from symfc.eig_solvers.api_eig_tools import (
     eigsh_projector,
     eigsh_projector_sumrule,
 )
-from symfc.utils.matrix import BlockMatrixNode
+from symfc.eig_solvers.matrix import BlockMatrixNode
+from symfc.spg_reps import SpgRepsO2
 
 try:
     from symfc.utils.matrix import dot_product_sparse
@@ -121,7 +121,7 @@ class FCBasisSetO2(FCBasisSetBase):
         n_lp = self.translation_permutations.shape[0]
         return self._n_a_compression_matrix / np.sqrt(n_lp)
 
-    def run(self, rotational_sum_rules: bool = False) -> FCBasisSetO2:
+    def run(self) -> FCBasisSetO2:
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
 
@@ -136,38 +136,45 @@ class FCBasisSetO2(FCBasisSetBase):
             fc_cutoff=self._fc_cutoff,
             atomic_decompr_idx=self._atomic_decompr_idx,
             c_pt=c_pt,
-            # verbose=self._log_level > 0,
         )
         c_rpt = eigsh_projector(proj_rpt, verbose=self._log_level > 0)
         n_a_compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
+        self._n_a_compression_matrix = n_a_compress_mat
 
+        self.compute_blocked_basis_set()
+
+        return self
+
+    def compute_blocked_basis_set(self) -> FCBasisSetO2:
+        """Compute blocked basis set."""
+        if self._n_a_compression_matrix is None:
+            raise RuntimeError("Compression matrix not found.")
+
+        trans_perms = self._spg_reps.translation_permutations
         proj = compressed_projector_sum_rules_O2(
             trans_perms,
-            n_a_compress_mat,
+            self._n_a_compression_matrix,
             atomic_decompr_idx=self._atomic_decompr_idx,
             fc_cutoff=self._fc_cutoff,
             use_mkl=self._use_mkl,
-            # verbose=self._log_level > 0,
         )
 
+        # TODO: Consider about rotational invariants (now disabled)
+        rotational_sum_rules = False
         if rotational_sum_rules:
             proj_rot_cmplt = complementary_compr_projector_rot_sum_rules_O2(
                 self._supercell,
                 trans_perms,
-                n_a_compress_mat,
+                self._n_a_compress_mat,
                 use_mkl=self._use_mkl,
             )
             proj -= proj_rot_cmplt
 
-        eigvecs = eigsh_projector_sumrule(
+        self._blocked_basis_set = eigsh_projector_sumrule(
             proj,
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )
-
-        self._blocked_basis_set = eigvecs
-        self._n_a_compression_matrix = n_a_compress_mat
-
         return self
 
     def estimate_basis_size(self) -> int:

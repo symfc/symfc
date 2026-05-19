@@ -4,9 +4,9 @@ import numpy as np
 import pytest
 from scipy.sparse import csr_array
 
-from symfc.solvers.solver_O2 import reshape_nN33_nx_to_N3_n3nx
-from symfc.solvers.solver_O2O3 import (
-    reshape_nNN333_nx_to_N3N3_n3nx,
+from symfc.utils.solver_utils_O2 import _reshape_nN33_nx_to_N3_n3nx
+from symfc.utils.solver_utils_O3 import (
+    _reshape_nNN333_nx_to_N3N3_n3nx,
     set_disps_N3N3,
 )
 
@@ -20,7 +20,7 @@ def test_reshape_O2():
     col = [21, 15, 17, 17, 3, 7]
     data = [1, 2, 4, 3, 6, 5]
     mat = csr_array((data, (row, col)), shape=(n * N * 9, nx), dtype=int)
-    mat_reshape = reshape_nN33_nx_to_N3_n3nx(mat, N, n)
+    mat_reshape = _reshape_nN33_nx_to_N3_n3nx(mat, N, n)
     row_reshape, col_reshape = mat_reshape.nonzero()
     assert mat_reshape.shape == (90, 1035)
     np.testing.assert_array_equal(row_reshape, [7, 14, 30, 32, 39, 81])
@@ -38,7 +38,7 @@ def test_reshape_O3():
     data = [1, 2, 4, 3, 6, 5]
     mat = csr_array((data, (row, col)), shape=(n * N * N * 27, nx), dtype=int)
 
-    mat_reshape = reshape_nNN333_nx_to_N3N3_n3nx(mat, N, n)
+    mat_reshape = _reshape_nNN333_nx_to_N3N3_n3nx(mat, N, n)
     row_reshape, col_reshape = mat_reshape.nonzero()
     assert mat_reshape.shape == (144, 138)
     np.testing.assert_array_equal(row_reshape, [21, 53, 60, 75, 125, 127])

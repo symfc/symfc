@@ -11,6 +11,12 @@ from numpy.typing import NDArray
 from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetBase, FCBasisSetO2, FCBasisSetO3, FCBasisSetO4
+from symfc.eig_solvers.api_eig_tools import (
+    eigh_projector,
+    eigsh_projector,
+    eigsh_projector_sumrule,
+)
+from symfc.eig_solvers.matrix import BlockMatrixNode
 from symfc.solvers import (
     FCSolverO2,
     FCSolverO2O3,
@@ -20,12 +26,6 @@ from symfc.solvers import (
     FCSolverO4,
     FCSparseSolverO2,
 )
-from symfc.utils.eig_tools import (
-    eigh_projector,
-    eigsh_projector,
-    eigsh_projector_sumrule,
-)
-from symfc.utils.matrix import BlockMatrixNode
 from symfc.utils.utils import SymfcAtoms
 
 
@@ -220,7 +220,11 @@ class Symfc:
         if (
             self._displacements is not None and self._forces is not None
         ) or self.use_fd:
-            self.compute_basis_set(max_order=max_order, orders=orders)
+            self.compute_basis_set(
+                max_order=max_order,
+                orders=orders,
+                apply_sum_rule=False,
+            )
             self.solve(
                 max_order=max_order,
                 orders=orders,
@@ -355,16 +359,14 @@ class Symfc:
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
             ).solve(self._displacements, self._forces)
+
             if is_compact_fc:
-                if solver_o2.compact_fc is not None:
-                    self._force_constants[2] = solver_o2.compact_fc
-                else:
-                    raise RuntimeError("Failed to obtain compact force constants")
+                fc = solver_o2.compact_fc
             else:
-                if solver_o2.full_fc is not None:
-                    self._force_constants[2] = solver_o2.full_fc
-                else:
-                    raise RuntimeError("Failed to obtain full force constants")
+                fc = solver_o2.full_fc
+            if fc is None:
+                raise RuntimeError("Failed to obtain force constants")
+            self._force_constants[2] = fc
         elif _orders == (3,):
             basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
             solver_o3 = FCSolverO3(
@@ -373,15 +375,12 @@ class Symfc:
                 log_level=self._log_level,
             ).solve(self._displacements, self._forces)
             if is_compact_fc:
-                if solver_o3.compact_fc is not None:
-                    self._force_constants[3] = solver_o3.compact_fc
-                else:
-                    raise RuntimeError("Failed to obtain compact force constants")
+                fc = solver_o3.compact_fc
             else:
-                if solver_o3.full_fc is not None:
-                    self._force_constants[3] = solver_o3.full_fc
-                else:
-                    raise RuntimeError("Failed to obtain full force constants")
+                fc = solver_o3.full_fc
+            if fc is None:
+                raise RuntimeError("Failed to obtain force constants")
+            self._force_constants[3] = fc
         elif _orders == (4,):
             basis_set_o4: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[4])
             solver_o4 = FCSolverO4(
@@ -390,15 +389,12 @@ class Symfc:
                 log_level=self._log_level,
             ).solve(self._displacements, self._forces)
             if is_compact_fc:
-                if solver_o4.compact_fc is not None:
-                    self._force_constants[4] = solver_o4.compact_fc
-                else:
-                    raise RuntimeError("Failed to obtain compact force constants")
+                fc = solver_o4.compact_fc
             else:
-                if solver_o4.full_fc is not None:
-                    self._force_constants[4] = solver_o4.full_fc
-                else:
-                    raise RuntimeError("Failed to obtain full force constants")
+                fc = solver_o4.full_fc
+            if fc is None:
+                raise RuntimeError("Failed to obtain force constants")
+            self._force_constants[4] = fc
         elif _orders == (2, 3):
             basis_set_o2: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[2])
             basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
@@ -407,12 +403,15 @@ class Symfc:
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
             ).solve(self._displacements, self._forces, batch_size=batch_size)
-            if is_compact_fc and solver_o2o3.compact_fc is not None:
-                fc2, fc3 = solver_o2o3.compact_fc
-            elif solver_o2o3.full_fc is not None:
-                fc2, fc3 = solver_o2o3.full_fc
+
+            if is_compact_fc:
+                fc_tuple = solver_o2o3.compact_fc
             else:
+                fc_tuple = solver_o2o3.full_fc
+            if fc_tuple is None:
                 raise RuntimeError("Failed to obtain force constants")
+
+            fc2, fc3 = fc_tuple
             self._force_constants[2] = fc2
             self._force_constants[3] = fc3
         elif _orders == (3, 4):
@@ -423,12 +422,15 @@ class Symfc:
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
             ).solve(self._displacements, self._forces, batch_size=batch_size)
-            if is_compact_fc and solver_o3o4.compact_fc is not None:
-                fc3, fc4 = solver_o3o4.compact_fc
-            elif solver_o3o4.full_fc is not None:
-                fc3, fc4 = solver_o3o4.full_fc
+
+            if is_compact_fc:
+                fc_tuple = solver_o3o4.compact_fc
             else:
+                fc_tuple = solver_o3o4.full_fc
+            if fc_tuple is None:
                 raise RuntimeError("Failed to obtain force constants")
+
+            fc3, fc4 = fc_tuple
             self._force_constants[3] = fc3
             self._force_constants[4] = fc4
         elif _orders == (2, 3, 4):
@@ -440,12 +442,15 @@ class Symfc:
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
             ).solve(self._displacements, self._forces, batch_size=batch_size)
-            if is_compact_fc and solver_o2o3o4.compact_fc is not None:
-                fc2, fc3, fc4 = solver_o2o3o4.compact_fc
-            elif solver_o2o3o4.full_fc is not None:
-                fc2, fc3, fc4 = solver_o2o3o4.full_fc
+
+            if is_compact_fc:
+                fc_tuple = solver_o2o3o4.compact_fc
             else:
+                fc_tuple = solver_o2o3o4.full_fc
+            if fc_tuple is None:
                 raise RuntimeError("Failed to obtain force constants")
+
+            fc2, fc3, fc4 = fc_tuple
             self._force_constants[2] = fc2
             self._force_constants[3] = fc3
             self._force_constants[4] = fc4
@@ -456,6 +461,7 @@ class Symfc:
         self,
         max_order: int | None = None,
         orders: list | None = None,
+        apply_sum_rule: bool = True,
     ) -> Symfc:
         """Run basis set calculations.
 
@@ -465,6 +471,8 @@ class Symfc:
             Maximum fc order.
         orders: list
             Orders of force constants.
+        apply_sum_rule: bool
+            Consider translational sum rule or not.
         """
         for order in self._check_orders(max_order, orders):
             if order == 2:
@@ -483,7 +491,7 @@ class Symfc:
                     cutoff=self._cutoff[3],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
-                ).run()
+                ).run(apply_sum_rule=apply_sum_rule)
                 self._basis_set[3] = basis_set_o3
             elif order == 4:
                 basis_set_o4 = FCBasisSetO4(
@@ -492,7 +500,7 @@ class Symfc:
                     cutoff=self._cutoff[4],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
-                ).run()
+                ).run(apply_sum_rule=apply_sum_rule)
                 self._basis_set[4] = basis_set_o4
         return self
 
