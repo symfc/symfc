@@ -469,7 +469,7 @@ def solve_adam_O2O3(
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
     n_compr_fc3 = compact_compress_mat_fc3.shape[1]  # type: ignore
 
-    n_batch = (N // 10 + 1) * (n_compr_fc3 // 20000 + 1)
+    n_batch = (N // 20 + 1) * (n_compr_fc3 // 20000 + 1)
     n_batch = min(N, n_batch)
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
@@ -483,7 +483,6 @@ def solve_adam_O2O3(
     compact_compress_mat_fc3 *= const_fc3
 
     coefs = np.ones(n_compr)
-    learning_rate = 100
 
     directions_prev = None
     magnitudes_prev = None
@@ -494,6 +493,7 @@ def solve_adam_O2O3(
             print("-----", flush=True)
             print("Epoch:", i_epoch + 1, flush=True)
 
+        learning_rate = 100 / ((i_epoch + 1) * 10)
         error_all = []
         t1 = time.time()
         for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
@@ -547,7 +547,7 @@ def solve_adam_O2O3(
                     directions = grad
                     magnitudes = grad**2
 
-                normalized_directions = directions / np.sqrt(magnitudes)
+                normalized_directions = directions / (np.sqrt(magnitudes) + 1e-7)
                 coefs -= learning_rate * normalized_directions
 
                 directions_prev = directions
