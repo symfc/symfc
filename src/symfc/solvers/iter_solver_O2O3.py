@@ -9,16 +9,13 @@ from typing import Union, cast
 import numpy as np
 
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3
-from symfc.eig_solvers.matrix import (
-    BlockMatrixNode,
-    link_block_matrix_nodes,
-    root_block_matrix,
-)
 from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.solver_utils_O2 import reshape_compr_mat_O2
 from symfc.utils.solver_utils_O3 import (
-    reshape_compr_mat_O3,
+    calc_gradients_O3,
+    calc_predictions_O3,
     set_disps_N3N3,
+    slice_compact_compress_mat_O3,
 )
 
 try:
@@ -26,7 +23,7 @@ try:
 except ImportError:
     pass
 
-from .solver_O2O3 import FCSolverO2O3
+from .solver_O2O3 import FCSolverO2O3, _get_linked_compress_eigvecs
 
 
 class FCIterSolverO2O3(FCSolverO2O3):
@@ -102,180 +99,17 @@ class FCIterSolverO2O3(FCSolverO2O3):
         return self
 
 
-def _get_linked_compress_eigvecs(
-    compress_eigvecs_fc2: BlockMatrixNode,
-    compress_eigvecs_fc3: BlockMatrixNode,
-):
-    """Return linked compressed eigenvectors."""
-    shape2 = compress_eigvecs_fc2.shape
-    shape3 = compress_eigvecs_fc3.shape
-
-    _ = link_block_matrix_nodes(
-        compress_eigvecs_fc3,
-        compress_eigvecs_fc2,
-        rows=np.arange(shape2[0], shape2[0] + shape3[0]),
-        col_begin=shape2[1],
-    )
-    shape = (shape2[0] + shape3[0], shape2[1] + shape3[1])
-    compress_eigvecs = root_block_matrix(shape=shape, first_child=compress_eigvecs_fc3)
-    return compress_eigvecs
-
-
-def solve_sgd_O2O3(
-    disps: np.ndarray,
-    forces: np.ndarray,
-    fc2_basis: FCBasisSetO2,
-    fc3_basis: FCBasisSetO3,
-    batch_size: int = 100,
-    n_epoch: int = 1000,
-    use_mkl: bool = False,
-    verbose: bool = False,
-):
-    r"""Calculate X.T @ X and X.T @ y.
-
-    X = displacements @ compress_mat @ compress_eigvecs
-    X = np.hstack([X_fc2, X_fc3])
-
-    displacements (fc2): (n_samples, N3)
-    displacements (fc3): (n_samples, NN33)
-    compact_compress_mat_fc2: (n_aN33, n_compr)
-    compact_compress_mat_fc3: (n_aNN333, n_compr_fc3)
-    compress_eigvecs_fc2: (n_compr_fc2, n_basis_fc2)
-    compress_eigvecs_fc3: (n_compr_fc3, n_basis_fc3)
-    Matrix reshapings are appropriately applied to compress_mat
-    and its products.
-
-    X.T @ X and X.T @ y are sequentially calculated using divided dataset.
-    X.T @ X = \sum_i X_i.T @ X_i
-    X.T @ y = \sum_i X_i.T @ y_i (i: batch index)
-    """
-    N3 = disps.shape[1]
-    N = N3 // 3
-
-    compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
-    compact_compress_mat_fc3 = fc3_basis.compact_compression_matrix
-    atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
-    atomic_decompr_idx_fc3 = fc3_basis.atomic_decompr_idx
-
-    if compact_compress_mat_fc2 is None or compact_compress_mat_fc3 is None:
-        raise ValueError(
-            "Compression matrices or basis sets are not set. "
-            "Call run() method to compute them."
-        )
-
-    n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
-    n_compr_fc3 = compact_compress_mat_fc3.shape[1]  # type: ignore
-
-    n_batch = (N // 100 + 1) * (n_compr_fc3 // 20000 + 1)
-    n_batch = min(N, n_batch)
-    begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
-    begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
-
-    n_compr = n_compr_fc2 + n_compr_fc3
-
-    t_all1 = time.time()
-    const_fc2 = -1.0
-    const_fc3 = -0.5
-    compact_compress_mat_fc2 *= const_fc2
-    compact_compress_mat_fc3 *= const_fc3
-
-    coefs = np.ones(n_compr)
-    learning_rate = 100
-
-    rmse_prev = 1e10
-    for i_epoch in range(n_epoch):
-        if verbose:
-            print("-----", flush=True)
-            print("Epoch:", i_epoch + 1, flush=True)
-
-        error_all = []
-        for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
-            if verbose:
-                print("-----", flush=True)
-                print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
-            n_atom_batch = end_i - begin_i
-
-            t1 = time.time()
-            compr_mat_fc2 = reshape_compr_mat_O2(
-                compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
-            )
-            compr_mat_fc3 = reshape_compr_mat_O3(
-                compact_compress_mat_fc3, atomic_decompr_idx_fc3, N, begin_i, end_i
-            )
-            t2 = time.time()
-            if verbose:
-                time_pr = "{:.3f}".format(t2 - t1)
-                print("Time (Solver_compr_matrix_reshape):", time_pr, flush=True)
-
-            # TODO: Use structure index permutation.
-            t1 = time.time()
-            for begin, end in zip(begin_batch, end_batch, strict=True):
-                if verbose:
-                    print("Solver_block:", end, "/", disps.shape[0], flush=True)
-                X = np.zeros((n_atom_batch * 3 * (end - begin), n_compr))
-                ta = time.time()
-                X[:, :n_compr_fc2] = dot_product_sparse(
-                    disps[begin:end],
-                    compr_mat_fc2,
-                    use_mkl=use_mkl,
-                    dense=True,
-                ).reshape((-1, n_compr_fc2))
-                X[:, n_compr_fc2:] = dot_product_sparse(
-                    set_disps_N3N3(disps[begin:end], sparse=False),
-                    compr_mat_fc3,
-                    use_mkl=use_mkl,
-                    dense=True,
-                ).reshape((-1, n_compr_fc3))
-                tb = time.time()
-                y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
-
-                error = X @ coefs - y
-                grad = X.T @ error
-                coefs -= learning_rate * grad
-                error_all.extend(error)
-                tc = time.time()
-                print(tb - ta, tc - tb)
-
-            t2 = time.time()
-            if verbose:
-                print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
-
-        error_all = np.array(error_all)
-        rmse = np.sqrt(np.mean(error_all**2))
-        if verbose:
-            print("RMSE:", rmse, flush=True)
-
-        if np.abs(rmse - rmse_prev) < 1e-8:
-            break
-        rmse_prev = rmse
-
-    compress_eigvecs = _get_linked_compress_eigvecs(
-        fc2_basis.blocked_basis_set,
-        fc3_basis.blocked_basis_set,
-    )
-    coefs = compress_eigvecs.T @ coefs
-
-    fc2_basis.blocked_basis_set.reset_indices()
-    fc3_basis.blocked_basis_set.reset_indices()
-    compact_compress_mat_fc2 /= const_fc2
-    compact_compress_mat_fc3 /= const_fc3
-    t_all2 = time.time()
-    if verbose:
-        header = "Time (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):"
-        print(header, "{:.3f}".format(t_all2 - t_all1), flush=True)
-    return coefs
-
-
 def solve_adam_O2O3(
     disps: np.ndarray,
     forces: np.ndarray,
     fc2_basis: FCBasisSetO2,
     fc3_basis: FCBasisSetO3,
     batch_size: int = 100,
-    n_epoch: int = 1000,
+    n_epochs: int = 1000,
     beta1: float = 0.9,
     beta2: float = 0.999,
     tol_rmse: float = 1e-10,
+    eps_grad: float = 1e-14,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
@@ -295,8 +129,6 @@ def solve_adam_O2O3(
     """
     N3 = disps.shape[1]
     N = N3 // 3
-    NN = N * N
-    NN33 = N3 * N3
 
     compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
     compact_compress_mat_fc3 = fc3_basis.compact_compression_matrix
@@ -312,12 +144,13 @@ def solve_adam_O2O3(
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
     n_compr_fc3 = compact_compress_mat_fc3.shape[1]  # type: ignore
 
-    n_batch = (N // 20 + 1) * (n_compr_fc3 // 20000 + 1)
+    n_batch = (N // 10 + 1) * (n_compr_fc3 // 20000 + 1)
     n_batch = min(N, n_batch)
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
 
     n_compr = n_compr_fc2 + n_compr_fc3
+    coefs = np.zeros(n_compr)
 
     t_all1 = time.time()
     const_fc2 = -1.0
@@ -325,13 +158,9 @@ def solve_adam_O2O3(
     compact_compress_mat_fc2 *= const_fc2
     compact_compress_mat_fc3 *= const_fc3
 
-    coefs = np.zeros(n_compr)
-
-    directions_prev = None
-    magnitudes_prev = None
-
-    rmse_prev = 1e10
-    for i_epoch in range(n_epoch):
+    grad_prev, magn_prev = None, None
+    rmse_prev = np.inf
+    for i_epoch in range(n_epochs):
         if verbose:
             print("-----", flush=True)
             print("Epoch:", i_epoch + 1, flush=True)
@@ -345,17 +174,13 @@ def solve_adam_O2O3(
             if verbose:
                 print("-----", flush=True)
                 print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
-            n_atom_batch = end_i - begin_i
 
             compr_mat_fc2 = reshape_compr_mat_O2(
                 compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
             )
-
-            decompr_idx_fc3 = (
-                atomic_decompr_idx_fc3[begin_i * NN : end_i * NN, None] * 27
-                + np.arange(27)[None, :]
-            ).reshape(-1)
-            compr_mat_fc3_T = compact_compress_mat_fc3[decompr_idx_fc3].T
+            decompr_idx_fc3, compr_mat_fc3 = slice_compact_compress_mat_O3(
+                compact_compress_mat_fc3, atomic_decompr_idx_fc3, N, begin_i, end_i
+            )
 
             for begin, end in zip(begin_batch, end_batch, strict=True):
                 if verbose:
@@ -364,6 +189,7 @@ def solve_adam_O2O3(
                 dispN3N3 = set_disps_N3N3(disps[begin:end], sparse=False)
                 y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
 
+                # Calculate pred = [X2, X3] @ coefs.
                 # t11 = time.time()
                 X2 = dot_product_sparse(
                     disps[begin:end],
@@ -372,41 +198,39 @@ def solve_adam_O2O3(
                     dense=True,
                 ).reshape((-1, n_compr_fc2))
                 pred2 = X2 @ coefs[:n_compr_fc2]
-
-                prod = compact_compress_mat_fc3 @ coefs[n_compr_fc2:]
-                prod = prod[decompr_idx_fc3].reshape(-1, N, N, 3, 3, 3)
-                prod = prod.transpose(1, 4, 2, 5, 0, 3).reshape(NN33, -1)
-                pred3 = (dispN3N3 @ prod).reshape(-1)
-                # t12 = time.time()
-
+                pred3 = calc_predictions_O3(
+                    compact_compress_mat_fc3,
+                    decompr_idx_fc3,
+                    N,
+                    coefs[n_compr_fc2:],
+                    dispN3N3,
+                )
                 error = pred2 + pred3 - y
                 error_all.extend(error)
+                # t12 = time.time()
 
+                # Calculate grad = [X2, X3].T @ error.
                 grad2 = X2.T @ error
-
-                prod = dispN3N3.T @ error.reshape((-1, n_atom_batch * 3))
-                prod = prod.reshape(N, 3, N, 3, n_atom_batch, 3)
-                prod = prod.transpose(4, 0, 2, 5, 1, 3).reshape(-1)
-                grad3 = compr_mat_fc3_T @ prod
-
+                grad3 = calc_gradients_O3(
+                    compr_mat_fc3,
+                    N,
+                    error,
+                    dispN3N3,
+                )
                 grad = np.concatenate([grad2, grad3])
                 # t13 = time.time()
                 # print(t12-t11, t13-t12)
 
-                if directions_prev is not None:
-                    directions = beta1 * directions_prev + (1 - beta1) * grad
-                    magnitudes = beta2 * magnitudes_prev + (1 - beta2) * (grad**2)
-                else:
-                    directions = grad
-                    magnitudes = grad**2
-
                 # TODO: Tune epsilon
-                epsilon = 1e-12
-                normalized_directions = directions / (np.sqrt(magnitudes) + epsilon)
-                coefs -= learning_rate * normalized_directions
+                if grad_prev is not None:
+                    magn = beta2 * magn_prev + (1 - beta2) * (grad**2)
+                    grad = beta1 * grad_prev + (1 - beta1) * grad
+                else:
+                    magn = grad**2
+                magn[magn < eps_grad] = eps_grad
+                coefs -= learning_rate * (grad / np.sqrt(magn))
 
-                directions_prev = directions
-                magnitudes_prev = magnitudes
+                grad_prev, magn_prev = grad, magn
 
         t2 = time.time()
         if verbose:
