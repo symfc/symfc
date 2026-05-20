@@ -469,9 +469,9 @@ def solve_adam_O2O3(
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
     n_compr_fc3 = compact_compress_mat_fc3.shape[1]  # type: ignore
 
-    # n_batch = (N // 128 + 1) * (n_compr_fc3 // 20000 + 1)
-    # n_batch = min(N, n_batch)
-    # begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
+    n_batch = (N // 10 + 1) * (n_compr_fc3 // 20000 + 1)
+    n_batch = min(N, n_batch)
+    begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
     begin_batch, end_batch = get_batch_slice(disps.shape[0], batch_size)
 
     n_compr = n_compr_fc2 + n_compr_fc3
@@ -483,24 +483,10 @@ def solve_adam_O2O3(
     compact_compress_mat_fc3 *= const_fc3
 
     coefs = np.ones(n_compr)
-    learning_rate = 1000
+    learning_rate = 100
 
     directions_prev = None
     magnitudes_prev = None
-
-    t1 = time.time()
-    begin_i, end_i = 0, N
-    compr_mat_fc2 = reshape_compr_mat_O2(
-        compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
-    )
-    # compr_mat_fc3 = reshape_compr_mat_O3(
-    #     compact_compress_mat_fc3, atomic_decompr_idx_fc3, N, begin_i, end_i
-    # )
-    n_atom_batch = end_i - begin_i
-    t2 = time.time()
-    if verbose:
-        time_pr = "{:.3f}".format(t2 - t1)
-        print("Time (Solver_compr_matrix_reshape):", time_pr, flush=True)
 
     rmse_prev = 1e10
     for i_epoch in range(n_epoch):
@@ -510,55 +496,62 @@ def solve_adam_O2O3(
 
         error_all = []
         t1 = time.time()
-        for begin, end in zip(begin_batch, end_batch, strict=True):
+        for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
             if verbose:
-                print("Solver_block:", end, "/", disps.shape[0], flush=True)
+                print("-----", flush=True)
+                print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
+            n_atom_batch = end_i - begin_i
 
-            dispN3N3 = set_disps_N3N3(disps[begin:end], sparse=False)
-            y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
-
-            X2 = dot_product_sparse(
-                disps[begin:end],
-                compr_mat_fc2,
-                use_mkl=use_mkl,
-                dense=True,
-            ).reshape((-1, n_compr_fc2))
-            pred2 = X2 @ coefs[:n_compr_fc2]
-
-            # pred3 = np.zeros(pred2.shape[0])
-            # grad3 = np.ones(n_compr_fc3) * 1e-9
-
-            prod = compact_compress_mat_fc3 @ coefs[n_compr_fc2:]
-            prod = reshape_vec_O3(prod, atomic_decompr_idx_fc3, N, begin_i, end_i)
-            pred3 = (dispN3N3 @ prod).reshape(-1)
-
-            error = pred2 + pred3 - y
-            error_all.extend(error)
-
-            grad2 = X2.T @ error
-            prod = dispN3N3.T @ error.reshape((-1, n_atom_batch * 3))
-            grad3 = dot_O3(
-                compact_compress_mat_fc3,
-                atomic_decompr_idx_fc3,
-                prod,
-                N,
-                begin_i,
-                end_i,
+            compr_mat_fc2 = reshape_compr_mat_O2(
+                compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
             )
-            grad = np.concatenate([grad2, grad3])
 
-            if directions_prev is not None:
-                directions = beta1 * directions_prev + (1 - beta1) * grad
-                magnitudes = beta2 * magnitudes_prev + (1 - beta2) * (grad**2)
-            else:
-                directions = grad
-                magnitudes = grad**2
+            for begin, end in zip(begin_batch, end_batch, strict=True):
+                if verbose:
+                    print("Solver_block:", end, "/", disps.shape[0], flush=True)
 
-            normalized_directions = directions / np.sqrt(magnitudes)
-            coefs -= learning_rate * normalized_directions
+                dispN3N3 = set_disps_N3N3(disps[begin:end], sparse=False)
+                y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
 
-            directions_prev = directions
-            magnitudes_prev = magnitudes
+                X2 = dot_product_sparse(
+                    disps[begin:end],
+                    compr_mat_fc2,
+                    use_mkl=use_mkl,
+                    dense=True,
+                ).reshape((-1, n_compr_fc2))
+                pred2 = X2 @ coefs[:n_compr_fc2]
+
+                prod = compact_compress_mat_fc3 @ coefs[n_compr_fc2:]
+                prod = reshape_vec_O3(prod, atomic_decompr_idx_fc3, N, begin_i, end_i)
+                pred3 = (dispN3N3 @ prod).reshape(-1)
+
+                error = pred2 + pred3 - y
+                error_all.extend(error)
+
+                grad2 = X2.T @ error
+                prod = dispN3N3.T @ error.reshape((-1, n_atom_batch * 3))
+                grad3 = dot_O3(
+                    compact_compress_mat_fc3,
+                    atomic_decompr_idx_fc3,
+                    prod,
+                    N,
+                    begin_i,
+                    end_i,
+                )
+                grad = np.concatenate([grad2, grad3])
+
+                if directions_prev is not None:
+                    directions = beta1 * directions_prev + (1 - beta1) * grad
+                    magnitudes = beta2 * magnitudes_prev + (1 - beta2) * (grad**2)
+                else:
+                    directions = grad
+                    magnitudes = grad**2
+
+                normalized_directions = directions / np.sqrt(magnitudes)
+                coefs -= learning_rate * normalized_directions
+
+                directions_prev = directions
+                magnitudes_prev = magnitudes
 
         t2 = time.time()
         if verbose:
@@ -569,7 +562,7 @@ def solve_adam_O2O3(
         if verbose:
             print("RMSE:", rmse, flush=True)
 
-        if np.abs(rmse) < 1e-5:
+        if np.abs(rmse) < 1e-6:
             break
         if np.abs(rmse - rmse_prev) < tol_rmse:
             break
