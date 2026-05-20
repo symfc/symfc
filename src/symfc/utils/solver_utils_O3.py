@@ -81,3 +81,61 @@ def set_disps_N3N3(disps, sparse=False):
     if sparse:
         return csr_array(disps_2nd)
     return disps_2nd
+
+
+def _reshape(vec: NDArray, N: int, n: int) -> csr_array:
+    """Reorder and reshape a numpy vector (nNN333)->(N3N3,n3).
+
+    Return reordered numpy array used for iterative FC3 solver.
+    """
+    n3 = n * 3
+    vec = np.array(vec)
+    mat = vec.reshape(n, N, N, 3, 3, 3)
+    return mat.transpose(1, 3, 2, 4, 0, 5).reshape((-1, n3))
+
+
+def reshape_vec_O3(
+    vec: csr_array,
+    atomic_decompr_idx_fc3: NDArray,
+    N: int,
+    atom_idx_begin: int,
+    atom_idx_end: int,
+) -> csr_array:
+    """Reorder and reshape a sparse matrix (nNN333,nx)->(N3N3,n3nx).
+
+    Return reordered csr_matrix used for FC3.
+    """
+    NN = N * N
+    n_atom_batch = atom_idx_end - atom_idx_begin
+    decompr_idx = (
+        atomic_decompr_idx_fc3[atom_idx_begin * NN : atom_idx_end * NN, None] * 27
+        + np.arange(27)[None, :]
+    ).reshape(-1)
+    reshape_vec = _reshape(vec[decompr_idx], N, n_atom_batch)
+
+    return reshape_vec
+
+
+def dot_O3(
+    compact_compress_mat_fc3: csr_array,
+    atomic_decompr_idx_fc3: NDArray,
+    prod_fc3: NDArray,
+    N: int,
+    atom_idx_begin: int,
+    atom_idx_end: int,
+) -> csr_array:
+    """Reorder and reshape a sparse matrix (nNN333,nx)->(N3N3,n3nx).
+
+    Return reordered csr_matrix used for FC3.
+    """
+    NN = N * N
+    n_atom_batch = atom_idx_end - atom_idx_begin
+    decompr_idx = (
+        atomic_decompr_idx_fc3[atom_idx_begin * NN : atom_idx_end * NN, None] * 27
+        + np.arange(27)[None, :]
+    ).reshape(-1)
+
+    compr_mat = compact_compress_mat_fc3[decompr_idx]
+    prod_fc3 = prod_fc3.reshape(N, 3, N, 3, n_atom_batch, 3)
+    vec = prod_fc3.transpose(4, 0, 2, 5, 1, 3).reshape(-1)
+    return compr_mat.T @ vec
