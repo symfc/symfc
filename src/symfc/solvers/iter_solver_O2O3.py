@@ -525,20 +525,22 @@ def solve_adam_O2O3(
             ).reshape((-1, n_compr_fc2))
             pred2 = X2 @ coefs[:n_compr_fc2]
 
-            vec1 = (compact_compress_mat_fc3 @ coefs[n_compr_fc2:]).reshape(-1, 1)
-            mat1 = reshape_vec_O3(vec1, atomic_decompr_idx_fc3, N, begin_i, end_i)
-            pred3 = dispN3N3 @ mat1
-            pred3 = pred3.reshape(-1)
+            # pred3 = np.zeros(pred2.shape[0])
+            # grad3 = np.ones(n_compr_fc3) * 1e-9
+
+            prod = compact_compress_mat_fc3 @ coefs[n_compr_fc2:]
+            prod = reshape_vec_O3(prod, atomic_decompr_idx_fc3, N, begin_i, end_i)
+            pred3 = (dispN3N3 @ prod).reshape(-1)
 
             error = pred2 + pred3 - y
             error_all.extend(error)
 
             grad2 = X2.T @ error
-            mat1 = dispN3N3.T @ error.reshape((-1, n_atom_batch * 3))
+            prod = dispN3N3.T @ error.reshape((-1, n_atom_batch * 3))
             grad3 = dot_O3(
                 compact_compress_mat_fc3,
                 atomic_decompr_idx_fc3,
-                mat1,
+                prod,
                 N,
                 begin_i,
                 end_i,

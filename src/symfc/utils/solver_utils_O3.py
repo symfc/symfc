@@ -91,11 +91,11 @@ def _reshape(vec: NDArray, N: int, n: int) -> csr_array:
     n3 = n * 3
     vec = np.array(vec)
     mat = vec.reshape(n, N, N, 3, 3, 3)
-    return mat.transpose(1, 3, 2, 4, 0, 5).reshape((-1, n3))
+    return mat.transpose(1, 4, 2, 5, 0, 3).reshape((-1, n3))
 
 
 def reshape_vec_O3(
-    vec: csr_array,
+    vec: NDArray,
     atomic_decompr_idx_fc3: NDArray,
     N: int,
     atom_idx_begin: int,
