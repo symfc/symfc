@@ -204,6 +204,7 @@ class Symfc:
         orders: list | None = None,
         is_compact_fc: bool = True,
         batch_size: int = 100,
+        use_gradient_solver: bool = False,
     ) -> Symfc:
         """Run basis set and force constants calculation.
 
@@ -231,6 +232,7 @@ class Symfc:
                 orders=orders,
                 is_compact_fc=is_compact_fc,
                 batch_size=batch_size,
+                use_gradient_solver=use_gradient_solver,
             )
         return self
 
@@ -245,6 +247,7 @@ class Symfc:
         orders: list | None = None,
         is_compact_fc: bool = True,
         batch_size: int = 100,
+        use_gradient_solver: bool = False,
     ) -> Symfc:
         """Calculate force constants.
 
@@ -258,6 +261,8 @@ class Symfc:
             Return compact force constants.
         batch_size : int, optional
             Batch size in solvers, by default 100.
+        use_gradient_solver: bool
+            Use gradient-based solver.
         """
         if self.use_fd:
             self.solve_sparse(
@@ -271,6 +276,7 @@ class Symfc:
                 orders=orders,
                 is_compact_fc=is_compact_fc,
                 batch_size=batch_size,
+                use_gradient_solver=use_gradient_solver,
             )
         return self
 
