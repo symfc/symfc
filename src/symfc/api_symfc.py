@@ -265,6 +265,8 @@ class Symfc:
             Use gradient-based solver.
         """
         if self.use_fd:
+            if use_gradient_solver:
+                raise RuntimeError("Gradient-based solver not implemented.")
             self.solve_sparse(
                 max_order=max_order,
                 orders=orders,
@@ -363,6 +365,8 @@ class Symfc:
             raise RuntimeError("Forces not found.")
 
         if _orders == (2,):
+            if use_gradient_solver:
+                raise RuntimeError("Gradient-based solver not implemented.")
             basis_set_o2: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[2])
             solver_o2 = FCSolverO2(
                 basis_set_o2,
@@ -378,6 +382,9 @@ class Symfc:
                 raise RuntimeError("Failed to obtain force constants")
             self._force_constants[2] = fc
         elif _orders == (3,):
+            if use_gradient_solver:
+                raise RuntimeError("Gradient-based solver not implemented.")
+
             basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
             solver_o3 = FCSolverO3(
                 basis_set_o3,
@@ -392,6 +399,9 @@ class Symfc:
                 raise RuntimeError("Failed to obtain force constants")
             self._force_constants[3] = fc
         elif _orders == (4,):
+            if use_gradient_solver:
+                raise RuntimeError("Gradient-based solver not implemented.")
+
             basis_set_o4: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[4])
             solver_o4 = FCSolverO4(
                 basis_set_o4,
@@ -432,6 +442,8 @@ class Symfc:
             self._force_constants[2] = fc2
             self._force_constants[3] = fc3
         elif _orders == (3, 4):
+            if use_gradient_solver:
+                raise RuntimeError("Gradient-based solver not implemented.")
             basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
             basis_set_o4: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[4])
             solver_o3o4 = FCSolverO3O4(
@@ -451,6 +463,8 @@ class Symfc:
             self._force_constants[3] = fc3
             self._force_constants[4] = fc4
         elif _orders == (2, 3, 4):
+            if use_gradient_solver:
+                raise RuntimeError("Gradient-based solver not implemented.")
             basis_set_o2: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[2])
             basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
             basis_set_o4: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[4])
