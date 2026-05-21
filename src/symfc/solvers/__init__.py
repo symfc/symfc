@@ -1,6 +1,6 @@
 """Force constants solvers."""
 
-from .iter_solver_O2O3 import FCIterSolverO2O3
+from .grad_solver_O2O3 import FCGradSolverO2O3
 from .solver_base import FCSolverBase
 from .solver_O2 import FCSolverO2
 from .solver_O2O3 import FCSolverO2O3
@@ -19,5 +19,5 @@ __all__ = [
     "FCSolverO4",
     "FCSolverO3O4",
     "FCSparseSolverO2",
-    "FCIterSolverO2O3",
+    "FCGradSolverO2O3",
 ]

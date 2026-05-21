@@ -18,7 +18,7 @@ from symfc.eig_solvers.api_eig_tools import (
 )
 from symfc.eig_solvers.matrix import BlockMatrixNode
 from symfc.solvers import (
-    FCIterSolverO2O3,
+    FCGradSolverO2O3,
     FCSolverO2,
     FCSolverO2O3,
     FCSolverO2O3O4,
@@ -331,7 +331,7 @@ class Symfc:
         orders: list | None = None,
         is_compact_fc: bool = True,
         batch_size: int = 100,
-        use_gradient_solver: bool = True,
+        use_gradient_solver: bool = False,
     ) -> Symfc:
         """Calculate force constants.
 
@@ -345,6 +345,8 @@ class Symfc:
             Return compact force constants.
         batch_size : int, optional
             Batch size in solvers, by default 100.
+        use_gradient_solver: bool
+            Use gradient-based solver.
         """
         self._check_dataset()
         _orders = self._check_orders(max_order, orders)
@@ -401,7 +403,7 @@ class Symfc:
             basis_set_o2: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[2])
             basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
             if use_gradient_solver:
-                solver_o2o3 = FCIterSolverO2O3(
+                solver_o2o3 = FCGradSolverO2O3(
                     [basis_set_o2, basis_set_o3],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,

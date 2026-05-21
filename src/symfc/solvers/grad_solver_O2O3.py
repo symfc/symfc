@@ -26,8 +26,8 @@ except ImportError:
 from .solver_O2O3 import FCSolverO2O3, _get_linked_compress_eigvecs
 
 
-class FCIterSolverO2O3(FCSolverO2O3):
-    """Simultaneous second and third order force constants solver."""
+class FCGradSolverO2O3(FCSolverO2O3):
+    """Simultaneous second and third order force constants solver using gradients."""
 
     def __init__(
         self,
@@ -54,7 +54,7 @@ class FCIterSolverO2O3(FCSolverO2O3):
         displacements: np.ndarray,
         forces: np.ndarray,
         batch_size: int = 100,
-    ) -> FCIterSolverO2O3:
+    ) -> FCGradSolverO2O3:
         """Solve force constants using a gradient solver.
 
         Note
