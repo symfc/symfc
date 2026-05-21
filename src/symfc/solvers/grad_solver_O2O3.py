@@ -105,7 +105,7 @@ def solve_adam_O2O3(
     fc2_basis: FCBasisSetO2,
     fc3_basis: FCBasisSetO3,
     batch_size: int = 100,
-    n_epochs: int = 1000,
+    n_epochs: int = 10000,
     beta1: float = 0.9,
     beta2: float = 0.999,
     tol_rmse: float = 1e-10,
@@ -161,16 +161,23 @@ def solve_adam_O2O3(
     grad_prev, magn_prev = None, None
     rmse_prev = np.inf
     for i_epoch in range(n_epochs):
+        eps_grad = 1e-10 / (i_epoch + 1) ** 2
+        learning_rate = min(rmse_prev * 1e4 / np.sqrt(i_epoch + 1), 1)
+        learning_rate = np.round(learning_rate, 5)
+
         if verbose:
             print("-----", flush=True)
             print("Epoch:", i_epoch + 1, flush=True)
+            print("- Learning rate:", learning_rate, flush=True)
 
-        # learning_rate = 100 / ((i_epoch + 1) * 10)
-        learning_rate = 1000
         t1 = time.time()
 
+        order_atom = np.arange(len(begin_batch_atom))
+        np.random.shuffle(order_atom)
         error_all = []
-        for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
+        for i_atom in order_atom:
+            begin_i = begin_batch_atom[i_atom]
+            end_i = end_batch_atom[i_atom]
             if verbose:
                 print("-----", flush=True)
                 print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
@@ -182,9 +189,13 @@ def solve_adam_O2O3(
                 compact_compress_mat_fc3, atomic_decompr_idx_fc3, N, begin_i, end_i
             )
 
-            for begin, end in zip(begin_batch, end_batch, strict=True):
-                if verbose:
-                    print("Solver_block:", end, "/", disps.shape[0], flush=True)
+            order_supercell = np.arange(len(begin_batch))
+            np.random.shuffle(order_supercell)
+            for i_supercell in order_supercell:
+                begin = begin_batch[i_supercell]
+                end = end_batch[i_supercell]
+                # if verbose:
+                #     print("Solver_block:", end, "/", disps.shape[0], flush=True)
 
                 dispN3N3 = set_disps_N3N3(disps[begin:end], sparse=False)
                 y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
@@ -221,15 +232,14 @@ def solve_adam_O2O3(
                 # t13 = time.time()
                 # print(t12-t11, t13-t12)
 
-                # TODO: Tune epsilon
                 if grad_prev is not None:
                     magn = beta2 * magn_prev + (1 - beta2) * (grad**2)
                     grad = beta1 * grad_prev + (1 - beta1) * grad
                 else:
                     magn = grad**2
-                magn[magn < eps_grad] = eps_grad
-                coefs -= learning_rate * (grad / np.sqrt(magn))
 
+                # TODO: Tune epsilon
+                coefs -= learning_rate * (grad / (np.sqrt(magn) + eps_grad))
                 grad_prev, magn_prev = grad, magn
 
         t2 = time.time()
@@ -241,11 +251,8 @@ def solve_adam_O2O3(
         if verbose:
             print("RMSE:", rmse, flush=True)
 
-        if np.abs(rmse) < 3e-5:
+        if np.abs(rmse) < 1e-5:
             break
-        if np.abs(rmse - rmse_prev) < tol_rmse:
-            break
-
         rmse_prev = rmse
 
     compress_eigvecs = _get_linked_compress_eigvecs(
