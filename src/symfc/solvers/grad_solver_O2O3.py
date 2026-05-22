@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import copy
 from collections.abc import Sequence
 from typing import Union, cast
 
@@ -106,10 +107,10 @@ def solve_adam_O2O3(
     fc3_basis: FCBasisSetO3,
     batch_size: int = 100,
     n_epochs: int = 10000,
-    beta1: float = 0.9,
+    beta1: float = 0.95,
     beta2: float = 0.999,
     tol_rmse: float = 1e-10,
-    eps_grad: float = 1e-14,
+    eps_grad: float = 1e-30,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
@@ -158,11 +159,11 @@ def solve_adam_O2O3(
     compact_compress_mat_fc2 *= const_fc2
     compact_compress_mat_fc3 *= const_fc3
 
-    grad_prev, magn_prev = None, None
-    rmse_prev = np.inf
+    grad_prev, magn_prev, coefs_prev = None, None, None
+    rmse = np.inf
     for i_epoch in range(n_epochs):
         eps_grad = 1e-10 / (i_epoch + 1) ** 2
-        learning_rate = min(rmse_prev * 1e4 / np.sqrt(i_epoch + 1), 1)
+        learning_rate = min(rmse * 1e4 / np.sqrt(i_epoch + 1), 1)
         learning_rate = np.round(learning_rate, 5)
 
         if verbose:
@@ -232,28 +233,48 @@ def solve_adam_O2O3(
                 # t13 = time.time()
                 # print(t12-t11, t13-t12)
 
+                print("Max Grad 2", max(np.abs(grad2)))
+                print("Max Grad 3", max(np.abs(grad3)))
                 if grad_prev is not None:
                     magn = beta2 * magn_prev + (1 - beta2) * (grad**2)
                     grad = beta1 * grad_prev + (1 - beta1) * grad
                 else:
                     magn = grad**2
 
+
                 # TODO: Tune epsilon
-                coefs -= learning_rate * (grad / (np.sqrt(magn) + eps_grad))
+                magn_sqrt = np.sqrt(magn)
+                magn_sqrt[magn_sqrt < eps_grad] = 1e100
+                coefs -= learning_rate * (grad / magn_sqrt)
+                # coefs -= learning_rate * (grad / (np.sqrt(magn) + eps_grad))
+                # coefs -= learning_rate * (grad / (np.sqrt(magn)))
+
                 grad_prev, magn_prev = grad, magn
 
         t2 = time.time()
         if verbose:
             print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
 
+        score = np.inf
+        if coefs_prev is not None:
+            d_coefs = (coefs - coefs_prev) / coefs_prev
+            score = np.linalg.norm(d_coefs) / np.sqrt(len(d_coefs))
+            if verbose:
+                print("FC Convergence Score:", score, flush=True)
+        coefs_prev = copy.deepcopy(coefs)
+
         error_all = np.array(error_all)
         rmse = np.sqrt(np.mean(error_all**2))
         if verbose:
-            print("RMSE:", rmse, flush=True)
+            print("RMSE (Force):", rmse, flush=True)
 
-        if np.abs(rmse) < 1e-5:
+        if max(np.abs(grad)) < 1e-8:
             break
-        rmse_prev = rmse
+
+        if score < 1e-3:
+            break
+        if np.abs(rmse) < 5e-6:
+            break
 
     compress_eigvecs = _get_linked_compress_eigvecs(
         fc2_basis.blocked_basis_set,
