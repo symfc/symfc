@@ -132,6 +132,10 @@ def solve_adam_O2O3(
     beta2 = beta ** 2 / (beta ** 2 + (1 - beta) **2)
     eps_grad = min(gtol_fc2, gtol_fc3)
 
+#    average_force = np.average(np.linalg.norm(forces.reshape((-1, 3)), axis=1))
+#    gtol_fc2 *= average_force / 0.1
+#    gtol_fc3 *= average_force / 0.1
+
     compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
     compact_compress_mat_fc3 = fc3_basis.compact_compression_matrix
     atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
@@ -161,28 +165,28 @@ def solve_adam_O2O3(
     compact_compress_mat_fc3 *= const_fc3
 
     grad_prev, magn_prev = np.zeros(n_compr), np.zeros(n_compr)
+    converge = False
     for i_epoch in range(n_epochs):
         t1 = time.time()
 
-        rate2 = max(min(1 / np.sqrt(i_epoch + 1), 10), 0.01)
-        rate3 = max(min(10 / np.sqrt(i_epoch + 1), 100), 0.01)
         if verbose:
             print("-----", flush=True)
             print("Epoch:", i_epoch + 1, flush=True)
+
+        rate = np.zeros(n_compr)
+        rate2 = max(min(3 / np.sqrt(i_epoch + 1), 1), 1e-5)
+        rate3 = max(min(30 / np.sqrt(i_epoch + 1), 10), 1e-3)
+        rate[:n_compr_fc2] = rate2
+        rate[n_compr_fc2:] = rate3
+        if verbose:
             print("- Learning rate (FC2):", "{:.5f}".format(rate2), flush=True)
             print("- Learning rate (FC3):", "{:.5f}".format(rate3), flush=True)
-        rate = np.ones(n_compr)
-        rate[:n_compr_fc2] *= rate2
-        rate[n_compr_fc2:] *= rate3
 
         error_all = []
-        converge_fc2, converge_fc3 = False, False
-
         order_atom = np.arange(len(begin_batch_atom))
         np.random.shuffle(order_atom)
         for i_atom in order_atom:
-            begin_i = begin_batch_atom[i_atom]
-            end_i = end_batch_atom[i_atom]
+            begin_i, end_i = begin_batch_atom[i_atom], end_batch_atom[i_atom]
             compr_mat_fc2 = reshape_compr_mat_O2(
                 compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
             )
@@ -193,10 +197,7 @@ def solve_adam_O2O3(
             order_supercell = np.arange(len(begin_batch))
             np.random.shuffle(order_supercell)
             for i_supercell in order_supercell:
-                begin = begin_batch[i_supercell]
-                end = end_batch[i_supercell]
-
-                dispN3N3 = set_disps_N3N3(disps[begin:end], sparse=False)
+                begin, end = begin_batch[i_supercell], end_batch[i_supercell]
                 y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
 
                 # Calculate pred = [X2, X3] @ coefs.
@@ -207,6 +208,8 @@ def solve_adam_O2O3(
                     dense=True,
                 ).reshape((-1, n_compr_fc2))
                 pred2 = X2 @ coefs[:n_compr_fc2]
+
+                dispN3N3 = set_disps_N3N3(disps[begin:end], sparse=False)
                 pred3 = calc_predictions_O3(
                     compact_compress_mat_fc3,
                     decompr_idx_fc3,
@@ -218,39 +221,26 @@ def solve_adam_O2O3(
                 error_all.extend(error)
 
                 # Calculate grad = [X2, X3].T @ error.
-                if converge_fc2:
-                    grad2 = np.zeros(n_compr_fc2)
-                else:
-                    grad2 = X2.T @ error
-                if converge_fc3:
-                    grad3 = np.zeros(n_compr_fc3)
-                else:
-                    grad3 = calc_gradients_O3(
-                        compr_mat_fc3,
-                        N,
-                        error,
-                        dispN3N3,
-                    )
+                grad2 = X2.T @ error
+                grad3 = calc_gradients_O3(
+                    compr_mat_fc3,
+                    N,
+                    error,
+                    dispN3N3,
+                )
 
                 grad_trial = np.concatenate([grad2, grad3])
                 magn = beta2 * magn_prev + (1 - beta2) * (grad_trial**2)
                 grad = beta * grad_prev + (1 - beta) * grad_trial
 
-                if not converge_fc2:    
-                    agrad2 = np.max(np.abs(grad[:n_compr_fc2])) 
-                    if agrad2 < gtol_fc2:
-                        converge_fc2 = True
-                if not converge_fc3:    
-                    agrad3 = np.max(np.abs(grad[n_compr_fc2:]))
-                    if agrad3 < gtol_fc3:
-                        converge_fc3 = True
+                agrad2 = np.max(np.abs(grad[:n_compr_fc2])) 
+                agrad3 = np.max(np.abs(grad[n_compr_fc2:]))
+                if agrad2 < gtol_fc2 and agrad3 < gtol_fc3:
+                    converge = True
+                    break
 
                 magn_sqrt = np.sqrt(magn)
                 magn_sqrt[magn_sqrt < eps_grad] = np.inf
-                if converge_fc2:
-                    magn_sqrt[:n_compr_fc2] = np.inf
-                if converge_fc3:
-                    magn_sqrt[:n_compr_fc3] = np.inf
                 coefs -= rate * grad / magn_sqrt
 
                 grad_prev, magn_prev = grad, magn
@@ -261,14 +251,12 @@ def solve_adam_O2O3(
             rmse_forces = np.sqrt(np.mean(error_all**2))
             print("- Time:              ", "{:.3f}".format(t2 - t1), "s", flush=True)
             print("- RMSE (Force):      ", "{:.5e}".format(rmse_forces), flush=True)
-            if not converge_fc2:
-                agrad2 = np.max(np.abs(grad[:n_compr_fc2])) 
-                print("- Max gradient (FC2):", "{:.5e}".format(agrad2), flush=True)
-            if not converge_fc3:
-                agrad3 = np.max(np.abs(grad[n_compr_fc2:]))
-                print("- Max gradient (FC3):", "{:.5e}".format(agrad3), flush=True)
+            agrad2 = np.max(np.abs(grad[:n_compr_fc2])) 
+            print("- Max gradient (FC2):", "{:.5e}".format(agrad2), flush=True)
+            agrad3 = np.max(np.abs(grad[n_compr_fc2:]))
+            print("- Max gradient (FC3):", "{:.5e}".format(agrad3), flush=True)
 
-        if converge_fc2 and converge_fc3:
+        if converge:
             break
 
     compress_eigvecs = _get_linked_compress_eigvecs(

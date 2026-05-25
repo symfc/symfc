@@ -18,6 +18,7 @@ from symfc.eig_solvers.api_eig_tools import (
 )
 from symfc.eig_solvers.matrix import BlockMatrixNode
 from symfc.solvers import (
+    FCGradSolverO2,
     FCGradSolverO2O3,
     FCSolverO2,
     FCSolverO2O3,
@@ -365,14 +366,19 @@ class Symfc:
             raise RuntimeError("Forces not found.")
 
         if _orders == (2,):
-            if use_gradient_solver:
-                raise RuntimeError("Gradient-based solver not implemented.")
             basis_set_o2: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[2])
-            solver_o2 = FCSolverO2(
-                basis_set_o2,
-                use_mkl=self._use_mkl,
-                log_level=self._log_level,
-            ).solve(self._displacements, self._forces)
+            if use_gradient_solver:
+                solver_o2 = FCGradSolverO2(
+                    basis_set_o2,
+                    use_mkl=self._use_mkl,
+                    log_level=self._log_level,
+                ).solve(self._displacements, self._forces)
+            else:
+                solver_o2 = FCSolverO2(
+                    basis_set_o2,
+                    use_mkl=self._use_mkl,
+                    log_level=self._log_level,
+                ).solve(self._displacements, self._forces)
 
             if is_compact_fc:
                 fc = solver_o2.compact_fc
