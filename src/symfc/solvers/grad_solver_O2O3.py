@@ -107,7 +107,7 @@ def solve_adam_O2O3(
     fc3_basis: FCBasisSetO3,
     batch_size: int = 100,
     n_epochs: int = 10000,
-    beta1: float = 0.9,
+    beta1: float = 0.95,
     beta2: float = 0.999,
     tol_rmse: float = 1e-10,
     gtol_fc2: float = 1e-5,
@@ -175,7 +175,7 @@ def solve_adam_O2O3(
         t1 = time.time()
 
         error_all = []
-        converge = True
+        converge = False
 
         order_atom = np.arange(len(begin_batch_atom))
         np.random.shuffle(order_atom)
@@ -238,10 +238,20 @@ def solve_adam_O2O3(
                 else:
                     magn = grad**2
 
-                if max(np.abs(grad2)) > gtol_fc2:
-                    converge = False
-                if max(np.abs(grad3)) > gtol_fc3:
-                    converge = False
+                agrad2 = np.max(np.abs(grad2)) 
+                agrad3 = np.max(np.abs(grad3))
+                if verbose:
+                    print(" - Max gradient (FC2):", "{:.5e}".format(agrad2), flush=True)
+                    print(" - Max gradient (FC3):", "{:.5e}".format(agrad3), flush=True)
+
+                if agrad2 < gtol_fc2 and agrad3 < gtol_fc3:
+                    converge = True
+                    break
+
+                # if agrad2 > gtol_fc2:
+                #     converge = False
+                # if agrad3 > gtol_fc3:
+                #     converge = False
 
                 # TODO: Tune epsilon
                 magn_sqrt = np.sqrt(magn)
@@ -257,12 +267,12 @@ def solve_adam_O2O3(
         if verbose:
             error_all = np.array(error_all)
             rmse_forces = np.sqrt(np.mean(error_all**2))
-            agrad2 = np.max(np.abs(grad[:n_compr_fc2])) 
-            agrad3 = np.max(np.abs(grad[n_compr_fc2:]))
+            # agrad2 = np.max(np.abs(grad[:n_compr_fc2])) 
+            # agrad3 = np.max(np.abs(grad[n_compr_fc2:]))
             print(" - Time:        ", "{:.3f}".format(t2 - t1), flush=True)
             print(" - RMSE (Force):", "{:.5e}".format(rmse_forces), flush=True)
-            print(" - Max gradient (FC2):", "{:.5e}".format(agrad2), flush=True)
-            print(" - Max gradient (FC3):", "{:.5e}".format(agrad3), flush=True)
+            # print(" - Max gradient (FC2):", "{:.5e}".format(agrad2), flush=True)
+            # print(" - Max gradient (FC3):", "{:.5e}".format(agrad3), flush=True)
 
         if converge:
             if verbose:
