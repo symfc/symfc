@@ -136,9 +136,10 @@ def solve_adam_O2O3(
     beta2 = beta ** 2 / (beta ** 2 + (1 - beta) **2)
     eps_grad = min(gtol_fc2, gtol_fc3)
 
+    # TODO: Check gtol in various systems.
     average_force = np.average(np.linalg.norm(forces.reshape((-1, 3)), axis=1))
-    gtol_fc2 *= (average_force / 0.2) ** 2 
-    gtol_fc3 *= (average_force / 0.2) ** 3
+    gtol_fc2 *= (average_force / 0.3) ** 2 
+    gtol_fc3 *= (average_force / 0.3) ** 3
 
     compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
     compact_compress_mat_fc3 = fc3_basis.compact_compression_matrix
@@ -178,8 +179,8 @@ def solve_adam_O2O3(
             print("Epoch:", i_epoch + 1, flush=True)
 
         rate = np.zeros(n_compr)
-        rate2 = max(min(3 / np.sqrt(i_epoch + 1), 1), 1e-5)
-        rate3 = max(min(30 / np.sqrt(i_epoch + 1), 10), 1e-3)
+        rate2 = max(min(1 / np.sqrt(i_epoch + 1), 1), 1e-5)
+        rate3 = max(min(10 / np.sqrt(i_epoch + 1), 10), 1e-3)
         rate[:n_compr_fc2] = rate2
         rate[n_compr_fc2:] = rate3
         if verbose:
@@ -242,9 +243,18 @@ def solve_adam_O2O3(
                 magn = beta2 * magn_prev + (1 - beta2) * (grad_trial**2)
                 grad = beta * grad_prev + (1 - beta) * grad_trial
 
-                agrad2 = np.max(np.abs(grad[:n_compr_fc2])) 
-                agrad3 = np.max(np.abs(grad[n_compr_fc2:]))
-                if agrad2 < gtol_fc2 and agrad3 < gtol_fc3:
+                grad2_abs = np.abs(grad[:n_compr_fc2])
+                grad3_abs = np.abs(grad[n_compr_fc2:])
+                mgrad2 = np.max(grad2_abs)
+                mgrad3 = np.max(grad3_abs)
+                agrad2 = np.average(grad2_abs)
+                agrad3 = np.average(grad3_abs)
+                if (
+                    agrad2 < gtol_fc2 
+                    and mgrad2 < gtol_fc2 * 5
+                    and agrad3 < gtol_fc3 
+                    and mgrad3 < gtol_fc3 * 5
+                ):
                     converge = True
                     break
 
@@ -258,12 +268,21 @@ def solve_adam_O2O3(
         if verbose:
             error_all = np.array(error_all)
             rmse_forces = np.sqrt(np.mean(error_all**2))
+
+            grad2_abs = np.abs(grad[:n_compr_fc2])
+            grad3_abs = np.abs(grad[n_compr_fc2:])
+            mgrad2 = np.max(grad2_abs)
+            mgrad3 = np.max(grad3_abs)
+            agrad2 = np.average(grad2_abs)
+            agrad3 = np.average(grad3_abs)
+
             print("- Time:              ", "{:.3f}".format(t2 - t1), "s", flush=True)
             print("- RMSE (Force):      ", "{:.5e}".format(rmse_forces), flush=True)
-            agrad2 = np.max(np.abs(grad[:n_compr_fc2])) 
-            print("- Max gradient (FC2):", "{:.5e}".format(agrad2), flush=True)
-            agrad3 = np.max(np.abs(grad[n_compr_fc2:]))
-            print("- Max gradient (FC3):", "{:.5e}".format(agrad3), flush=True)
+            print(gtol_fc2, gtol_fc3)
+            print("- Max gradient (FC2):", "{:.5e}".format(mgrad2), flush=True)
+            print("- Ave gradient (FC2):", "{:.5e}".format(agrad2), flush=True)
+            print("- Max gradient (FC3):", "{:.5e}".format(mgrad3), flush=True)
+            print("- Ave gradient (FC3):", "{:.5e}".format(agrad3), flush=True)
 
         if converge:
             break
