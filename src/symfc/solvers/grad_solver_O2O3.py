@@ -107,12 +107,9 @@ def solve_adam_O2O3(
     fc3_basis: FCBasisSetO3,
     batch_size: int = 100,
     n_epochs: int = 10000,
-    beta1: float = 0.95,
-    beta2: float = 0.999,
-    tol_rmse: float = 1e-10,
+    beta: float = 0.95,
     gtol_fc2: float = 1e-5,
     gtol_fc3: float = 1e-8,
-    eps_grad: float = 1e-15,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
@@ -132,6 +129,8 @@ def solve_adam_O2O3(
     """
     N3 = disps.shape[1]
     N = N3 // 3
+    beta2 = beta ** 2 / (beta ** 2 + (1 - beta) **2)
+    eps_grad = min(gtol_fc2, gtol_fc3)
 
     compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
     compact_compress_mat_fc3 = fc3_basis.compact_compression_matrix
@@ -161,31 +160,29 @@ def solve_adam_O2O3(
     compact_compress_mat_fc2 *= const_fc2
     compact_compress_mat_fc3 *= const_fc3
 
-    grad_prev, magn_prev, coefs_prev = None, None, None
-    rmse = np.inf
+    grad_prev, magn_prev = np.zeros(n_compr), np.zeros(n_compr)
     for i_epoch in range(n_epochs):
-        learning_rate = min(rmse * 1e4 / np.sqrt(i_epoch + 1), 1)
-        learning_rate = np.round(learning_rate, 5)
+        t1 = time.time()
 
+        rate2 = max(min(1 / np.sqrt(i_epoch + 1), 10), 0.01)
+        rate3 = max(min(10 / np.sqrt(i_epoch + 1), 100), 0.01)
         if verbose:
             print("-----", flush=True)
             print("Epoch:", i_epoch + 1, flush=True)
-            print("- Learning rate:", learning_rate, flush=True)
-
-        t1 = time.time()
+            print("- Learning rate (FC2):", "{:.5f}".format(rate2), flush=True)
+            print("- Learning rate (FC3):", "{:.5f}".format(rate3), flush=True)
+        rate = np.ones(n_compr)
+        rate[:n_compr_fc2] *= rate2
+        rate[n_compr_fc2:] *= rate3
 
         error_all = []
-        converge = False
+        converge_fc2, converge_fc3 = False, False
 
         order_atom = np.arange(len(begin_batch_atom))
         np.random.shuffle(order_atom)
         for i_atom in order_atom:
             begin_i = begin_batch_atom[i_atom]
             end_i = end_batch_atom[i_atom]
-            if verbose:
-                print("-----", flush=True)
-                print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
-
             compr_mat_fc2 = reshape_compr_mat_O2(
                 compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
             )
@@ -198,8 +195,6 @@ def solve_adam_O2O3(
             for i_supercell in order_supercell:
                 begin = begin_batch[i_supercell]
                 end = end_batch[i_supercell]
-                # if verbose:
-                #     print("Solver_block:", end, "/", disps.shape[0], flush=True)
 
                 dispN3N3 = set_disps_N3N3(disps[begin:end], sparse=False)
                 y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
@@ -223,60 +218,57 @@ def solve_adam_O2O3(
                 error_all.extend(error)
 
                 # Calculate grad = [X2, X3].T @ error.
-                grad2 = X2.T @ error
-                grad3 = calc_gradients_O3(
-                    compr_mat_fc3,
-                    N,
-                    error,
-                    dispN3N3,
-                )
-                grad = np.concatenate([grad2, grad3])
-
-                if grad_prev is not None:
-                    magn = beta2 * magn_prev + (1 - beta2) * (grad**2)
-                    grad = beta1 * grad_prev + (1 - beta1) * grad
+                if converge_fc2:
+                    grad2 = np.zeros(n_compr_fc2)
                 else:
-                    magn = grad**2
+                    grad2 = X2.T @ error
+                if converge_fc3:
+                    grad3 = np.zeros(n_compr_fc3)
+                else:
+                    grad3 = calc_gradients_O3(
+                        compr_mat_fc3,
+                        N,
+                        error,
+                        dispN3N3,
+                    )
 
-                agrad2 = np.max(np.abs(grad2)) 
-                agrad3 = np.max(np.abs(grad3))
-                if verbose:
-                    print(" - Max gradient (FC2):", "{:.5e}".format(agrad2), flush=True)
-                    print(" - Max gradient (FC3):", "{:.5e}".format(agrad3), flush=True)
+                grad_trial = np.concatenate([grad2, grad3])
+                magn = beta2 * magn_prev + (1 - beta2) * (grad_trial**2)
+                grad = beta * grad_prev + (1 - beta) * grad_trial
 
-                if agrad2 < gtol_fc2 and agrad3 < gtol_fc3:
-                    converge = True
-                    break
+                if not converge_fc2:    
+                    agrad2 = np.max(np.abs(grad[:n_compr_fc2])) 
+                    if agrad2 < gtol_fc2:
+                        converge_fc2 = True
+                if not converge_fc3:    
+                    agrad3 = np.max(np.abs(grad[n_compr_fc2:]))
+                    if agrad3 < gtol_fc3:
+                        converge_fc3 = True
 
-                # if agrad2 > gtol_fc2:
-                #     converge = False
-                # if agrad3 > gtol_fc3:
-                #     converge = False
-
-                # TODO: Tune epsilon
                 magn_sqrt = np.sqrt(magn)
                 magn_sqrt[magn_sqrt < eps_grad] = np.inf
-                coefs -= learning_rate * (grad / magn_sqrt)
-                # coefs -= learning_rate * (grad / (np.sqrt(magn) + eps_grad))
-                # coefs -= learning_rate * (grad / (np.sqrt(magn)))
+                if converge_fc2:
+                    magn_sqrt[:n_compr_fc2] = np.inf
+                if converge_fc3:
+                    magn_sqrt[:n_compr_fc3] = np.inf
+                coefs -= rate * grad / magn_sqrt
 
                 grad_prev, magn_prev = grad, magn
 
         t2 = time.time()
-
         if verbose:
             error_all = np.array(error_all)
             rmse_forces = np.sqrt(np.mean(error_all**2))
-            # agrad2 = np.max(np.abs(grad[:n_compr_fc2])) 
-            # agrad3 = np.max(np.abs(grad[n_compr_fc2:]))
-            print(" - Time:        ", "{:.3f}".format(t2 - t1), flush=True)
-            print(" - RMSE (Force):", "{:.5e}".format(rmse_forces), flush=True)
-            # print(" - Max gradient (FC2):", "{:.5e}".format(agrad2), flush=True)
-            # print(" - Max gradient (FC3):", "{:.5e}".format(agrad3), flush=True)
+            print("- Time:              ", "{:.3f}".format(t2 - t1), "s", flush=True)
+            print("- RMSE (Force):      ", "{:.5e}".format(rmse_forces), flush=True)
+            if not converge_fc2:
+                agrad2 = np.max(np.abs(grad[:n_compr_fc2])) 
+                print("- Max gradient (FC2):", "{:.5e}".format(agrad2), flush=True)
+            if not converge_fc3:
+                agrad3 = np.max(np.abs(grad[n_compr_fc2:]))
+                print("- Max gradient (FC3):", "{:.5e}".format(agrad3), flush=True)
 
-        if converge:
-            if verbose:
-                print("Gradient:", np.max(np.abs(grad)), flush=True)
+        if converge_fc2 and converge_fc3:
             break
 
     compress_eigvecs = _get_linked_compress_eigvecs(
