@@ -11,7 +11,11 @@ import numpy as np
 
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3
 from symfc.utils.solver_funcs import get_batch_slice
-from symfc.utils.solver_utils_O2 import reshape_compr_mat_O2
+from symfc.utils.solver_utils_O2 import (
+    slice_compact_compress_mat_O2,
+    calc_predictions_O2, 
+    calc_gradients_O2,
+)
 from symfc.utils.solver_utils_O3 import (
     calc_gradients_O3,
     calc_predictions_O3,
@@ -132,9 +136,9 @@ def solve_adam_O2O3(
     beta2 = beta ** 2 / (beta ** 2 + (1 - beta) **2)
     eps_grad = min(gtol_fc2, gtol_fc3)
 
-#    average_force = np.average(np.linalg.norm(forces.reshape((-1, 3)), axis=1))
-#    gtol_fc2 *= average_force / 0.1
-#    gtol_fc3 *= average_force / 0.1
+    average_force = np.average(np.linalg.norm(forces.reshape((-1, 3)), axis=1))
+    gtol_fc2 *= (average_force / 0.2) ** 2 
+    gtol_fc3 *= (average_force / 0.2) ** 3
 
     compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
     compact_compress_mat_fc3 = fc3_basis.compact_compression_matrix
@@ -187,7 +191,7 @@ def solve_adam_O2O3(
         np.random.shuffle(order_atom)
         for i_atom in order_atom:
             begin_i, end_i = begin_batch_atom[i_atom], end_batch_atom[i_atom]
-            compr_mat_fc2 = reshape_compr_mat_O2(
+            decompr_idx_fc2, compr_mat_fc2 = slice_compact_compress_mat_O2(
                 compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
             )
             decompr_idx_fc3, compr_mat_fc3 = slice_compact_compress_mat_O3(
@@ -201,14 +205,14 @@ def solve_adam_O2O3(
                 y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
 
                 # Calculate pred = [X2, X3] @ coefs.
-                X2 = dot_product_sparse(
+                pred2 = calc_predictions_O2(
+                    compact_compress_mat_fc2,
+                    decompr_idx_fc2,
+                    N,
+                    coefs[:n_compr_fc2],
                     disps[begin:end],
-                    compr_mat_fc2,
-                    use_mkl=use_mkl,
-                    dense=True,
-                ).reshape((-1, n_compr_fc2))
-                pred2 = X2 @ coefs[:n_compr_fc2]
-
+                )
+ 
                 dispN3N3 = set_disps_N3N3(disps[begin:end], sparse=False)
                 pred3 = calc_predictions_O3(
                     compact_compress_mat_fc3,
@@ -221,7 +225,12 @@ def solve_adam_O2O3(
                 error_all.extend(error)
 
                 # Calculate grad = [X2, X3].T @ error.
-                grad2 = X2.T @ error
+                grad2 = calc_gradients_O2(
+                    compr_mat_fc2,
+                    N,
+                    error,
+                    disps[begin:end],
+                )
                 grad3 = calc_gradients_O3(
                     compr_mat_fc3,
                     N,

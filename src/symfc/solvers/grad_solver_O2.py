@@ -96,7 +96,7 @@ def solve_adam_O2(
     batch_size: int = 100,
     n_epochs: int = 10000,
     beta: float = 0.95,
-    gtol_fc2: float = 1e-5,
+    gtol_fc2: float = 5e-5,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
@@ -112,6 +112,9 @@ def solve_adam_O2(
     N = N3 // 3
     beta2 = beta ** 2 / (beta ** 2 + (1 - beta) **2)
     eps_grad = gtol_fc2
+
+    average_force = np.average(np.linalg.norm(forces.reshape((-1, 3)), axis=1))
+    gtol_fc2 *= (average_force / 0.2) ** 2 
 
     compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
     atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
@@ -142,8 +145,7 @@ def solve_adam_O2(
             print("-----", flush=True)
             print("Epoch:", i_epoch + 1, flush=True)
 
-        #rate = max(min(3 / np.sqrt(i_epoch + 1), 1), 1e-5)
-        rate = max(min(3 / (i_epoch + 1), 1), 1e-5)
+        rate = max(min(3 / np.sqrt(i_epoch + 1), 1), 1e-3)
         if verbose:
             print("- Learning rate (FC2):", "{:.5f}".format(rate), flush=True)
 
@@ -162,6 +164,7 @@ def solve_adam_O2(
                 begin, end = begin_batch[i_supercell], end_batch[i_supercell]
                 y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
 
+                # Calculate pred = X2 @ coefs
                 pred2 = calc_predictions_O2(
                     compact_compress_mat_fc2,
                     decompr_idx_fc2,
