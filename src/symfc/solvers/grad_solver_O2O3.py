@@ -112,8 +112,8 @@ def solve_adam_O2O3(
     batch_size: int = 100,
     n_epochs: int = 10000,
     beta: float = 0.95,
-    gtol_fc2: float = 1e-5,
-    gtol_fc3: float = 1e-8,
+    gtol_fc2: float = 1e-9,
+    gtol_fc3: float = 1e-12,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
@@ -128,18 +128,17 @@ def solve_adam_O2O3(
     compact_compress_mat_fc3: (n_aNN333, n_compr_fc3)
     compress_eigvecs_fc2: (n_compr_fc2, n_basis_fc2)
     compress_eigvecs_fc3: (n_compr_fc3, n_basis_fc3)
-    Matrix reshapings are appropriately applied to compress_mat
     and its products.
     """
     N3 = disps.shape[1]
     N = N3 // 3
     beta2 = beta ** 2 / (beta ** 2 + (1 - beta) **2)
-    eps_grad = min(gtol_fc2, gtol_fc3)
 
     # TODO: Check gtol in various systems.
     average_force = np.average(np.linalg.norm(forces.reshape((-1, 3)), axis=1))
-    gtol_fc2 *= average_force ** 2 
-    gtol_fc3 *= average_force ** 3
+    gtol_fc2 *= (average_force / 1.0) ** 2 
+    gtol_fc3 *= (average_force / 1.0) ** 3
+    eps_grad = min(gtol_fc2, gtol_fc3)
 
     compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
     compact_compress_mat_fc3 = fc3_basis.compact_compression_matrix
@@ -172,7 +171,7 @@ def solve_adam_O2O3(
     grad_prev, magn_prev = np.zeros(n_compr), np.zeros(n_compr)
     converge = False
     rate_const = 1.0
-    average_grads_fc2, average_grads_fc3 = [], []
+    log_grads_fc2, log_grads_fc3 = [], []
     for i_epoch in range(n_epochs):
         t1 = time.time()
 
@@ -181,9 +180,9 @@ def solve_adam_O2O3(
             print("Epoch:", i_epoch + 1, flush=True)
 
         rate = np.zeros(n_compr)
-        rate2 = max(min(1 / np.sqrt(i_epoch + 1), 1), 1e-5) * rate_const
-        rate3 = max(min(10 / np.sqrt(i_epoch + 1), 10), 1e-3) * rate_const
-        rate[:n_compr_fc2] = rate2
+        rate2 = max(100 / np.sqrt(i_epoch + 1), 1e-4) * rate_const
+        rate3 = max(1000 / np.sqrt(i_epoch + 1), 1e-3) * rate_const
+        rate[:n_compr_fc2] = rate2 
         rate[n_compr_fc2:] = rate3
         if verbose:
             print("- Learning rate (FC2):", "{:.5f}".format(rate2), flush=True)
@@ -194,6 +193,9 @@ def solve_adam_O2O3(
         np.random.shuffle(order_atom)
         for i_atom in order_atom:
             begin_i, end_i = begin_batch_atom[i_atom], end_batch_atom[i_atom]
+            if n_compr > 10000 and verbose:
+                print("- Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
+
             decompr_idx_fc2, compr_mat_fc2 = slice_compact_compress_mat_O2(
                 compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
             )
@@ -206,6 +208,7 @@ def solve_adam_O2O3(
             for i_supercell in order_supercell:
                 begin, end = begin_batch[i_supercell], end_batch[i_supercell]
                 y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
+                n_data = len(y)
 
                 # Calculate pred = [X2, X3] @ coefs.
                 pred2 = calc_predictions_O2(
@@ -241,21 +244,21 @@ def solve_adam_O2O3(
                     dispN3N3,
                 )
 
-                grad_trial = np.concatenate([grad2, grad3])
+                grad_trial = np.concatenate([grad2, grad3]) / n_data
                 magn = beta2 * magn_prev + (1 - beta2) * (grad_trial**2)
                 grad = beta * grad_prev + (1 - beta) * grad_trial
 
                 grad2_abs = np.abs(grad[:n_compr_fc2])
                 grad3_abs = np.abs(grad[n_compr_fc2:])
-                mgrad2 = np.max(grad2_abs)
-                mgrad3 = np.max(grad3_abs)
-                agrad2 = np.average(grad2_abs)
-                agrad3 = np.average(grad3_abs)
+                grad2_max = np.max(grad2_abs)
+                grad3_max = np.max(grad3_abs)
+                grad2_ave = np.average(grad2_abs)
+                grad3_ave = np.average(grad3_abs)
                 if (
-                    agrad2 < gtol_fc2 
-                    and mgrad2 < gtol_fc2 * 10
-                    and agrad3 < gtol_fc3 
-                    and mgrad3 < gtol_fc3 * 10
+                    grad2_ave < gtol_fc2 
+                    and grad2_max < gtol_fc2 * 10
+                    and grad3_ave < gtol_fc3 
+                    and grad3_max < gtol_fc3 * 10
                 ):
                     converge = True
                     break
@@ -267,45 +270,33 @@ def solve_adam_O2O3(
                 grad_prev, magn_prev = grad, magn
 
         t2 = time.time()
-        grad2_abs = np.abs(grad[:n_compr_fc2])
-        grad3_abs = np.abs(grad[n_compr_fc2:])
-        mgrad2 = np.max(grad2_abs)
-        mgrad3 = np.max(grad3_abs)
-        agrad2 = np.average(grad2_abs)
-        agrad3 = np.average(grad3_abs)
-
         if verbose:
             error_all = np.array(error_all)
             rmse_forces = np.sqrt(np.mean(error_all**2))
-
-
             print("- Time:              ", "{:.3f}".format(t2 - t1), "s", flush=True)
             print("- RMSE (Force):      ", "{:.5e}".format(rmse_forces), flush=True)
-            print(gtol_fc2, gtol_fc3)
-            print("- Max gradient (FC2):", "{:.5e}".format(mgrad2), flush=True)
-            print("- Ave gradient (FC2):", "{:.5e}".format(agrad2), flush=True)
-            print("- Max gradient (FC3):", "{:.5e}".format(mgrad3), flush=True)
-            print("- Ave gradient (FC3):", "{:.5e}".format(agrad3), flush=True)
+            print("- Max gradient (FC2):", "{:.5e}".format(grad2_max), flush=True)
+            print("- Ave gradient (FC2):", "{:.5e}".format(grad2_ave), flush=True)
+            print("- Max gradient (FC3):", "{:.5e}".format(grad3_max), flush=True)
+            print("- Ave gradient (FC3):", "{:.5e}".format(grad3_ave), flush=True)
 
         if converge:
             break
 
-        average_grads_fc2.append(agrad2)
-        average_grads_fc3.append(agrad3)
-        n_sl = 10
-        d2 = np.sum(
-            np.diff(average_grads_fc2[-n_sl:] / np.average(average_grads_fc2[-n_sl:]))
-        )
-        d3 = np.sum(
-            np.diff(average_grads_fc3[-n_sl:] / np.average(average_grads_fc3[-n_sl:]))
-        )
-        if len(average_grads_fc2) > n_sl and d2 > -0.001 and d3 > -0.001:
-            if rate_const > 1e-3:
-                rate_const *= 0.1
-                average_grads_fc2, average_grads_fc3 = [], []
-            else:
-                break
-
+        log_grads_fc2.append(grad2_ave)
+        log_grads_fc3.append(grad3_ave)
+        n_sl = 5
+        if len(log_grads_fc2) > n_sl:
+            grad2_slice = log_grads_fc2[-n_sl:]
+            grad3_slice = log_grads_fc3[-n_sl:]
+            d2 = np.sum(np.diff(grad2_slice / np.average(grad2_slice)))
+            d3 = np.sum(np.diff(grad3_slice / np.average(grad3_slice)))
+            if d2 > -0.001 and d3 > -0.001:
+                if rate_const > 1e-4:
+                    rate_const *= 0.1
+                    log_grads_fc2, log_grads_fc3 = [], []
+                else:
+                    break
 
     compress_eigvecs = _get_linked_compress_eigvecs(
         fc2_basis.blocked_basis_set,

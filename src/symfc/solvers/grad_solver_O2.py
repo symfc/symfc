@@ -96,7 +96,7 @@ def solve_adam_O2(
     batch_size: int = 100,
     n_epochs: int = 10000,
     beta: float = 0.95,
-    gtol_fc2: float = 5e-5,
+    gtol_fc2: float = 1e-11,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
@@ -111,10 +111,10 @@ def solve_adam_O2(
     N3 = disps.shape[1]
     N = N3 // 3
     beta2 = beta ** 2 / (beta ** 2 + (1 - beta) **2)
-    eps_grad = gtol_fc2
 
     average_force = np.average(np.linalg.norm(forces.reshape((-1, 3)), axis=1))
-    gtol_fc2 *= (average_force / 0.2) ** 2 
+    gtol_fc2 *= (average_force / 1.0) ** 2 
+    eps_grad = gtol_fc2
 
     compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
     atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
@@ -139,13 +139,15 @@ def solve_adam_O2(
 
     grad_prev, magn_prev = np.zeros(n_compr_fc2), np.zeros(n_compr_fc2)
     converge = False
+    rate_const = 1.0
+    log_grads_fc2 = []
     for i_epoch in range(n_epochs):
         t1 = time.time()
         if verbose:
             print("-----", flush=True)
             print("Epoch:", i_epoch + 1, flush=True)
 
-        rate = max(min(3 / np.sqrt(i_epoch + 1), 1), 1e-3)
+        rate = max(100 / np.sqrt(i_epoch + 1), 1e-4) * rate_const
         if verbose:
             print("- Learning rate (FC2):", "{:.5f}".format(rate), flush=True)
 
@@ -163,6 +165,7 @@ def solve_adam_O2(
             for i_supercell in order_supercell:
                 begin, end = begin_batch[i_supercell], end_batch[i_supercell]
                 y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
+                n_data = len(y)
 
                 # Calculate pred = X2 @ coefs
                 pred2 = calc_predictions_O2(
@@ -183,11 +186,14 @@ def solve_adam_O2(
                     disps[begin:end],
                 )
 
+                grad_trial /= n_data
                 magn = beta2 * magn_prev + (1 - beta2) * (grad_trial**2)
                 grad = beta * grad_prev + (1 - beta) * grad_trial
 
-                agrad = np.max(np.abs(grad)) 
-                if agrad < gtol_fc2:
+                grad_abs = np.abs(grad)
+                grad_max = np.max(grad_abs)
+                grad_ave = np.average(grad_abs)
+                if grad_ave < gtol_fc2 and grad_max < gtol_fc2 * 10:
                     converge = True
                     break
 
@@ -202,12 +208,26 @@ def solve_adam_O2(
             error_all = np.array(error_all)
             rmse_forces = np.sqrt(np.mean(error_all**2))
             print("- Time:              ", "{:.3f}".format(t2 - t1), "s", flush=True)
+            print(gtol_fc2)
             print("- RMSE (Force):      ", "{:.5e}".format(rmse_forces), flush=True)
-            agrad = np.max(np.abs(grad)) 
-            print("- Max gradient (FC2):", "{:.5e}".format(agrad), flush=True)
+            print("- Max gradient (FC2):", "{:.5e}".format(grad_max), flush=True)
+            print("- Ave gradient (FC2):", "{:.5e}".format(grad_ave), flush=True)
 
         if converge:
             break
+
+        log_grads_fc2.append(grad_ave)
+        n_sl = 5
+        if len(log_grads_fc2) > n_sl:
+            grad2_slice = log_grads_fc2[-n_sl:]
+            d2 = np.sum(np.diff(grad2_slice / np.average(grad2_slice)))
+            if d2 > -0.001:
+                if rate_const > 1e-4:
+                    rate_const *= 0.1
+                    log_grads_fc2 = []
+                else:
+                    break
+
 
     compress_eigvecs = fc2_basis.blocked_basis_set
     coefs = compress_eigvecs.T @ coefs
