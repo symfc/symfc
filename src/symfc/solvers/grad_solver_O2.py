@@ -3,23 +3,22 @@
 from __future__ import annotations
 
 import time
-import copy
-from collections.abc import Sequence
-from typing import Union, cast
 
 import numpy as np
 
 from symfc.basis_sets import FCBasisSetO2
 from symfc.utils.solver_funcs import (
-    get_batch_slice, shuffle_batch_order, update_coefs_adam,
-    update_gradients_adam, calc_gradient_stats,
+    calc_gradient_stats,
+    get_batch_slice,
+    shuffle_batch_order,
+    update_coefs_adam,
+    update_gradients_adam,
 )
 from symfc.utils.solver_utils_O2 import (
-    slice_compact_compress_mat_O2,
-    calc_predictions_O2, 
     calc_gradients_O2,
+    calc_predictions_O2,
+    slice_compact_compress_mat_O2,
 )
-
 
 try:
     from symfc.utils.matrix import dot_product_sparse
@@ -113,10 +112,10 @@ def solve_adam_O2(
     """
     N3 = disps.shape[1]
     N = N3 // 3
-    beta2 = beta ** 2 / (beta ** 2 + (1 - beta) **2)
+    beta2 = beta**2 / (beta**2 + (1 - beta) ** 2)
 
     average_force = np.average(np.linalg.norm(forces.reshape((-1, 3)), axis=1))
-    gtol_fc2 *= (average_force / 1.0) ** 2 
+    gtol_fc2 *= (average_force / 1.0) ** 2
     eps_grad = gtol_fc2
 
     compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
@@ -219,7 +218,6 @@ def solve_adam_O2(
                     log_grads_fc2 = []
                 else:
                     break
-
 
     compress_eigvecs = fc2_basis.blocked_basis_set
     coefs = compress_eigvecs.T @ coefs

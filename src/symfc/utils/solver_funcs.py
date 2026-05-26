@@ -87,9 +87,9 @@ def get_displacement_sparse_matrix(
 
 def update_coefs_adam(
     coefs: NDArray,
-    grad: NDArray, 
-    magn: NDArray, 
-    rate: float, 
+    grad: NDArray,
+    magn: NDArray,
+    rate: float,
     eps_grad: float = 1e-14,
 ):
     """Update coefficients using gradients in Adam."""

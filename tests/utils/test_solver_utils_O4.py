@@ -23,8 +23,8 @@ def test_reshape_O4():
     mat_reshape = _reshape_nNNN3333_nx_to_N3N3N3_n3nx(mat, N, n, n_batch=3)
     row_reshape, col_reshape = mat_reshape.nonzero()
     assert mat_reshape.shape == (1728, 138)
-    np.testing.assert_array_equal(row_reshape, [  9, 159, 171, 194, 203, 379])
-    np.testing.assert_array_equal(col_reshape, [15, 17, 40, 44,  7,  3])
+    np.testing.assert_array_equal(row_reshape, [9, 159, 171, 194, 203, 379])
+    np.testing.assert_array_equal(col_reshape, [15, 17, 40, 44, 7, 3])
     np.testing.assert_array_equal(mat_reshape.data, [2, 3, 4, 1, 5, 6])
 
 
