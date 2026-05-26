@@ -3,29 +3,12 @@
 import numpy as np
 import pytest
 
-from symfc.spg_reps import SpgRepsBase
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.permutation_tools_O2 import (
     _N3N3_to_NNand33,
     compr_permutation_lat_trans_O2,
 )
-from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O2 import _get_atomic_lat_trans_decompr_indices
-
-
-def structure_bcc():
-    """Get bcc structure."""
-    lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
-    positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
-    numbers = [1, 1]
-    supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
-
-    spg_reps = SpgRepsBase(supercell)
-    trans_perms = spg_reps.translation_permutations
-    return supercell, trans_perms
-
-
-supercell, trans_perms = structure_bcc()
 
 
 def test_N3N3_to_NNand33():
@@ -37,8 +20,9 @@ def test_N3N3_to_NNand33():
     np.testing.assert_allclose(vec33, [1, 7, 8])
 
 
-def test_projector_permutation_lat_trans_O2():
+def test_projector_permutation_lat_trans_O2(cell_spg_reps_bcc):
     """Test projector_permutation_lat_trans_O2."""
+    supercell, trans_perms, _ = cell_spg_reps_bcc
     atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
     c_pt = compr_permutation_lat_trans_O2(
         trans_perms,

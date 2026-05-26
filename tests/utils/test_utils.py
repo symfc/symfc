@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
+from typing import TypeAlias, cast
 
 import numpy as np
 import spglib
 from numpy.typing import NDArray
-from spglib import Cell as SpgCell
 
 from symfc.spg_reps.spg_reps_base import SpgRepsBase
 from symfc.utils.utils import (
@@ -17,6 +16,12 @@ from symfc.utils.utils import (
     compute_sg_permutations_stable,
     get_indep_atoms_by_lat_trans,
 )
+
+SpgCell: TypeAlias = tuple[
+    np.ndarray,  # lattice
+    np.ndarray,  # positions
+    np.ndarray,  # atomic numbers
+]
 
 cwd = Path(__file__).parent
 
