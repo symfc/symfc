@@ -25,12 +25,6 @@ from symfc.utils.solver_utils_O3 import (
     set_disps_N3N3,
     slice_compact_compress_mat_O3,
 )
-
-try:
-    from symfc.utils.matrix import dot_product_sparse
-except ImportError:
-    pass
-
 from .solver_O2O3 import FCSolverO2O3, _get_linked_compress_eigvecs
 
 

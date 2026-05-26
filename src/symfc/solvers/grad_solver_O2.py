@@ -19,13 +19,6 @@ from symfc.utils.solver_utils_O2 import (
     calc_predictions_O2, 
     calc_gradients_O2,
 )
-
-
-try:
-    from symfc.utils.matrix import dot_product_sparse
-except ImportError:
-    pass
-
 from .solver_O2 import FCSolverO2
 
 
