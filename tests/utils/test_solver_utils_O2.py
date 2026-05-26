@@ -1,10 +1,10 @@
 """Tests of functions in solvers."""
 
 import numpy as np
-import pytest
 from scipy.sparse import csr_array
 
 from symfc.utils.solver_utils_O2 import _reshape_nN33_nx_to_N3_n3nx
+
 
 def test_reshape_O2():
     """Test reshape_nN33_nx_to_N3_n3nx in solver_O2."""
