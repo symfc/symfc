@@ -109,9 +109,12 @@ def calc_predictions_O3(
 ):
     """Calculate predicted forces used in iterative solver.
 
+    pred3 = X3 @ coefs are calculated,
+    where X3 = displacements @ compress_mat @ compress_eigvecs.
+
     Return
     ------
-    pred3: forces, shape=(n_supercell * n_atom_batch * 3)
+    pred3: Predicted forces, shape=(n_supercell * n_atom_batch * 3)
     """
     NN33 = N * N * 9
     prod = compact_compress_mat_fc3 @ coefs
@@ -129,9 +132,13 @@ def calc_gradients_O3(
 ):
     """Calculate gradients used in iterative solver.
 
+    grad = X3.T @ errors are calculated,
+    where X3 = displacements @ compress_mat @ compress_eigvecs.
+    Errors must be ([X2, X3] @ coeffs23 - forces) when using both FC2 and FC3.
+
     Return
     ------
-    grad: gradientsforces, shape=(n_compr_fc3,)
+    grad: Gradients of loss function with respect to coefficients, shape=(n_compr_fc3,)
     """
     n_supercell = dispN3N3.shape[0]
     prod = dispN3N3.T @ error.reshape((n_supercell, -1))

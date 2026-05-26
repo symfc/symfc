@@ -85,14 +85,16 @@ def calc_predictions_O2(
 ):
     """Calculate predicted forces used in iterative solver.
 
+    pred2 = X2 @ coefs are calculated,
+    where X2 = displacements @ compress_mat @ compress_eigvecs.
+
     Return
     ------
-    pred2: forces, shape=(n_supercell * n_atom_batch * 3)
+    pred2: Predicted forces, shape=(n_supercell * n_atom_batch * 3)
     """
     N3 = N * 3
     prod = compact_compress_mat_fc2 @ coefs
     prod = prod[decompr_idx_fc2].reshape(-1, N, 3, 3)
-    # prod = prod.transpose(1, 4, 2, 5, 0, 3).reshape(N3, -1)
     prod = prod.transpose(1, 3, 0, 2).reshape(N3, -1)
     pred2 = (disps @ prod).reshape(-1)
     return pred2
@@ -106,14 +108,17 @@ def calc_gradients_O2(
 ):
     """Calculate gradients used in iterative solver.
 
+    grad = X2.T @ errors are calculated,
+    where X2 = displacements @ compress_mat @ compress_eigvecs.
+    Errors must be ([X2, X3] @ coefs23 - forces) when using both FC2 and FC3.
+
     Return
     ------
-    grad: gradientsforces, shape=(n_compr_fc2,)
+    grad: Gradients of loss function with respect to coefficients, shape=(n_compr_fc2,)
     """
     n_supercell = disps.shape[0]
     prod = disps.T @ error.reshape((n_supercell, -1))
     prod = prod.reshape(N, 3, -1, 3)
-    # prod = prod.transpose(4, 0, 2, 5, 1, 3).reshape(-1)
     prod = prod.transpose(2, 0, 3, 1).reshape(-1)
     grad2 = sliced_compact_compress_mat_fc2.T @ prod
     return grad2

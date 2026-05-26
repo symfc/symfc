@@ -10,7 +10,10 @@ from typing import Union, cast
 import numpy as np
 
 from symfc.basis_sets import FCBasisSetO2
-from symfc.utils.solver_funcs import get_batch_slice
+from symfc.utils.solver_funcs import (
+    get_batch_slice, shuffle_batch_order, update_coefs_adam,
+    update_gradients_adam, calc_gradient_stats,
+)
 from symfc.utils.solver_utils_O2 import (
     slice_compact_compress_mat_O2,
     calc_predictions_O2, 
@@ -152,17 +155,12 @@ def solve_adam_O2(
             print("- Learning rate (FC2):", "{:.5f}".format(rate), flush=True)
 
         error_all = []
-        order_atom = np.arange(len(begin_batch_atom))
-        np.random.shuffle(order_atom)
-        for i_atom in order_atom:
+        for i_atom in shuffle_batch_order(len(begin_batch_atom)):
             begin_i, end_i = begin_batch_atom[i_atom], end_batch_atom[i_atom]
             decompr_idx_fc2, compr_mat_fc2 = slice_compact_compress_mat_O2(
                 compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
             )
-
-            order_supercell = np.arange(len(begin_batch))
-            np.random.shuffle(order_supercell)
-            for i_supercell in order_supercell:
+            for i_supercell in shuffle_batch_order(len(begin_batch)):
                 begin, end = begin_batch[i_supercell], end_batch[i_supercell]
                 y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
                 n_data = len(y)
@@ -185,22 +183,17 @@ def solve_adam_O2(
                     error,
                     disps[begin:end],
                 )
-
                 grad_trial /= n_data
-                magn = beta2 * magn_prev + (1 - beta2) * (grad_trial**2)
-                grad = beta * grad_prev + (1 - beta) * grad_trial
 
-                grad_abs = np.abs(grad)
-                grad_max = np.max(grad_abs)
-                grad_ave = np.average(grad_abs)
+                grad, magn = update_gradients_adam(
+                    grad_trial, grad_prev, magn_prev, beta, beta2
+                )
+                grad_ave, grad_max = calc_gradient_stats(grad)
                 if grad_ave < gtol_fc2 and grad_max < gtol_fc2 * 10:
                     converge = True
                     break
 
-                magn_sqrt = np.sqrt(magn)
-                magn_sqrt[magn_sqrt < eps_grad] = np.inf
-                coefs -= rate * grad / magn_sqrt
-
+                coefs = update_coefs_adam(coefs, grad, magn, rate, eps_grad)
                 grad_prev, magn_prev = grad, magn
 
         t2 = time.time()

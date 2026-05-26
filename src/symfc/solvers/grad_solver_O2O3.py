@@ -10,7 +10,10 @@ from typing import Union, cast
 import numpy as np
 
 from symfc.basis_sets import FCBasisSetO2, FCBasisSetO3
-from symfc.utils.solver_funcs import get_batch_slice
+from symfc.utils.solver_funcs import (
+    get_batch_slice, shuffle_batch_order, update_coefs_adam, calc_gradient_stats,
+    update_gradients_adam,
+)
 from symfc.utils.solver_utils_O2 import (
     slice_compact_compress_mat_O2,
     calc_predictions_O2, 
@@ -189,9 +192,7 @@ def solve_adam_O2O3(
             print("- Learning rate (FC3):", "{:.5f}".format(rate3), flush=True)
 
         error_all = []
-        order_atom = np.arange(len(begin_batch_atom))
-        np.random.shuffle(order_atom)
-        for i_atom in order_atom:
+        for i_atom in shuffle_batch_order(len(begin_batch_atom)):
             begin_i, end_i = begin_batch_atom[i_atom], end_batch_atom[i_atom]
             if n_compr > 10000 and verbose:
                 print("- Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
@@ -202,13 +203,12 @@ def solve_adam_O2O3(
             decompr_idx_fc3, compr_mat_fc3 = slice_compact_compress_mat_O3(
                 compact_compress_mat_fc3, atomic_decompr_idx_fc3, N, begin_i, end_i
             )
-
-            order_supercell = np.arange(len(begin_batch))
-            np.random.shuffle(order_supercell)
-            for i_supercell in order_supercell:
+            for i_supercell in shuffle_batch_order(len(begin_batch)):
                 begin, end = begin_batch[i_supercell], end_batch[i_supercell]
                 y = forces[begin:end, begin_i * 3 : end_i * 3].reshape(-1)
                 n_data = len(y)
+                disps_batch = disps[begin:end]
+                dispN3N3 = set_disps_N3N3(disps_batch, sparse=False)
 
                 # Calculate pred = [X2, X3] @ coefs.
                 pred2 = calc_predictions_O2(
@@ -216,10 +216,8 @@ def solve_adam_O2O3(
                     decompr_idx_fc2,
                     N,
                     coefs[:n_compr_fc2],
-                    disps[begin:end],
+                    disps_batch
                 )
- 
-                dispN3N3 = set_disps_N3N3(disps[begin:end], sparse=False)
                 pred3 = calc_predictions_O3(
                     compact_compress_mat_fc3,
                     decompr_idx_fc3,
@@ -231,29 +229,15 @@ def solve_adam_O2O3(
                 error_all.extend(error)
 
                 # Calculate grad = [X2, X3].T @ error.
-                grad2 = calc_gradients_O2(
-                    compr_mat_fc2,
-                    N,
-                    error,
-                    disps[begin:end],
-                )
-                grad3 = calc_gradients_O3(
-                    compr_mat_fc3,
-                    N,
-                    error,
-                    dispN3N3,
-                )
-
+                grad2 = calc_gradients_O2(compr_mat_fc2, N, error, disps_batch)
+                grad3 = calc_gradients_O3(compr_mat_fc3, N, error, dispN3N3)
                 grad_trial = np.concatenate([grad2, grad3]) / n_data
-                magn = beta2 * magn_prev + (1 - beta2) * (grad_trial**2)
-                grad = beta * grad_prev + (1 - beta) * grad_trial
 
-                grad2_abs = np.abs(grad[:n_compr_fc2])
-                grad3_abs = np.abs(grad[n_compr_fc2:])
-                grad2_max = np.max(grad2_abs)
-                grad3_max = np.max(grad3_abs)
-                grad2_ave = np.average(grad2_abs)
-                grad3_ave = np.average(grad3_abs)
+                grad, magn = update_gradients_adam(
+                    grad_trial, grad_prev, magn_prev, beta, beta2
+                )
+                grad2_ave, grad2_max = calc_gradient_stats(grad[:n_compr_fc2])
+                grad3_ave, grad3_max = calc_gradient_stats(grad[n_compr_fc2:])
                 if (
                     grad2_ave < gtol_fc2 
                     and grad2_max < gtol_fc2 * 10
@@ -263,10 +247,7 @@ def solve_adam_O2O3(
                     converge = True
                     break
 
-                magn_sqrt = np.sqrt(magn)
-                magn_sqrt[magn_sqrt < eps_grad] = np.inf
-                coefs -= rate * grad / magn_sqrt
-
+                coefs = update_coefs_adam(coefs, grad, magn, rate, eps_grad)
                 grad_prev, magn_prev = grad, magn
 
         t2 = time.time()
