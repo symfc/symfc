@@ -201,7 +201,6 @@ def solve_adam_O2(
             error_all = np.array(error_all)
             rmse_forces = np.sqrt(np.mean(error_all**2))
             print("- Time:              ", "{:.3f}".format(t2 - t1), "s", flush=True)
-            print(gtol_fc2)
             print("- RMSE (Force):      ", "{:.5e}".format(rmse_forces), flush=True)
             print("- Max gradient (FC2):", "{:.5e}".format(grad_max), flush=True)
             print("- Ave gradient (FC2):", "{:.5e}".format(grad_ave), flush=True)
