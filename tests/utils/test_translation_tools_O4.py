@@ -4,30 +4,14 @@ import numpy as np
 import pytest
 import scipy
 
-from symfc.spg_reps import SpgRepsBase
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.translation_tools_O4 import compressed_projector_sum_rules_O4
-from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O4 import get_atomic_lat_trans_decompr_indices_O4
 
 
-def structure_bcc():
-    """Get bcc structure."""
-    lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
-    positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
-    numbers = [1, 1]
-    supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
-
-    spg_reps = SpgRepsBase(supercell)
-    trans_perms = spg_reps.translation_permutations
-    return supercell, trans_perms
-
-
-supercell, trans_perms = structure_bcc()
-
-
-def test_compressed_projector_sum_rules_O4():
+def test_compressed_projector_sum_rules_O4(cell_spg_reps_bcc):
     """Test compressed_projector_sum_rules_O4."""
+    supercell, trans_perms, _ = cell_spg_reps_bcc
     atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
     n_a_compress_mat = scipy.sparse.identity(648)
     proj = compressed_projector_sum_rules_O4(
