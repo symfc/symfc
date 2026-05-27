@@ -48,7 +48,11 @@ def eigsh_projector(
         print("Rank of projector:", rank, flush=True)
         print("Number of blocks in projector:", len(group), flush=True)
 
-    n_div = (len(group) // 10000) + 1
+    n_div = (len(cp.data) // (5 * 10**7)) + 1
+    if verbose:
+        print("Number of data in projector:      ", len(cp.data), flush=True)
+        print("Number of divisions for projector:", n_div, flush=True)
+
     if n_div > 1:
         items = list(group.items())
         chunks = [dict(items[i::n_div]) for i in range(n_div)]
@@ -58,8 +62,12 @@ def eigsh_projector(
     uniq_eigvecs: dict[str | tuple, tuple[NDArray | None, list]] = {
         "one": (np.array([[1.0]]), [])
     }
-    for group_batch in chunks:
+    for i, group_batch in enumerate(chunks):
+        if verbose:
+            print("Extracting blocked projectors:", i + 1, flush=True)
         cp_data = _extract_sparse_projector_data(cp, group_batch)
+        if verbose:
+            print("Solving blocked projector component.", flush=True)
         uniq_eigvecs = _solve_blocked_projector(
             uniq_eigvecs, cp_data, atol=atol, rtol=rtol, verbose=verbose
         )
