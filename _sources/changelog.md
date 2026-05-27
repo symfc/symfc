@@ -2,6 +2,13 @@
 
 # Change Log
 
+## May-27-2026: Version 1.7.2
+
+- Add gradient-based iterative solvers for FC2 and FC3.
+- Fix permutation handling for FC4.
+- Switch to git-tag based versioning (setuptools_scm) and release via PyPI
+  Trusted Publishing.
+
 ## May-20-2026: Version 1.7.1
 
 - Fix eigen-solver for large systems.
