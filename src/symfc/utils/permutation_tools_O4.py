@@ -94,7 +94,6 @@ def compr_permutation_lat_trans_O4(
         n_batch=1,
         verbose=verbose,
     )
-    print(perm_decompr_idx)
 
     # order = 2
     combinations = get_combinations(
