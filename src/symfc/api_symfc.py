@@ -18,6 +18,8 @@ from symfc.eig_solvers.api_eig_tools import (
 )
 from symfc.eig_solvers.matrix import BlockMatrixNode
 from symfc.solvers import (
+    FCGradSolverO2,
+    FCGradSolverO2O3,
     FCSolverO2,
     FCSolverO2O3,
     FCSolverO2O3O4,
@@ -203,6 +205,7 @@ class Symfc:
         orders: list | None = None,
         is_compact_fc: bool = True,
         batch_size: int = 100,
+        use_gradient_solver: bool = False,
     ) -> Symfc:
         """Run basis set and force constants calculation.
 
@@ -230,6 +233,7 @@ class Symfc:
                 orders=orders,
                 is_compact_fc=is_compact_fc,
                 batch_size=batch_size,
+                use_gradient_solver=use_gradient_solver,
             )
         return self
 
@@ -244,6 +248,7 @@ class Symfc:
         orders: list | None = None,
         is_compact_fc: bool = True,
         batch_size: int = 100,
+        use_gradient_solver: bool = False,
     ) -> Symfc:
         """Calculate force constants.
 
@@ -257,8 +262,12 @@ class Symfc:
             Return compact force constants.
         batch_size : int, optional
             Batch size in solvers, by default 100.
+        use_gradient_solver: bool
+            Use gradient-based solver.
         """
         if self.use_fd:
+            if use_gradient_solver:
+                raise RuntimeError("Gradient-based solver not implemented.")
             self.solve_sparse(
                 max_order=max_order,
                 orders=orders,
@@ -270,6 +279,7 @@ class Symfc:
                 orders=orders,
                 is_compact_fc=is_compact_fc,
                 batch_size=batch_size,
+                use_gradient_solver=use_gradient_solver,
             )
         return self
 
@@ -330,6 +340,7 @@ class Symfc:
         orders: list | None = None,
         is_compact_fc: bool = True,
         batch_size: int = 100,
+        use_gradient_solver: bool = False,
     ) -> Symfc:
         """Calculate force constants.
 
@@ -343,6 +354,8 @@ class Symfc:
             Return compact force constants.
         batch_size : int, optional
             Batch size in solvers, by default 100.
+        use_gradient_solver: bool
+            Use gradient-based solver.
         """
         self._check_dataset()
         _orders = self._check_orders(max_order, orders)
@@ -354,11 +367,18 @@ class Symfc:
 
         if _orders == (2,):
             basis_set_o2: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[2])
-            solver_o2 = FCSolverO2(
-                basis_set_o2,
-                use_mkl=self._use_mkl,
-                log_level=self._log_level,
-            ).solve(self._displacements, self._forces)
+            if use_gradient_solver:
+                solver_o2 = FCGradSolverO2(
+                    basis_set_o2,
+                    use_mkl=self._use_mkl,
+                    log_level=self._log_level,
+                ).solve(self._displacements, self._forces)
+            else:
+                solver_o2 = FCSolverO2(
+                    basis_set_o2,
+                    use_mkl=self._use_mkl,
+                    log_level=self._log_level,
+                ).solve(self._displacements, self._forces)
 
             if is_compact_fc:
                 fc = solver_o2.compact_fc
@@ -368,6 +388,9 @@ class Symfc:
                 raise RuntimeError("Failed to obtain force constants")
             self._force_constants[2] = fc
         elif _orders == (3,):
+            if use_gradient_solver:
+                raise RuntimeError("Gradient-based solver not implemented.")
+
             basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
             solver_o3 = FCSolverO3(
                 basis_set_o3,
@@ -382,6 +405,9 @@ class Symfc:
                 raise RuntimeError("Failed to obtain force constants")
             self._force_constants[3] = fc
         elif _orders == (4,):
+            if use_gradient_solver:
+                raise RuntimeError("Gradient-based solver not implemented.")
+
             basis_set_o4: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[4])
             solver_o4 = FCSolverO4(
                 basis_set_o4,
@@ -398,11 +424,18 @@ class Symfc:
         elif _orders == (2, 3):
             basis_set_o2: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[2])
             basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
-            solver_o2o3 = FCSolverO2O3(
-                [basis_set_o2, basis_set_o3],
-                use_mkl=self._use_mkl,
-                log_level=self._log_level,
-            ).solve(self._displacements, self._forces, batch_size=batch_size)
+            if use_gradient_solver:
+                solver_o2o3 = FCGradSolverO2O3(
+                    [basis_set_o2, basis_set_o3],
+                    use_mkl=self._use_mkl,
+                    log_level=self._log_level,
+                ).solve(self._displacements, self._forces, batch_size=batch_size)
+            else:
+                solver_o2o3 = FCSolverO2O3(
+                    [basis_set_o2, basis_set_o3],
+                    use_mkl=self._use_mkl,
+                    log_level=self._log_level,
+                ).solve(self._displacements, self._forces, batch_size=batch_size)
 
             if is_compact_fc:
                 fc_tuple = solver_o2o3.compact_fc
@@ -415,6 +448,8 @@ class Symfc:
             self._force_constants[2] = fc2
             self._force_constants[3] = fc3
         elif _orders == (3, 4):
+            if use_gradient_solver:
+                raise RuntimeError("Gradient-based solver not implemented.")
             basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
             basis_set_o4: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[4])
             solver_o3o4 = FCSolverO3O4(
@@ -434,6 +469,8 @@ class Symfc:
             self._force_constants[3] = fc3
             self._force_constants[4] = fc4
         elif _orders == (2, 3, 4):
+            if use_gradient_solver:
+                raise RuntimeError("Gradient-based solver not implemented.")
             basis_set_o2: FCBasisSetO2 = cast(FCBasisSetO2, self._basis_set[2])
             basis_set_o3: FCBasisSetO3 = cast(FCBasisSetO3, self._basis_set[3])
             basis_set_o4: FCBasisSetO4 = cast(FCBasisSetO4, self._basis_set[4])

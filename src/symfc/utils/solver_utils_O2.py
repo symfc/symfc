@@ -58,3 +58,67 @@ def reshape_compr_mat_O2(
         n_atom_batch,
     )
     return compr_mat_fc2
+
+
+def slice_compact_compress_mat_O2(
+    compact_compress_mat_fc2: csr_array,
+    atomic_decompr_idx_fc2: NDArray,
+    N: int,
+    atom_idx_begin: int,
+    atom_idx_end: int,
+):
+    """Slice compact compresstion matrix."""
+    decompr_idx_fc2 = (
+        atomic_decompr_idx_fc2[atom_idx_begin * N : atom_idx_end * N, None] * 9
+        + np.arange(9)[None, :]
+    ).reshape(-1)
+    compr_mat_fc2 = compact_compress_mat_fc2[decompr_idx_fc2]
+    return (decompr_idx_fc2, compr_mat_fc2)
+
+
+def calc_predictions_O2(
+    compact_compress_mat_fc2: csr_array,
+    decompr_idx_fc2: NDArray,
+    N: int,
+    coefs: NDArray,
+    disps: NDArray,
+):
+    """Calculate predicted forces used in iterative solver.
+
+    pred2 = X2 @ coefs are calculated,
+    where X2 = displacements @ compress_mat @ compress_eigvecs.
+
+    Return
+    ------
+    pred2: Predicted forces, shape=(n_supercell * n_atom_batch * 3)
+    """
+    N3 = N * 3
+    prod = compact_compress_mat_fc2 @ coefs
+    prod = prod[decompr_idx_fc2].reshape(-1, N, 3, 3)
+    prod = prod.transpose(1, 3, 0, 2).reshape(N3, -1)
+    pred2 = (disps @ prod).reshape(-1)
+    return pred2
+
+
+def calc_gradients_O2(
+    sliced_compact_compress_mat_fc2: csr_array,
+    N: int,
+    error: NDArray,
+    disps: NDArray,
+):
+    """Calculate gradients used in iterative solver.
+
+    grad = X2.T @ errors are calculated,
+    where X2 = displacements @ compress_mat @ compress_eigvecs.
+    Errors must be ([X2, X3] @ coefs23 - forces) when using both FC2 and FC3.
+
+    Return
+    ------
+    grad: Gradients of loss function with respect to coefficients, shape=(n_compr_fc2,)
+    """
+    n_supercell = disps.shape[0]
+    prod = disps.T @ error.reshape((n_supercell, -1))
+    prod = prod.reshape(N, 3, -1, 3)
+    prod = prod.transpose(2, 0, 3, 1).reshape(-1)
+    grad2 = sliced_compact_compress_mat_fc2.T @ prod
+    return grad2

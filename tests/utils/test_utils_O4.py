@@ -1,33 +1,20 @@
 """Tests of functions in utils_O4."""
 
 import numpy as np
+import pytest
 
-from symfc.spg_reps import SpgRepsBase
-from symfc.utils.utils import SymfcAtoms
+from symfc.spg_reps import SpgRepsO4
 from symfc.utils.utils_O4 import (
     get_atomic_lat_trans_decompr_indices_O4,
+    get_compr_coset_projector_O4,
     get_lat_trans_compr_matrix_O4,
     get_lat_trans_decompr_indices_O4,
 )
 
 
-def structure_bcc():
-    """Get bcc structure."""
-    lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
-    positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
-    numbers = [1, 1]
-    supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
-
-    spg_reps = SpgRepsBase(supercell)
-    trans_perms = spg_reps.translation_permutations
-    return supercell, trans_perms
-
-
-supercell, trans_perms = structure_bcc()
-
-
-def test_lat_trans():
+def test_lat_trans(cell_spg_reps_bcc):
     """Test lat_trans_indices and lat_trans_compr_matrix."""
+    _, trans_perms, _ = cell_spg_reps_bcc
     decompr_idx = get_lat_trans_decompr_indices_O4(trans_perms)
     atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
     np.testing.assert_array_equal(
@@ -43,3 +30,13 @@ def test_lat_trans():
     row, col = c_trans.nonzero()
     np.testing.assert_array_equal(decompr_idx, col)
     np.testing.assert_allclose(c_trans.data, [0.7071067811865475] * len(decompr_idx))
+
+
+def test_coset_projector_O4(cell_spg_reps_bcc):
+    """Test get_compr_coset_projector_O4."""
+    supercell, trans_perms, _ = cell_spg_reps_bcc
+    spg_reps = SpgRepsO4(supercell)
+    atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
+    coset = get_compr_coset_projector_O4(spg_reps, atomic_decompr_idx)
+    assert coset.trace() == pytest.approx(32.0)
+    assert np.sum(coset.data) == pytest.approx(168.0)

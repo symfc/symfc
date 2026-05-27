@@ -14,18 +14,6 @@ from symfc.utils.utils_O3 import (
 )
 
 
-def structure_bcc():
-    """Get bcc structure."""
-    lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
-    positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
-    numbers = [1, 1]
-    supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
-
-    spg_reps = SpgRepsO3(supercell)
-    trans_perms = spg_reps.translation_permutations
-    return supercell, trans_perms, spg_reps
-
-
 def structure_bcc_rev():
     """Get modified bcc structure."""
     lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
@@ -38,11 +26,9 @@ def structure_bcc_rev():
     return supercell, trans_perms, spg_reps
 
 
-supercell, trans_perms, spg_reps = structure_bcc()
-
-
-def test_lat_trans():
+def test_lat_trans(cell_spg_reps_bcc):
     """Test lat_trans_indices and lat_trans_compr_matrix."""
+    _, trans_perms, _ = cell_spg_reps_bcc
     decompr_idx = get_lat_trans_decompr_indices_O3(trans_perms)
     atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
     np.testing.assert_array_equal(atomic_decompr_idx, [0, 1, 2, 3, 3, 2, 1, 0])
@@ -58,13 +44,18 @@ def test_lat_trans():
     np.testing.assert_allclose(c_trans.data, [0.7071067811865475] * len(decompr_idx))
 
 
-def test_coset_projector_O3():
+def test_coset_projector_O3(cell_spg_reps_bcc):
     """Test get_compr_coset_projector_O3."""
+    supercell, trans_perms, _ = cell_spg_reps_bcc
+    spg_reps = SpgRepsO3(supercell)
     atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
     coset = get_compr_coset_projector_O3(spg_reps, atomic_decompr_idx)
     assert coset.trace() == pytest.approx(0.0)
     assert np.sum(coset.data) == pytest.approx(0.0)
 
+
+def test_coset_projector_O3_rev():
+    """Test get_compr_coset_projector_O3 with displaced structure."""
     supercell_rev, trans_perms_rev, spg_reps_rev = structure_bcc_rev()
     atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms_rev)
     coset = get_compr_coset_projector_O3(spg_reps_rev, atomic_decompr_idx)
