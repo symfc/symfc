@@ -47,6 +47,13 @@ def get_batch_slice(n_data: int, batch_size: int) -> tuple[list[int], list[int]]
     return begin_batch, end_batch
 
 
+def shuffle_batch_order(batch_size: int):
+    """Return shuffled batch order."""
+    order = np.arange(batch_size)
+    np.random.shuffle(order)
+    return order
+
+
 def get_displacement_sparse_matrix(
     atoms: NDArray,
     displacements: NDArray,
@@ -76,3 +83,38 @@ def get_displacement_sparse_matrix(
         dtype="double",
     )
     return mat
+
+
+def update_coefs_adam(
+    coefs: NDArray,
+    grad: NDArray,
+    magn: NDArray,
+    rate: float,
+    eps_grad: float = 1e-14,
+):
+    """Update coefficients using gradients in Adam."""
+    magn_sqrt = np.sqrt(magn)
+    magn_sqrt[magn_sqrt < eps_grad] = np.inf
+    coefs -= rate * grad / magn_sqrt
+    return coefs
+
+
+def update_gradients_adam(
+    grad_current: NDArray,
+    grad_prev: NDArray,
+    magn_prev: NDArray,
+    beta: float,
+    beta2: float,
+):
+    """Update gradients in Adam."""
+    grad = beta * grad_prev + (1 - beta) * grad_current
+    magn = beta2 * magn_prev + (1 - beta2) * (grad_current**2)
+    return grad, magn
+
+
+def calc_gradient_stats(grad: NDArray):
+    """Calculate average and maximum gradients."""
+    grad_abs = np.abs(grad)
+    grad_ave = np.average(grad_abs)
+    grad_max = np.max(grad_abs)
+    return grad_ave, grad_max

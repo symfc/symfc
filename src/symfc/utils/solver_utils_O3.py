@@ -81,3 +81,68 @@ def set_disps_N3N3(disps, sparse=False):
     if sparse:
         return csr_array(disps_2nd)
     return disps_2nd
+
+
+def slice_compact_compress_mat_O3(
+    compact_compress_mat_fc3: csr_array,
+    atomic_decompr_idx_fc3: NDArray,
+    N: int,
+    atom_idx_begin: int,
+    atom_idx_end: int,
+):
+    """Slice compact compresstion matrix."""
+    NN = N * N
+    decompr_idx_fc3 = (
+        atomic_decompr_idx_fc3[atom_idx_begin * NN : atom_idx_end * NN, None] * 27
+        + np.arange(27)[None, :]
+    ).reshape(-1)
+    compr_mat_fc3 = compact_compress_mat_fc3[decompr_idx_fc3]
+    return (decompr_idx_fc3, compr_mat_fc3)
+
+
+def calc_predictions_O3(
+    compact_compress_mat_fc3: csr_array,
+    decompr_idx_fc3: NDArray,
+    N: int,
+    coefs: NDArray,
+    dispN3N3: NDArray,
+):
+    """Calculate predicted forces used in iterative solver.
+
+    pred3 = X3 @ coefs are calculated,
+    where X3 = displacements @ compress_mat @ compress_eigvecs.
+
+    Return
+    ------
+    pred3: Predicted forces, shape=(n_supercell * n_atom_batch * 3)
+    """
+    NN33 = N * N * 9
+    prod = compact_compress_mat_fc3 @ coefs
+    prod = prod[decompr_idx_fc3].reshape(-1, N, N, 3, 3, 3)
+    prod = prod.transpose(1, 4, 2, 5, 0, 3).reshape(NN33, -1)
+    pred3 = (dispN3N3 @ prod).reshape(-1)
+    return pred3
+
+
+def calc_gradients_O3(
+    sliced_compact_compress_mat_fc3: csr_array,
+    N: int,
+    error: NDArray,
+    dispN3N3: NDArray,
+):
+    """Calculate gradients used in iterative solver.
+
+    grad = X3.T @ errors are calculated,
+    where X3 = displacements @ compress_mat @ compress_eigvecs.
+    Errors must be ([X2, X3] @ coeffs23 - forces) when using both FC2 and FC3.
+
+    Return
+    ------
+    grad: Gradients of loss function with respect to coefficients, shape=(n_compr_fc3,)
+    """
+    n_supercell = dispN3N3.shape[0]
+    prod = dispN3N3.T @ error.reshape((n_supercell, -1))
+    prod = prod.reshape(N, 3, N, 3, -1, 3)
+    prod = prod.transpose(4, 0, 2, 5, 1, 3).reshape(-1)
+    grad3 = sliced_compact_compress_mat_fc3.T @ prod
+    return grad3
