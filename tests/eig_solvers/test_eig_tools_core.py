@@ -10,7 +10,7 @@ from symfc.eig_solvers.eig_tools_core import (
     eigh_projector,
     find_projector_blocks,
 )
-from symfc.eig_solvers.matrix import root_block_matrix
+from symfc.eig_solvers.matrix import BlockMatrixNode, root_block_matrix
 
 
 def _set_projector():
@@ -72,6 +72,48 @@ def test_eigenvector_result_with_compress():
     block = res.block_eigvecs
     block_root = root_block_matrix(shape=(5, 2), first_child=block)
     np.testing.assert_allclose(block_root.recover(), compress @ eigvecs)
+
+
+def test_eigenvector_result_block_no_compress():
+    """Test EigenvectorResult.block_eigvecs.
+
+    * When eigvecs is BlockMatrixNode without compress.
+
+    block_eigvecs should return the same BlockMatrixNode object unchanged.
+
+    """
+    eigvecs_data = np.random.random((3, 2))
+    eigvecs_block = BlockMatrixNode(
+        rows=np.arange(3), col_begin=0, col_end=2, data=eigvecs_data
+    )
+    res = EigenvectorResult(eigvecs=eigvecs_block)
+    assert res.block_eigvecs is eigvecs_block
+
+
+def test_eigenvector_result_block_with_compress():
+    """Test EigenvectorResult.block_eigvecs.
+
+    * When eigvecs is BlockMatrixNode with compress.
+
+    Before the fix, the BlockMatrixNode itself was passed as data to the new
+    BlockMatrixNode instead of calling recover() first, causing a crash on use.
+
+    """
+    eigvecs_data = np.random.random((3, 2))
+    eigvecs_block = BlockMatrixNode(
+        rows=np.arange(3), col_begin=0, col_end=2, data=eigvecs_data
+    )
+    compress_data = np.random.random((5, 3))
+    compress_block = BlockMatrixNode(
+        rows=np.arange(5), col_begin=0, col_end=3, data=compress_data
+    )
+
+    res = EigenvectorResult(eigvecs=eigvecs_block, compress=compress_block)
+    assert res.n_eigvecs == 2
+
+    block = res.block_eigvecs
+    block_root = root_block_matrix(shape=(5, 2), first_child=block)
+    np.testing.assert_allclose(block_root.recover(), compress_data @ eigvecs_data)
 
 
 def test_divide_eigenvectors():

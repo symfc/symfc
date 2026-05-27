@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from symfc.spg_reps.spg_reps_base import SpgRepsBase
 from symfc.utils.utils import SymfcAtoms
 
 cwd = Path(__file__).parent
@@ -968,3 +969,16 @@ def ph3_si_111_fc3() -> tuple[SymfcAtoms, np.ndarray, np.ndarray]:
     d = dfset[:, :3].reshape(N, -1, 3)
     f = dfset[:, 3:].reshape(N, -1, 3)
     return cell, d, f
+
+
+@pytest.fixture(scope="session")
+def cell_spg_reps_bcc():
+    """Return bcc structure and its spg_reps."""
+    lattice = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
+    positions = np.array([[0, 0, 0], [0.5, 0.5, 0.5]])
+    numbers = [1, 1]
+    supercell = SymfcAtoms(cell=lattice, scaled_positions=positions, numbers=numbers)
+
+    spg_reps = SpgRepsBase(supercell)
+    trans_perms = spg_reps.translation_permutations
+    return supercell, trans_perms, spg_reps

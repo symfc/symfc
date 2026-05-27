@@ -82,7 +82,7 @@ def compr_permutation_lat_trans_O4(
     indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
 
     # order = 1
-    combinations = np.array([[i, i, i] for i in range(3 * natom)], dtype=int)
+    combinations = np.array([[i, i, i, i] for i in range(3 * natom)], dtype=int)
     perms = [[0, 0, 0, 0]]
     perm_decompr_idx = _update_perm_decompr_indices(
         combinations,
@@ -94,6 +94,7 @@ def compr_permutation_lat_trans_O4(
         n_batch=1,
         verbose=verbose,
     )
+    print(perm_decompr_idx)
 
     # order = 2
     combinations = get_combinations(
@@ -116,6 +117,26 @@ def compr_permutation_lat_trans_O4(
         trans_perms,
         perm_decompr_idx,
         n_perms_group=2,
+        n_batch=1,
+        verbose=verbose,
+    )
+
+    perms = [
+        [0, 0, 1, 1],
+        [0, 1, 0, 1],
+        [0, 1, 1, 0],
+        [1, 0, 0, 1],
+        [1, 0, 1, 0],
+        [1, 1, 0, 0],
+    ]
+
+    perm_decompr_idx = _update_perm_decompr_indices(
+        combinations,
+        perms,
+        atomic_decompr_idx,
+        trans_perms,
+        perm_decompr_idx,
+        n_perms_group=1,
         n_batch=1,
         verbose=verbose,
     )
