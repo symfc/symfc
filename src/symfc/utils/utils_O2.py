@@ -9,6 +9,51 @@ from scipy.sparse import csr_array
 from .utils import get_indep_atoms_by_lat_trans
 
 
+def _get_atomic_lat_trans_decompr_indices(trans_perms: NDArray) -> NDArray:
+    """Return indices to de-compress compressed matrix by atom-lat-trans-sym.
+
+    This is atomic permutation only version of get_lat_trans_decompr_indices.
+
+
+    Usage
+    -----
+    vec[indices] of shape (n_a*N,) gives an array of shape=(N**2,).
+    1/sqrt(n_lp) must be multiplied manually after decompression.
+
+
+    Parameters
+    ----------
+    trans_perms : ndarray
+        Permutation of atomic indices by lattice translational symmetry.
+        dtype='intc'.
+        shape=(n_l, N), where n_l and N are the numbers of lattice points and
+        atoms in supercell.
+
+
+    Returns
+    -------
+    indices : ndarray
+        Indices of n_a * N elements.
+        shape=(N^2*,), dtype='int_'.
+
+
+    """
+    indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
+    n_lp, N = trans_perms.shape
+    size_row = N**2
+
+    n = 0
+    indices = np.zeros(size_row, dtype="int_")
+    for i_patom in indep_atoms:
+        index_shift_i = trans_perms[:, i_patom] * N
+        for j in range(N):
+            index_shift = index_shift_i + trans_perms[:, j]
+            indices[index_shift] = n
+            n += 1
+    assert n * n_lp == size_row
+    return indices
+
+
 def get_lat_trans_decompr_indices(trans_perms: NDArray) -> NDArray:
     """Return indices to de-compress compressed matrix by lat-trans-sym.
 
