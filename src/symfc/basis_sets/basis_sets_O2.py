@@ -137,20 +137,6 @@ class FCBasisSetO2(FCBasisSetBase):
             atomic_decompr_idx=self._atomic_decompr_idx,
             permutation=perm2,
         )
-
-        # c_pt = compr_permutation_lat_trans_O2(
-        #     trans_perms,
-        #     atomic_decompr_idx=self._atomic_decompr_idx,
-        #     fc_cutoff=self._fc_cutoff,
-        #     verbose=self._log_level > 0,
-        # )
-        # proj_rpt = get_compr_coset_projector_O2(
-        #     self._spg_reps,  # type: ignore
-        #     fc_cutoff=self._fc_cutoff,
-        #     atomic_decompr_idx=self._atomic_decompr_idx,
-        #     c_pt=c_pt,
-        # )
-
         c_rpt = eigsh_projector(proj_rpt, verbose=self._log_level > 0)
         n_a_compress_mat = dot_product_sparse(
             perm2.basis_set, c_rpt, use_mkl=self._use_mkl
