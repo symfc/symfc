@@ -70,6 +70,7 @@ class FCBasisSetO1(FCBasisSetBase):
 
         # Unused in O1, just dummy variable to satisfy the base class
         self._atomic_decompr_idx: np.ndarray
+        self._full_basis_set = None
 
     @property
     def full_basis_set(self) -> Optional[csr_array]:
