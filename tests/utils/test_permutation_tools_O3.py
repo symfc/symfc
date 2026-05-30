@@ -19,7 +19,7 @@ def test_N3N3N3_to_NNNand333():
 
 def test_PermutationO3_1(cell_spg_reps_bcc):
     """Test PermutationO3."""
-    supercell, trans_perms, _ = cell_spg_reps_bcc
+    _, trans_perms, _ = cell_spg_reps_bcc
     atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
     perm3 = PermutationO3(
         trans_perms,
