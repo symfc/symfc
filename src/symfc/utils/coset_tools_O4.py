@@ -11,45 +11,6 @@ from symfc.utils.permutation_tools_O4 import PermutationO4
 from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O4 import get_atomic_lat_trans_decompr_indices_O4
 
-# def blocked_triple_product(
-#     c_pt: csr_array,
-#     mat: csr_array,
-#     n_split: int = 2,
-#     use_mkl: bool = False,
-# ):
-#     """Compute C_pt.T @ mat @ C_pt using block partitioning."""
-#     n_pt = c_pt.shape[1]
-#     edges = np.linspace(0, n_pt, n_split + 1, dtype="int_")
-#
-#     rows, cols, datas = [], [], []
-#     for i in range(n_split):
-#         print("block", i)
-#         i0, i1 = edges[i], edges[i + 1]
-#         c_i = c_pt[:, i0:i1]
-#         for j in range(n_split):
-#             j0, j1 = edges[j], edges[j + 1]
-#             c_j = c_pt[:, j0:j1]
-#
-#             # sparse-safe
-#             # tmp = mat @ c_j
-#             # block = c_i.T @ tmp
-#             tmp = dot_product_sparse(mat, c_j, use_mkl=use_mkl)
-#             block = dot_product_sparse(c_i.T, tmp, use_mkl=use_mkl)
-#
-#             block = block.tocoo()
-#
-#             rows.append(block.row + i0)
-#             cols.append(block.col + j0)
-#             datas.append(block.data)
-#
-#     rows = np.concatenate(rows)
-#     cols = np.concatenate(cols)
-#     datas = np.concatenate(datas)
-#
-#     result = csr_array((datas, (rows, cols)), shape=(n_pt, n_pt))
-#     return result
-#
-
 
 def get_compr_coset_projector_O4(
     spg_reps: SpgRepsO4,

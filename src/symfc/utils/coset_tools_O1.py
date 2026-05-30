@@ -7,7 +7,7 @@ from symfc.spg_reps import SpgRepsO1
 from symfc.utils.utils_O1 import _get_atomic_lat_trans_decompr_indices
 
 
-def get_compr_coset_reps_sum(spg_reps: SpgRepsO1):
+def get_compr_coset_projector_O1(spg_reps: SpgRepsO1):
     """Return compressed projector of coset reps sum."""
     trans_perms = spg_reps.translation_permutations
     n_lp, N = trans_perms.shape
