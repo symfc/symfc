@@ -20,12 +20,12 @@ try:
 except ImportError:
     pass
 
-from symfc.utils.permutation_tools_O3 import compr_permutation_lat_trans_O3
+from symfc.utils.coset_tools_O3 import get_compr_coset_projector_O3
+from symfc.utils.permutation_tools_O3 import PermutationO3
 from symfc.utils.translation_tools_O3 import compressed_projector_sum_rules_O3
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O3 import (
     get_atomic_lat_trans_decompr_indices_O3,
-    get_compr_coset_projector_O3,
     get_lat_trans_compr_matrix_O3,
 )
 
@@ -135,22 +135,22 @@ class FCBasisSetO3(FCBasisSetBase):
         trans_perms = self._spg_reps.translation_permutations
 
         tt1 = time.time()
-        c_pt = compr_permutation_lat_trans_O3(
+        perm3 = PermutationO3(
             trans_perms,
             atomic_decompr_idx=self._atomic_decompr_idx,
             fc_cutoff=self._fc_cutoff,
             verbose=self._log_level > 0,
-        )
+        ).run()
 
         if self._log_level:
-            print(" c_pt (size) :", c_pt.shape, flush=True)
+            print(" c_pt (size) :", perm3.col_shape, flush=True)
         tt2 = time.time()
 
         proj_rpt = get_compr_coset_projector_O3(
             self._spg_reps,  # type: ignore
             fc_cutoff=self._fc_cutoff,
             atomic_decompr_idx=self._atomic_decompr_idx,
-            c_pt=c_pt,
+            permutation=perm3,
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )
@@ -161,7 +161,9 @@ class FCBasisSetO3(FCBasisSetBase):
             print(" c_rpt (size) :", c_rpt.shape, flush=True)
         tt4 = time.time()
 
-        n_a_compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
+        n_a_compress_mat = dot_product_sparse(
+            perm3.basis_set, c_rpt, use_mkl=self._use_mkl
+        )
         self._n_a_compression_matrix = n_a_compress_mat
         tt5 = time.time()
 
@@ -233,12 +235,13 @@ class FCBasisSetO3(FCBasisSetBase):
             return int(np.round(basis_size_estimates).astype(int))
 
         trans_perms = self._spg_reps.translation_permutations
-        c_pt = compr_permutation_lat_trans_O3(
+        perm3 = PermutationO3(
             trans_perms,
             atomic_decompr_idx=self._atomic_decompr_idx,
             fc_cutoff=self._fc_cutoff,
             verbose=False,
-        )
+        ).run()
+        c_pt = perm3.basis_set
         n_sym_prim = len(self._spg_reps._unique_rotations)
         basis_size_estimates = c_pt.shape[1] / n_sym_prim  # type: ignore
         return int(np.round(basis_size_estimates).astype(int))

@@ -45,7 +45,8 @@ def connected_components(p: csr_array, verbose: bool = False):
         visited, visited_nodes = dfs_tree_stack(p, visited, initial_node=node)
         if verbose:
             size = len(visited_nodes)
-            print("- Size of component " + str(label + 1), ":", size, flush=True)
+            if size > 10000:
+                print("- Size of component " + str(label + 1), ":", size, flush=True)
         group[label] = visited_nodes
         label += 1
 

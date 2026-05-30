@@ -163,8 +163,7 @@ def find_projector_blocks(p: csr_array, verbose: bool = False) -> dict:
     if verbose:
         print("Finding block diagonal structure in projector.", flush=True)
 
-    # if len(p.data) < SCIPY_SPARSE_DATA_LIMIT:
-    if len(p.data) < 10:
+    if len(p.data) < SCIPY_SPARSE_DATA_LIMIT:
         if verbose:
             print("Using scipy connected_components.", flush=True)
         n_components, labels = scipy.sparse.csgraph.connected_components(p)
