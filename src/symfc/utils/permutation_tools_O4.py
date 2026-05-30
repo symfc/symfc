@@ -268,6 +268,28 @@ class PermutationO4:
         )
         return perm_decompr_idx
 
+    def _run_indep4_partition(self, n_batch: Optional[int] = None):
+        """Construct basis for N3-IDs (i, j, k, l)."""
+        _, natom = self._trans_perms.shape
+        perms = np.array(list(itertools.permutations(range(4))))
+        for atom in self._indep_atoms:
+            combinations = get_combinations(
+                natom, order=4, fc_cutoff=self._fc_cutoff, indep_atoms=[atom]
+            )
+            perm_decompr_idx = self._initialize_perm_decompr_idx()
+            perm_decompr_idx = _update_perm_decompr_indices(
+                combinations,
+                perms,
+                self._atomic_decompr_idx,
+                self._trans_perms,
+                perm_decompr_idx,
+                n_perms_group=1,
+                n_batch=n_batch,
+                verbose=self._verbose,
+            )
+            self._convert_to_matrix(perm_decompr_idx)
+        return perm_decompr_idx
+
     def _initialize_perm_decompr_idx(self):
         """Initialize permutation IDs."""
         perm_decompr_idx = np.ones(self._size_row, dtype="int") * -1
@@ -285,7 +307,7 @@ class PermutationO4:
     def run(self, n_batch: Optional[int] = None):
         """Construct basis for permutation rules compressed by C_trans."""
         self._cpt_array = []
-        _, natom = self._trans_perms.shape
+        n_lp, natom = self._trans_perms.shape
         if n_batch is None:
             n_batch3 = 1 if natom <= 128 else int(round((natom / 128) ** 2))
         else:
@@ -299,8 +321,18 @@ class PermutationO4:
         perm_decompr_idx = self._run_indep1(perm_decompr_idx)
         perm_decompr_idx = self._run_indep2(perm_decompr_idx)
         perm_decompr_idx = self._run_indep3(perm_decompr_idx, n_batch=n_batch3)
-        perm_decompr_idx = self._run_indep4(perm_decompr_idx, n_batch=n_batch4)
-        self._convert_to_matrix(perm_decompr_idx)
+
+        if natom <= 128:
+            perm_decompr_idx = self._run_indep4(perm_decompr_idx, n_batch=n_batch4)
+            self._convert_to_matrix(perm_decompr_idx)
+        elif natom <= 300:
+            self._convert_to_matrix(perm_decompr_idx)
+            perm_decompr_idx = self._initialize_perm_decompr_idx()
+            perm_decompr_idx = self._run_indep4(perm_decompr_idx, n_batch=n_batch4)
+            self._convert_to_matrix(perm_decompr_idx)
+        else:
+            self._convert_to_matrix(perm_decompr_idx)
+            perm_decompr_idx = self._run_indep4_partition(n_batch=n_batch4)
         return self
 
     @property
@@ -333,11 +365,13 @@ class PermutationO4:
         n = len(self._cpt_array)
         blocks = [[None] * n for _ in range(n)]
         for i, c_pt1 in enumerate(self._cpt_array):
-            for j, c_pt2 in enumerate(self._cpt_array):
-                # blocks[i][j] = c_pt1.T @ mat @ c_pt2
-                blk = dot_product_sparse(c_pt1.T, mat, use_mkl=use_mkl)
-                blocks[i][j] = dot_product_sparse(blk, c_pt2, use_mkl=use_mkl)
+            if self._verbose:
+                print("Block", i, flush=True)
 
+            for j, c_pt2 in enumerate(self._cpt_array):
+                blk = dot_product_sparse(c_pt1.T, mat, use_mkl=use_mkl)
+                blk = dot_product_sparse(blk, c_pt2, use_mkl=use_mkl)
+                blocks[i][j] = blk
         blk_mat = bmat(blocks, format="csr")
         blk_mat = csr_array(blk_mat)
         return blk_mat
