@@ -11,17 +11,11 @@ from symfc.utils.permutation_tools_O3 import PermutationO3
 from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O3 import get_atomic_lat_trans_decompr_indices_O3
 
-try:
-    from symfc.utils.matrix import dot_product_sparse
-except ImportError:
-    pass
-
 
 def get_compr_coset_projector_O3(
     spg_reps: SpgRepsO3,
     atomic_decompr_idx: Optional[np.ndarray] = None,
     fc_cutoff: Optional[FCCutoff] = None,
-    # c_pt: Optional[csr_array] = None,
     permutation: Optional[PermutationO3] = None,
     use_mkl: bool = False,
     verbose: bool = False,
@@ -69,9 +63,6 @@ def get_compr_coset_projector_O3(
             dtype="int_",
         )
         mat = kron(mat, spg_reps.r_reps[i] * factor).tocsr()
-        # if c_pt is not None:
-        #     mat = dot_product_sparse(c_pt.T, mat, use_mkl=use_mkl)
-        #     mat = dot_product_sparse(mat, c_pt, use_mkl=use_mkl)
         if permutation is not None:
             mat = permutation.blocked_triple_product(mat, use_mkl=use_mkl)
 
@@ -83,14 +74,14 @@ def get_compr_coset_projector_O3_stable(
     spg_reps: SpgRepsO3,
     atomic_decompr_idx: Optional[np.ndarray] = None,
     fc_cutoff: Optional[FCCutoff] = None,
-    c_pt: Optional[csr_array] = None,
+    permutation: Optional[PermutationO3] = None,
     use_mkl: bool = False,
     verbose: bool = False,
 ) -> csr_array:
     """Return compr matrix of sum of coset reps."""
     trans_perms = spg_reps.translation_permutations
     n_lp, N = trans_perms.shape
-    size = N**3 * 27 // n_lp if c_pt is None else c_pt.shape[1]  # type: ignore
+    size = N**3 * 27 // n_lp if permutation is None else permutation.col_shape  # type: ignore
 
     if atomic_decompr_idx is None:
         atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O3(trans_perms)
@@ -125,9 +116,8 @@ def get_compr_coset_projector_O3_stable(
             dtype="int_",
         )
         mat = kron(mat, spg_reps.r_reps[i] * factor).tocsr()
-        if c_pt is not None:
-            mat = dot_product_sparse(c_pt.T, mat, use_mkl=use_mkl)
-            mat = dot_product_sparse(mat, c_pt, use_mkl=use_mkl)
+        if permutation is not None:
+            mat = permutation.blocked_triple_product(mat, use_mkl=use_mkl)
 
         cosets[i % n_cosets] += mat
     return sum(cosets)  # type: ignore
