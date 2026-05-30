@@ -157,24 +157,11 @@ class PermutationO2:
     def run(self):
         """Construct basis for permutation rules compressed by C_trans."""
         self._cpt_array = []
-        _, natom = self._trans_perms.shape
-
         perm_decompr_idx = self._initialize_perm_decompr_idx()
         perm_decompr_idx = self._run_indep1(perm_decompr_idx)
         perm_decompr_idx = self._run_indep2(perm_decompr_idx)
         self._convert_to_matrix(perm_decompr_idx)
         return self
-
-    def blocked_triple_product(self, mat: csr_array, use_mkl: bool = False):
-        """Calculate c_pt.T @ mat @ c_pt.
-
-        Input matrix is overwritten.
-        """
-        if len(self._cpt_array) == 1:
-            mat = dot_product_sparse(self.basis_set.T, mat, use_mkl=use_mkl)
-            mat = dot_product_sparse(mat, self.basis_set, use_mkl=use_mkl)
-            return mat
-        raise RuntimeError("Size of basis array is one.")
 
     @property
     def col_shape(self):
@@ -192,3 +179,14 @@ class PermutationO2:
     def divided_basis_set(self):
         """Return basis-set matrices for permutation divided into reasonable sizes."""
         return self._cpt_array
+
+    def blocked_triple_product(self, mat: csr_array, use_mkl: bool = False):
+        """Calculate c_pt.T @ mat @ c_pt.
+
+        Input matrix is overwritten.
+        """
+        if len(self._cpt_array) == 1:
+            mat = dot_product_sparse(self.basis_set.T, mat, use_mkl=use_mkl)
+            mat = dot_product_sparse(mat, self.basis_set, use_mkl=use_mkl)
+            return mat
+        raise RuntimeError("Size of basis array is one.")

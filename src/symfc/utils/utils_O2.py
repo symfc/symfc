@@ -35,8 +35,6 @@ def _get_atomic_lat_trans_decompr_indices(trans_perms: NDArray) -> NDArray:
     indices : ndarray
         Indices of n_a * N elements.
         shape=(N^2*,), dtype='int_'.
-
-
     """
     indep_atoms = get_indep_atoms_by_lat_trans(trans_perms)
     n_lp, N = trans_perms.shape

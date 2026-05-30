@@ -204,6 +204,23 @@ class PermutationO3:
         self._convert_to_matrix(perm_decompr_idx)
         return self
 
+    @property
+    def col_shape(self):
+        """Return basis-set matrix shape."""
+        return sum([c_pt.shape[1] for c_pt in self._cpt_array])
+
+    @property
+    def basis_set(self):
+        """Return basis-set matrix for permutation compressed by lattice translation."""
+        if len(self._cpt_array) == 1:
+            return self._cpt_array[0]
+        return hstack(self._cpt_array)
+
+    @property
+    def divided_basis_set(self):
+        """Return basis-set matrices for permutation divided into reasonable sizes."""
+        return self._cpt_array
+
     def blocked_triple_product(self, mat: csr_array, use_mkl: bool = False):
         """Calculate c_pt.T @ mat @ c_pt.
 
@@ -225,20 +242,3 @@ class PermutationO3:
         blk_mat = bmat(blocks, format="csr")
         blk_mat = csr_array(blk_mat)
         return blk_mat
-
-    @property
-    def col_shape(self):
-        """Return basis-set matrix shape."""
-        return sum([c_pt.shape[1] for c_pt in self._cpt_array])
-
-    @property
-    def basis_set(self):
-        """Return basis-set matrix for permutation compressed by lattice translation."""
-        if len(self._cpt_array) == 1:
-            return self._cpt_array[0]
-        return hstack(self._cpt_array)
-
-    @property
-    def divided_basis_set(self):
-        """Return basis-set matrices for permutation divided into reasonable sizes."""
-        return self._cpt_array
