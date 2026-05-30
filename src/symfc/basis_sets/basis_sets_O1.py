@@ -9,10 +9,10 @@ from scipy.sparse import csr_array
 
 from symfc.eig_solvers.api_eig_tools import eigsh_projector
 from symfc.spg_reps import SpgRepsO1
+from symfc.utils.coset_tools_O1 import get_compr_coset_reps_sum
 from symfc.utils.translation_tools_O1 import compressed_projector_sum_rules
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O1 import (
-    get_compr_coset_reps_sum,
     get_lat_trans_compr_matrix,
     get_lat_trans_decompr_indices,
 )
