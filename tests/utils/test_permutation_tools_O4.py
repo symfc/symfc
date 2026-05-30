@@ -4,10 +4,7 @@ import numpy as np
 import pytest
 
 from symfc.utils.cutoff_tools import FCCutoff
-from symfc.utils.permutation_tools_O4 import (
-    _N3N3N3N3_to_NNNNand3333,
-    compr_permutation_lat_trans_O4,
-)
+from symfc.utils.permutation_tools_O4 import PermutationO4, _N3N3N3N3_to_NNNNand3333
 from symfc.utils.utils_O4 import get_atomic_lat_trans_decompr_indices_O4
 
 
@@ -20,15 +17,16 @@ def test_N3N3N3N3_to_NNNNand3333():
     np.testing.assert_allclose(vec3333, [17, 65, 17])
 
 
-def test_projector_permutation_lat_trans_O4(cell_spg_reps_bcc):
-    """Test projector_permutation_lat_trans_O4."""
-    supercell, trans_perms, _ = cell_spg_reps_bcc
+def test_PermutationO4(cell_spg_reps_bcc):
+    """Test PermutationO4."""
+    _, trans_perms, _ = cell_spg_reps_bcc
     atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
-    c_pt = compr_permutation_lat_trans_O4(
+    perm4 = PermutationO4(
         trans_perms,
         atomic_decompr_idx=atomic_decompr_idx,
         fc_cutoff=None,
-    )
+    ).run()
+    c_pt = perm4.basis_set
     proj = c_pt @ c_pt.T
     assert proj.trace() == pytest.approx(66.0)
     assert proj.shape == (648, 648)
@@ -37,11 +35,17 @@ def test_projector_permutation_lat_trans_O4(cell_spg_reps_bcc):
     assert np.count_nonzero(np.isclose(proj.data, 1.0 / 3.0)) == 27
     assert np.count_nonzero(np.isclose(proj.data, 1.0 / 6.0)) == 216
 
-    c_pt = compr_permutation_lat_trans_O4(
+
+def test_PermutationO4_2(cell_spg_reps_bcc):
+    """Test PermutationO4."""
+    supercell, trans_perms, _ = cell_spg_reps_bcc
+    atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
+    perm4 = PermutationO4(
         trans_perms,
         atomic_decompr_idx=atomic_decompr_idx,
         fc_cutoff=FCCutoff(supercell, cutoff=2),
-    )
+    ).run()
+    c_pt = perm4.basis_set
     proj = c_pt @ c_pt.T
     assert proj.trace() == pytest.approx(66.0)
     assert len(proj.data) == 8694
