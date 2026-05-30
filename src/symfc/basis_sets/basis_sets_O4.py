@@ -19,7 +19,11 @@ try:
     from symfc.utils.matrix import dot_product_sparse
 except ImportError:
     pass
-from symfc.utils.permutation_tools_O4 import compr_permutation_lat_trans_O4
+
+# TODO: REMOVE
+from symfc.utils.permutation_tools_O4 import (
+    compr_permutation_lat_trans_O4,
+)
 from symfc.utils.translation_tools_O4 import compressed_projector_sum_rules_O4
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O4 import (
@@ -135,10 +139,27 @@ class FCBasisSetO4(FCBasisSetBase):
             fc_cutoff=self._fc_cutoff,
             verbose=self._log_level > 0,
         )
-
         if self._log_level:
             print(" c_pt (size) :", c_pt.shape, flush=True)
         tt2 = time.time()
+
+        # TODO: REMOVE #####################################################
+        # group = find_projector_blocks(block_gram(c_pt), verbose=self._log_level > 0)
+        # lengths = [len(ids) for ids in group.values() for i in ids]
+        # print("Length:", len(lengths), np.min(lengths), np.max(lengths))
+
+        # proj_rpt = get_compr_coset_projector_O4(
+        #     self._spg_reps,  # type: ignore
+        #     fc_cutoff=self._fc_cutoff,
+        #     atomic_decompr_idx=self._atomic_decompr_idx,
+        #     c_pt=None,
+        #     use_mkl=self._use_mkl,
+        #     verbose=self._log_level > 0,
+        # )
+        # group = find_projector_blocks(proj_rpt, verbose=self._log_level > 0)
+        # lengths = [len(ids) for ids in group.values() for i in ids]
+        # print("Length:", len(lengths), np.min(lengths), np.max(lengths))
+        #####################################################################
 
         proj_rpt = get_compr_coset_projector_O4(
             self._spg_reps,  # type: ignore

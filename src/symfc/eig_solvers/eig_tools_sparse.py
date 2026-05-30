@@ -48,7 +48,8 @@ def eigsh_projector(
         print("Rank of projector:", rank, flush=True)
         print("Number of blocks in projector:", len(group), flush=True)
 
-    n_div = (len(cp.data) // (5 * 10**7)) + 1
+    # n_div = (len(cp.data) // (5 * 10**7)) + 1
+    n_div = 1
     if verbose:
         print("Number of data in projector:      ", len(cp.data), flush=True)
         print("Number of divisions for projector:", n_div, flush=True)
@@ -221,6 +222,7 @@ def _extract_sparse_projector_data(p: csr_array, group: dict) -> DataCSR:
     # r = np.array([i for ids in group.values() for i in ids for j in ids])
     group_ravel = [i for ids in group.values() for i in ids]
     lengths = [len(ids) for ids in group.values() for i in ids]
+    print("Length:", len(lengths), np.min(lengths), np.max(lengths))
     r = np.repeat(group_ravel, lengths)
     c = np.array([j for ids in group.values() for _ in ids for j in ids])
     sizes = np.array([len(ids) for ids in group.values()], dtype=int)

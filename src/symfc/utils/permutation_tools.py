@@ -105,9 +105,56 @@ def construct_basis_from_perm_decompr_indices(
     values = np.reciprocal(np.sqrt(cnt))
 
     rows = np.where(nonzero)[0]
+
     c_pt = csr_array(
         (values[cols], (rows, cols)),
         shape=(size_full, n_col),
         dtype="double",
     )
     return c_pt
+
+
+def construct_basis_from_perm_decompr_indices_batch(
+    perm_decompr_idx: np.ndarray, verbose: bool = False
+):
+    """Transform perm_decompr_idx into basis matrix.
+
+    Parameters
+    ----------
+    perm_decompr_idx: Decompression indices of lattice translation basis
+                      using permutations.
+    Return
+    ------
+    c_pt: Compressed basis matrix for permutations and lattice translations.
+          c_pt = eigh(C_trans.T @ C_perm @ C_perm.T @ C_trans)
+    """
+    if verbose:
+        print("Construct permutation basis matrix.", flush=True)
+
+    size_full = len(perm_decompr_idx)
+    nonzero = perm_decompr_idx != -1
+    perm_decompr_idx = _eliminate_zero_elements(perm_decompr_idx, nonzero)
+
+    size1 = len(perm_decompr_idx)
+    perm_lat_trans_graph = csr_array(
+        (np.ones(size1, dtype=bool), (np.arange(size1), perm_decompr_idx)),
+        shape=(size1, size1),
+        dtype=bool,
+    )
+
+    n_col, cols = scipy.sparse.csgraph.connected_components(perm_lat_trans_graph)
+    key, cnt = np.unique(cols, return_counts=True)
+    values = np.reciprocal(np.sqrt(cnt))
+
+    rows = np.where(nonzero)[0]
+    print(rows[:100])
+
+    n_batch = 10
+    c_pt_array = [None for i in range(n_batch)]
+    for i in range(n_batch):
+        c_pt_array[i] = csr_array(
+            (values[cols], (rows, cols)),
+            shape=(size_full, n_col),
+            dtype="double",
+        )
+    return c_pt_array
