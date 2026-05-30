@@ -96,7 +96,9 @@ def test_solve_blocked_projector():
     proj = _set_projector()
     group = find_projector_blocks(proj)
     data = _extract_sparse_projector_data(proj, group)
-    uniq_eigvecs = _solve_blocked_projector(data)
+
+    uniq_eigvecs = {"one": (np.array([[1.0]]), [])}
+    uniq_eigvecs = _solve_blocked_projector(uniq_eigvecs, data)
     for i, (eigvecs, labels) in enumerate(uniq_eigvecs.values()):
         if i == 0:
             assert len(labels) == 0
