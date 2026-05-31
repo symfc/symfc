@@ -5,7 +5,7 @@ from typing import Optional, Union
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import bmat, csr_array, hstack
+from scipy.sparse import csr_array, hstack, vstack
 
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.permutation_tools import (
@@ -351,8 +351,8 @@ class PermutationO4:
         perm_decompr_idx = self._run_indep3(perm_decompr_idx, n_batch=n_batch3)
         perm_decompr_idx = self._run_indep4(perm_decompr_idx, n_batch=n_batch4)
 
-        # if natom <= 128:
-        if natom <= 50:
+        if natom <= 128:
+            # if natom <= 50:
             self._convert_to_matrix(perm_decompr_idx)
         else:
             self._convert_to_matrix_partition(perm_decompr_idx)
@@ -385,20 +385,18 @@ class PermutationO4:
             mat = dot_product_sparse(mat, self.basis_set, use_mkl=use_mkl)
             return mat
 
-        n = len(self._cpt_array)
-        blocks = [[None] * n for _ in range(n)]
+        rows = []
         for i, c_pt1 in enumerate(self._cpt_array):
             if self._verbose:
                 print("Block", i, flush=True)
+            blk_i = dot_product_sparse(c_pt1.T, mat, use_mkl=use_mkl)
+            row_blocks = [
+                dot_product_sparse(blk_i, c_pt2, use_mkl=use_mkl)
+                for c_pt2 in self._cpt_array
+            ]
+            rows.append(hstack(row_blocks))
 
-            for j, c_pt2 in enumerate(self._cpt_array):
-                blk = dot_product_sparse(c_pt1.T, mat, use_mkl=use_mkl)
-                blk = dot_product_sparse(blk, c_pt2, use_mkl=use_mkl)
-                blocks[i][j] = blk
-        if self._verbose:
-            print("Collect Block Matrices", flush=True)
-        blk_mat = bmat(blocks, format="csr")
-        blk_mat = csr_array(blk_mat)
+        blk_mat = vstack(rows).tocsr()
         return blk_mat
 
     def dot(self, mat: csr_array, use_mkl: bool = False):

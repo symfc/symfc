@@ -234,10 +234,15 @@ class PermutationO3:
         n = len(self._cpt_array)
         blocks = [[None] * n for _ in range(n)]
         for i, c_pt1 in enumerate(self._cpt_array):
+            if self._verbose:
+                print("Block", i, flush=True)
+
+            blk_i = dot_product_sparse(c_pt1.T, mat, use_mkl=use_mkl)
             for j, c_pt2 in enumerate(self._cpt_array):
-                # blocks[i][j] = c_pt1.T @ mat @ c_pt2
-                blk = dot_product_sparse(c_pt1.T, mat, use_mkl=use_mkl)
-                blocks[i][j] = dot_product_sparse(blk, c_pt2, use_mkl=use_mkl)
+                blk_ij = dot_product_sparse(blk_i, c_pt2, use_mkl=use_mkl)
+                blocks[i][j] = blk_ij
+        if self._verbose:
+            print("Collect Block Matrices", flush=True)
 
         blk_mat = bmat(blocks, format="csr")
         blk_mat = csr_array(blk_mat)
