@@ -100,6 +100,7 @@ def _construct_basis_from_perm_decompr_indices(
         perm_decompr_idx, verbose=verbose
     )
 
+    # Partitioning of C_pt matrix.
     chunks = [(i * n_col // n_div, (i + 1) * n_col // n_div) for i in range(n_div)]
     for start, end in chunks:
         n_col_batch = end - start
@@ -350,10 +351,11 @@ class PermutationO4:
         perm_decompr_idx = self._run_indep3(perm_decompr_idx, n_batch=n_batch3)
         perm_decompr_idx = self._run_indep4(perm_decompr_idx, n_batch=n_batch4)
 
-        if natom <= 128:
+        # if natom <= 128:
+        if natom <= 50:
             self._convert_to_matrix(perm_decompr_idx)
         else:
-            self._convert_to_matrix_partition(perm_decompr_idx, n_div=3)
+            self._convert_to_matrix_partition(perm_decompr_idx)
         return self
 
     @property
@@ -398,3 +400,19 @@ class PermutationO4:
         blk_mat = bmat(blocks, format="csr")
         blk_mat = csr_array(blk_mat)
         return blk_mat
+
+    def dot(self, mat: csr_array, use_mkl: bool = False):
+        """Calculate c_pt @ mat."""
+        if len(self._cpt_array) == 1:
+            return dot_product_sparse(self.basis_set, mat, use_mkl=use_mkl)
+
+        shape = (self._cpt_array[0].shape[0], mat.shape[1])
+        res = csr_array(shape, dtype="double")
+        start = 0
+        for i, c_pt1 in enumerate(self._cpt_array):
+            if self._verbose:
+                print("Dot: Block", i, flush=True)
+            end = start + c_pt1.shape[1]
+            res += dot_product_sparse(c_pt1, mat[start:end], use_mkl=use_mkl)
+            start = end
+        return res
