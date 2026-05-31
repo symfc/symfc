@@ -72,6 +72,28 @@ def _eliminate_zero_elements(
     return perm_decompr_idx
 
 
+def find_groups_perm_decompr_indices(
+    perm_decompr_idx: np.ndarray, verbose: bool = False
+):
+    """Find groups perm_decompr_idx."""
+    nonzero = perm_decompr_idx != -1
+    perm_decompr_idx = _eliminate_zero_elements(perm_decompr_idx, nonzero)
+
+    size1 = len(perm_decompr_idx)
+    perm_lat_trans_graph = csr_array(
+        (np.ones(size1, dtype=bool), (np.arange(size1), perm_decompr_idx)),
+        shape=(size1, size1),
+        dtype=bool,
+    )
+
+    n_col, cols = scipy.sparse.csgraph.connected_components(perm_lat_trans_graph)
+    key, cnt = np.unique(cols, return_counts=True)
+    values = np.reciprocal(np.sqrt(cnt))
+
+    rows = np.where(nonzero)[0]
+    return (rows, cols, values, n_col)
+
+
 def construct_basis_from_perm_decompr_indices(
     perm_decompr_idx: np.ndarray, verbose: bool = False
 ):
@@ -90,22 +112,9 @@ def construct_basis_from_perm_decompr_indices(
         print("Construct permutation basis matrix.", flush=True)
 
     size_full = len(perm_decompr_idx)
-    nonzero = perm_decompr_idx != -1
-    perm_decompr_idx = _eliminate_zero_elements(perm_decompr_idx, nonzero)
-
-    size1 = len(perm_decompr_idx)
-    perm_lat_trans_graph = csr_array(
-        (np.ones(size1, dtype=bool), (np.arange(size1), perm_decompr_idx)),
-        shape=(size1, size1),
-        dtype=bool,
+    rows, cols, values, n_col = find_groups_perm_decompr_indices(
+        perm_decompr_idx, verbose=verbose
     )
-
-    n_col, cols = scipy.sparse.csgraph.connected_components(perm_lat_trans_graph)
-    key, cnt = np.unique(cols, return_counts=True)
-    values = np.reciprocal(np.sqrt(cnt))
-
-    rows = np.where(nonzero)[0]
-
     c_pt = csr_array(
         (values[cols], (rows, cols)),
         shape=(size_full, n_col),
