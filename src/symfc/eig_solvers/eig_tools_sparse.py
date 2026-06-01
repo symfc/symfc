@@ -19,6 +19,7 @@ SPARSE_DATA_LIMIT = 2147483647
 
 # Tolerance constants
 DEFAULT_EIGVAL_TOL = 1e-8
+EIGSH_BLOCK_SIZE = 5e8
 
 
 def eigsh_projector(
@@ -48,8 +49,7 @@ def eigsh_projector(
         print("Rank of projector:", rank, flush=True)
         print("Number of blocks in projector:", len(group), flush=True)
 
-    # n_div = (len(cp.data) // (5 * 10**7)) + 1
-    n_div = 1
+    n_div = (len(cp.data) // EIGSH_BLOCK_SIZE) + 1
     if verbose:
         print("Number of data in projector:      ", len(cp.data), flush=True)
         print("Number of divisions for projector:", n_div, flush=True)

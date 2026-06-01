@@ -4,7 +4,7 @@ from typing import Optional, Union
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import bmat, csr_array, hstack
+from scipy.sparse import csr_array, hstack, vstack
 
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.permutation_tools import (
@@ -231,19 +231,16 @@ class PermutationO3:
             mat = dot_product_sparse(mat, self.basis_set, use_mkl=use_mkl)
             return mat
 
-        n = len(self._cpt_array)
-        blocks = [[None] * n for _ in range(n)]
+        rows = []
         for i, c_pt1 in enumerate(self._cpt_array):
             if self._verbose:
                 print("Block", i, flush=True)
-
             blk_i = dot_product_sparse(c_pt1.T, mat, use_mkl=use_mkl)
-            for j, c_pt2 in enumerate(self._cpt_array):
-                blk_ij = dot_product_sparse(blk_i, c_pt2, use_mkl=use_mkl)
-                blocks[i][j] = blk_ij
-        if self._verbose:
-            print("Collect Block Matrices", flush=True)
+            row_blocks = [
+                dot_product_sparse(blk_i, c_pt2, use_mkl=use_mkl)
+                for c_pt2 in self._cpt_array
+            ]
+            rows.append(hstack(row_blocks))
 
-        blk_mat = bmat(blocks, format="csr")
-        blk_mat = csr_array(blk_mat)
+        blk_mat = vstack(rows).tocsr()
         return blk_mat
