@@ -19,7 +19,8 @@ SPARSE_DATA_LIMIT = 2147483647
 
 # Tolerance constants
 DEFAULT_EIGVAL_TOL = 1e-8
-EIGSH_BLOCK_SIZE = 5e8
+# EIGSH_BLOCK_SIZE = 500_000_000
+EIGSH_BLOCK_SIZE = 500_000_000
 
 
 def eigsh_projector(
@@ -44,21 +45,20 @@ def eigsh_projector(
     compr = CompressionProjector(p)
     cp = compr.compressed_projector
     group = find_projector_blocks(cp, verbose=verbose)
-    if verbose:
-        rank = matrix_rank(compr.compressed_projector)
-        print("Rank of projector:", rank, flush=True)
-        print("Number of blocks in projector:", len(group), flush=True)
-
     n_div = (len(cp.data) // EIGSH_BLOCK_SIZE) + 1
     if verbose:
+        rank = matrix_rank(compr.compressed_projector)
+        print("Rank of projector:                ", rank, flush=True)
+        print("Number of blocks in projector:    ", len(group), flush=True)
         print("Number of data in projector:      ", len(cp.data), flush=True)
         print("Number of divisions for projector:", n_div, flush=True)
 
-    if n_div > 1:
+    n_div = 3
+    if n_div == 1:
+        chunks = [group]
+    else:
         items = list(group.items())
         chunks = [dict(items[i::n_div]) for i in range(n_div)]
-    else:
-        chunks = [group]
 
     uniq_eigvecs: dict[str | tuple, tuple[NDArray | None, list]] = {
         "one": (np.array([[1.0]]), [])
@@ -222,7 +222,6 @@ def _extract_sparse_projector_data(p: csr_array, group: dict) -> DataCSR:
     # r = np.array([i for ids in group.values() for i in ids for j in ids])
     group_ravel = [i for ids in group.values() for i in ids]
     lengths = [len(ids) for ids in group.values() for i in ids]
-    print("Length:", len(lengths), np.min(lengths), np.max(lengths))
     r = np.repeat(group_ravel, lengths)
     c = np.array([j for ids in group.values() for _ in ids for j in ids])
     sizes = np.array([len(ids) for ids in group.values()], dtype=int)
