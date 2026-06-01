@@ -88,13 +88,6 @@ def _eliminate_zero_elements(
     size_full = len(perm_decompr_idx)
     if not np.all(nonzero):
         perm_decompr_idx = perm_decompr_idx[nonzero]
-
-        # # TODO: REMOVE
-        # key, cnt = np.unique(perm_decompr_idx, return_counts=True)
-        # print(np.unique(cnt))
-        # print(np.max(cnt))
-        # #############
-
         nonzero_map = np.ones(size_full, dtype="int_") * -1
         nonzero_map[nonzero] = np.arange(len(perm_decompr_idx))
         perm_decompr_idx = nonzero_map[perm_decompr_idx]
@@ -108,14 +101,6 @@ def find_groups_perm_decompr_indices(
     nonzero = perm_decompr_idx != -1
     perm_decompr_idx = _eliminate_zero_elements(perm_decompr_idx, nonzero)
 
-    # # TODO: REMOVE
-    # key, cnt = np.unique(perm_decompr_idx, return_counts=True)
-    # # for k, c in zip(key, cnt):
-    # #     print(k, c)
-    # print(np.unique(cnt))
-    # print(np.max(cnt))
-    # #############
-
     size1 = len(perm_decompr_idx)
     perm_lat_trans_graph = csr_array(
         (np.ones(size1, dtype=bool), (np.arange(size1), perm_decompr_idx)),
@@ -123,14 +108,14 @@ def find_groups_perm_decompr_indices(
         dtype=bool,
     )
 
-    print(len(perm_lat_trans_graph.data))
-    # if len(perm_lat_trans_graph.data) < 10:
     if len(perm_lat_trans_graph.data) < SCIPY_SPARSE_DATA_LIMIT:
-        print("Use scipy connected_components", flush=True)
+        if verbose:
+            print("Use scipy connected_components.", flush=True)
         n_col, cols = scipy.sparse.csgraph.connected_components(perm_lat_trans_graph)
         key, cnt = np.unique(cols, return_counts=True)
     else:
-        print("Use symfc connected_components", flush=True)
+        if verbose:
+            print("Use symfc connected_components.", flush=True)
         perm_lat_trans_graph += perm_lat_trans_graph.T
         group = connected_components(perm_lat_trans_graph, verbose=verbose)
         n_col = len(group)
@@ -141,11 +126,6 @@ def find_groups_perm_decompr_indices(
             cnt.append(len(v))
 
     values = np.reciprocal(np.sqrt(cnt))
-    print(n_col)
-    print(cols)
-    print(values)
-    print(np.min(values))
-    print(np.max(cnt))
     rows = np.where(nonzero)[0]
     return (rows, cols, values, n_col)
 

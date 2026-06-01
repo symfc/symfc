@@ -27,30 +27,18 @@ def _N3N3N3N3_to_NNNNand3333(
     combs: np.ndarray, N: int
 ) -> tuple[np.ndarray, np.ndarray]:
     """Transform index order."""
-    vecNNNN = np.zeros(combs.shape[0], dtype=np.int64)
-    vec3333 = np.zeros(combs.shape[0], dtype=np.int64)
     vecNNNN, vec3333 = np.divmod(combs[:, 0], 3)
-
-    vecNNNN = vecNNNN.astype(np.int64) * (N**3)
-    vec3333 = vec3333.astype(np.int64) * 27
-
-    div = np.zeros(combs.shape[0], dtype=np.int64)
-    mod = np.zeros(combs.shape[0], dtype=np.int64)
+    vecNNNN *= N**3
+    vec3333 *= 27
     div, mod = np.divmod(combs[:, 1], 3)
-    vecNNNN += div.astype(np.int64) * N**2
-    vec3333 += mod.astype(np.int64) * 9
-
-    div = np.zeros(combs.shape[0], dtype=np.int64)
-    mod = np.zeros(combs.shape[0], dtype=np.int64)
+    vecNNNN += div * N**2
+    vec3333 += mod * 9
     div, mod = np.divmod(combs[:, 2], 3)
-    vecNNNN += div.astype(np.int64) * N
-    vec3333 += mod.astype(np.int64) * 3
-
-    div = np.zeros(combs.shape[0], dtype=np.int64)
-    mod = np.zeros(combs.shape[0], dtype=np.int64)
+    vecNNNN += div * N
+    vec3333 += mod * 3
     div, mod = np.divmod(combs[:, 3], 3)
-    vecNNNN += div.astype(np.int64)
-    vec3333 += mod.astype(np.int64)
+    vecNNNN += div
+    vec3333 += mod
     return vecNNNN, vec3333
 
 
@@ -80,15 +68,8 @@ def _update_perm_decompr_indices(
             print("Permutation basis:", str(end) + "/" + str(n_comb), flush=True)
         combs_perm = combinations[begin:end][:, permutations].reshape((-1, 4))
         combs_perm, combs3333 = _N3N3N3N3_to_NNNNand3333(combs_perm, natom)
-        print(atomic_decompr_idx.dtype, combs_perm.dtype, combs3333.dtype)
-        print(atomic_decompr_idx.shape)
-        decompr_idx_combs_perm = atomic_decompr_idx[combs_perm].astype(
-            np.int64
-        ) * 81 + combs3333.astype(np.int64)
-        print(decompr_idx_combs_perm.dtype)
-        print(decompr_idx_combs_perm.shape)
+        decompr_idx_combs_perm = atomic_decompr_idx[combs_perm] * 81 + combs3333
         decompr_idx_combs_perm = decompr_idx_combs_perm.reshape(-1, n_perms_sym)
-        print(decompr_idx_combs_perm.dtype)
         for orbit_components in decompr_idx_combs_perm.T:
             perm_decompr_idx[orbit_components] = decompr_idx_combs_perm[:, 0]
     return perm_decompr_idx
@@ -205,12 +186,6 @@ class PermutationO4:
             n_batch=1,
             verbose=self._verbose,
         )
-        # TODO: REMOVE
-        key, cnt = np.unique(perm_decompr_idx, return_counts=True)
-        print("indep1")
-        print(np.unique(cnt))
-        print(np.max(cnt))
-        ###################
         return perm_decompr_idx
 
     def _run_indep2(self, perm_decompr_idx: NDArray):
@@ -257,76 +232,7 @@ class PermutationO4:
             n_batch=1,
             verbose=self._verbose,
         )
-        # TODO: REMOVE
-        key, cnt = np.unique(perm_decompr_idx, return_counts=True)
-        print("indep2")
-        print(np.unique(cnt))
-        print(np.max(cnt))
-        ###################
         return perm_decompr_idx
-
-    #   def _run_indep3(self, perm_decompr_idx: NDArray, n_batch: Optional[int] = None):
-    #        """Construct basis for N3-IDs (i, i, j, k)."""
-    #        _, natom = self._trans_perms.shape
-    #        combinations = get_combinations(
-    #           natom, order=3, fc_cutoff=self._fc_cutoff, indep_atoms=self._indep_atoms
-    #        )
-    #        perms = [
-    #            [0, 0, 1, 2],
-    #            [0, 0, 2, 1],
-    #            [0, 1, 0, 2],
-    #            [0, 2, 0, 1],
-    #            [0, 1, 2, 0],
-    #            [0, 2, 1, 0],
-    #            [1, 0, 0, 2],
-    #            [2, 0, 0, 1],
-    #            [1, 0, 2, 0],
-    #            [2, 0, 1, 0],
-    #            [1, 2, 0, 0],
-    #            [2, 1, 0, 0],
-    #            [1, 1, 0, 2],
-    #            [1, 1, 2, 0],
-    #            [1, 0, 1, 2],
-    #            [1, 2, 1, 0],
-    #            [1, 0, 2, 1],
-    #            [1, 2, 0, 1],
-    #            [0, 1, 1, 2],
-    #            [2, 1, 1, 0],
-    #            [0, 1, 2, 1],
-    #            [2, 1, 0, 1],
-    #            [0, 2, 1, 1],
-    #            [2, 0, 1, 1],
-    #            [2, 2, 1, 0],
-    #            [2, 2, 0, 1],
-    #            [2, 1, 2, 0],
-    #            [2, 0, 2, 1],
-    #            [2, 1, 0, 2],
-    #            [2, 0, 1, 2],
-    #            [1, 2, 2, 0],
-    #            [0, 2, 2, 1],
-    #            [1, 2, 0, 2],
-    #            [0, 2, 1, 2],
-    #            [1, 0, 2, 2],
-    #            [0, 1, 2, 2],
-    #        ]
-    #        perm_decompr_idx = _update_perm_decompr_indices(
-    #            combinations,
-    #            perms,
-    #            self._atomic_decompr_idx,
-    #            self._trans_perms,
-    #            perm_decompr_idx,
-    #            n_perms_group=3,
-    #            n_batch=n_batch,
-    #            verbose=self._verbose,
-    #        )
-    #        # TODO: REMOVE
-    #        key, cnt = np.unique(perm_decompr_idx, return_counts=True)
-    #        print("indep3")
-    #        print(np.unique(cnt))
-    #        print(np.max(cnt))
-    #        #############
-    #        return perm_decompr_idx
-    #
 
     def _run_indep3(self, perm_decompr_idx: NDArray, n_batch: Optional[int] = None):
         """Construct basis for N3-IDs (i, i, j, k)."""
@@ -347,18 +253,6 @@ class PermutationO4:
             [2, 0, 1, 0],
             [1, 2, 0, 0],
             [2, 1, 0, 0],
-        ]
-        perm_decompr_idx = _update_perm_decompr_indices(
-            combinations,
-            perms,
-            self._atomic_decompr_idx,
-            self._trans_perms,
-            perm_decompr_idx,
-            n_perms_group=1,
-            n_batch=n_batch,
-            verbose=self._verbose,
-        )
-        perms = [
             [1, 1, 0, 2],
             [1, 1, 2, 0],
             [1, 0, 1, 2],
@@ -371,30 +265,6 @@ class PermutationO4:
             [2, 1, 0, 1],
             [0, 2, 1, 1],
             [2, 0, 1, 1],
-        ]
-        # TODO: REMOVE
-        key, cnt = np.unique(perm_decompr_idx, return_counts=True)
-        print("indep3")
-        print(np.unique(cnt))
-        print(np.max(cnt))
-        #############
-        perm_decompr_idx = _update_perm_decompr_indices(
-            combinations,
-            perms,
-            self._atomic_decompr_idx,
-            self._trans_perms,
-            perm_decompr_idx,
-            n_perms_group=1,
-            n_batch=n_batch,
-            verbose=self._verbose,
-        )
-        # TODO: REMOVE
-        key, cnt = np.unique(perm_decompr_idx, return_counts=True)
-        print("indep3")
-        print(np.unique(cnt))
-        print(np.max(cnt))
-        #############
-        perms = [
             [2, 2, 1, 0],
             [2, 2, 0, 1],
             [2, 1, 2, 0],
@@ -414,16 +284,10 @@ class PermutationO4:
             self._atomic_decompr_idx,
             self._trans_perms,
             perm_decompr_idx,
-            n_perms_group=1,
+            n_perms_group=3,
             n_batch=n_batch,
             verbose=self._verbose,
         )
-        # TODO: REMOVE
-        key, cnt = np.unique(perm_decompr_idx, return_counts=True)
-        print("indep3")
-        print(np.unique(cnt))
-        print(np.max(cnt))
-        #############
         return perm_decompr_idx
 
     def _run_indep4(self, perm_decompr_idx: NDArray, n_batch: Optional[int] = None):
@@ -443,12 +307,6 @@ class PermutationO4:
             n_batch=n_batch,
             verbose=self._verbose,
         )
-        # TODO: REMOVE
-        key, cnt = np.unique(perm_decompr_idx, return_counts=True)
-        print("indep4")
-        print(np.unique(cnt))
-        print(np.max(cnt))
-        #############
         return perm_decompr_idx
 
     def _initialize_perm_decompr_idx(self):
@@ -494,7 +352,6 @@ class PermutationO4:
         perm_decompr_idx = self._run_indep4(perm_decompr_idx, n_batch=n_batch4)
 
         if natom <= 300:
-            # if natom <= 50:
             self._convert_to_matrix(perm_decompr_idx)
         else:
             self._convert_to_matrix_partition(perm_decompr_idx)
