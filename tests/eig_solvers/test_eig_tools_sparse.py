@@ -47,6 +47,16 @@ def test_eigsh_projector():
     _assert_eigvecs(eigvecs.toarray())
 
 
+def test_eigsh_projector_partition(monkeypatch):
+    """Test eigsh_projector."""
+    import symfc.eig_solvers.eig_tools_sparse as mod
+
+    monkeypatch.setattr(mod, "EIGSH_BLOCK_SIZE", 3)
+    proj = _set_projector()
+    eigvecs = eigsh_projector(proj, verbose=False)
+    _assert_eigvecs(eigvecs.toarray())
+
+
 def test_compression_projector1():
     """Test CompressionProjector."""
     row = np.repeat(np.arange(4, 12, 4), 6)
