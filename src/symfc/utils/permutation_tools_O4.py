@@ -351,7 +351,7 @@ class PermutationO4:
         perm_decompr_idx = self._run_indep3(perm_decompr_idx, n_batch=n_batch3)
         perm_decompr_idx = self._run_indep4(perm_decompr_idx, n_batch=n_batch4)
 
-        if natom <= 128:
+        if natom <= 300:
             # if natom <= 50:
             self._convert_to_matrix(perm_decompr_idx)
         else:
