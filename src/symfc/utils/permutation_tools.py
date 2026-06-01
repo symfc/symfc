@@ -28,37 +28,6 @@ def get_entire_combinations(n: int, r: int):
     return combs.T
 
 
-def get_combinations_stable(
-    natom: int,
-    order: int,
-    fc_cutoff: Optional[FCCutoff] = None,
-    indep_atoms: Optional[np.ndarray] = None,
-):
-    """Return numpy array of FC index combinations."""
-    if fc_cutoff is None:
-        combinations = get_entire_combinations(3 * natom, order)
-    else:
-        if order == 2:
-            combinations = fc_cutoff.combinations2()
-        elif order == 3:
-            """Combinations can be divided using fc_cut.combiations3(i)."""
-            combinations = fc_cutoff.combinations3_all()
-        elif order == 4:
-            combinations = fc_cutoff.combinations4_all()
-        else:
-            raise NotImplementedError(
-                "Combinations are implemented only for 2 <= order <= 4."
-            )
-
-    if indep_atoms is not None:
-        nonzero = np.zeros(combinations.shape[0], dtype=bool)
-        atom_indices = combinations[:, 0] // 3
-        for i in indep_atoms:
-            nonzero[atom_indices == i] = True
-        combinations = combinations[nonzero]
-    return combinations
-
-
 def get_combinations_indep_atoms(n: int, r: int, indep_atoms: list):
     """Return numpy array of combinations related to independent atoms."""
     first_indices = [i * 3 + j for i in indep_atoms for j in range(3)]
@@ -79,31 +48,26 @@ def get_combinations(
     indep_atoms: Optional[np.ndarray] = None,
 ):
     """Return numpy array of FC index combinations."""
-    if fc_cutoff is None:
-        if indep_atoms is None:
-            return get_entire_combinations(3 * natom, order)
-        elif len(indep_atoms) < natom:
-            return get_combinations_indep_atoms(3 * natom, order, indep_atoms)
+    if fc_cutoff is None and indep_atoms is None:
+        return get_entire_combinations(3 * natom, order)
 
-        combinations = get_entire_combinations(3 * natom, order)
-        nonzero = np.zeros(combinations.shape[0], dtype=bool)
-        atom_indices = combinations[:, 0] // 3
-        for i in indep_atoms:
-            nonzero[atom_indices == i] = True
-        combinations = combinations[nonzero]
-        return combinations
+    if fc_cutoff is None and len(indep_atoms) < natom:
+        return get_combinations_indep_atoms(3 * natom, order, indep_atoms)
 
-    if order == 2:
-        combinations = fc_cutoff.combinations2()
-    elif order == 3:
-        """Combinations can be divided using fc_cut.combiations3(i)."""
-        combinations = fc_cutoff.combinations3_all()
-    elif order == 4:
-        combinations = fc_cutoff.combinations4_all()
+    if fc_cutoff is not None:
+        if order == 2:
+            combinations = fc_cutoff.combinations2()
+        elif order == 3:
+            """Combinations can be divided using fc_cut.combiations3(i)."""
+            combinations = fc_cutoff.combinations3_all()
+        elif order == 4:
+            combinations = fc_cutoff.combinations4_all()
+        else:
+            raise NotImplementedError(
+                "Combinations are implemented only for 2 <= order <= 4."
+            )
     else:
-        raise NotImplementedError(
-            "Combinations are implemented only for 2 <= order <= 4."
-        )
+        combinations = get_entire_combinations(3 * natom, order)
 
     if indep_atoms is not None:
         nonzero = np.zeros(combinations.shape[0], dtype=bool)
@@ -176,3 +140,34 @@ def construct_basis_from_perm_decompr_indices(
         dtype="double",
     )
     return c_pt
+
+
+def get_combinations_stable(
+    natom: int,
+    order: int,
+    fc_cutoff: Optional[FCCutoff] = None,
+    indep_atoms: Optional[np.ndarray] = None,
+):
+    """Return numpy array of FC index combinations."""
+    if fc_cutoff is None:
+        combinations = get_entire_combinations(3 * natom, order)
+    else:
+        if order == 2:
+            combinations = fc_cutoff.combinations2()
+        elif order == 3:
+            """Combinations can be divided using fc_cut.combiations3(i)."""
+            combinations = fc_cutoff.combinations3_all()
+        elif order == 4:
+            combinations = fc_cutoff.combinations4_all()
+        else:
+            raise NotImplementedError(
+                "Combinations are implemented only for 2 <= order <= 4."
+            )
+
+    if indep_atoms is not None:
+        nonzero = np.zeros(combinations.shape[0], dtype=bool)
+        atom_indices = combinations[:, 0] // 3
+        for i in indep_atoms:
+            nonzero[atom_indices == i] = True
+        combinations = combinations[nonzero]
+    return combinations
