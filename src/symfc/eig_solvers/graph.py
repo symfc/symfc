@@ -34,6 +34,7 @@ def connected_components(p: csr_array, verbose: bool = False):
     if not issparse(p):
         raise RuntimeError("Not sparse matrix.")
 
+    p.data[np.abs(p.data) < 1e-13] = 0
     p.eliminate_zeros()
 
     visited = np.zeros(p.shape[0], dtype=bool)

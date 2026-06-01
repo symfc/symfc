@@ -110,7 +110,7 @@ class PermutationO3:
     def _run_indep1(self, perm_decompr_idx: NDArray):
         """Construct basis for N3-IDs (i, i, i)."""
         _, natom = self._trans_perms.shape
-        combinations = np.array([[i, i, i] for i in range(3 * natom)], dtype=int)
+        combinations = np.array([[i] for i in range(3 * natom)], dtype=int)
         perms = [[0, 0, 0]]
         perm_decompr_idx = _update_perm_decompr_indices(
             combinations,

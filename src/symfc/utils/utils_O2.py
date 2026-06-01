@@ -40,6 +40,7 @@ def _get_atomic_lat_trans_decompr_indices(trans_perms: NDArray) -> NDArray:
     n_lp, N = trans_perms.shape
     size_row = N**2
 
+    trans_perms = trans_perms.astype("int_")
     n = 0
     indices = np.zeros(size_row, dtype="int_")
     for i_patom in indep_atoms:
@@ -82,6 +83,7 @@ def get_lat_trans_decompr_indices(trans_perms: NDArray) -> NDArray:
     n_lp = N // n_a
     size_row = (N * 3) ** 2
 
+    trans_perms = trans_perms.astype("int_")
     n = 0
     indices = np.zeros(size_row, dtype="int_")
     for i_patom in indep_atoms:

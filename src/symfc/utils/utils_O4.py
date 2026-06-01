@@ -35,6 +35,7 @@ def get_atomic_lat_trans_decompr_indices_O4(trans_perms: np.ndarray) -> np.ndarr
     n_lp, N = trans_perms.shape
     size_row = N**4
 
+    trans_perms = trans_perms.astype("int_")
     n = 0
     indices = np.zeros(size_row, dtype="int_")
     for i_patom in indep_atoms:
@@ -125,7 +126,7 @@ def _get_lat_trans_compr_matrix_O4(
     compression_mat = csr_array(
         (
             np.full(NNNN81, 1 / np.sqrt(n_lp), dtype="double"),
-            (np.arange(NNNN81, dtype=int), decompr_idx),
+            (np.arange(NNNN81, dtype="int_"), decompr_idx),
         ),
         shape=(NNNN81, NNNN81 // n_lp),
         dtype="double",
