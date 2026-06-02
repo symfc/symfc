@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from scipy.sparse import csr_array
 
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.permutation_tools_O4 import PermutationO4, _N3N3N3N3_to_NNNNand3333
@@ -52,3 +53,28 @@ def test_PermutationO4_2(cell_spg_reps_bcc):
     assert np.count_nonzero(np.isclose(proj.data, 1)) == 3
     assert np.count_nonzero(np.isclose(proj.data, 1.0 / 3.0)) == 27
     assert np.count_nonzero(np.isclose(proj.data, 1.0 / 6.0)) == 216
+
+
+def test_PermutationO4_methods(cell_spg_reps_bcc):
+    """Test methods in PermutationO4."""
+    _, trans_perms, _ = cell_spg_reps_bcc
+    atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
+    perm4 = PermutationO4(
+        trans_perms,
+        atomic_decompr_idx=atomic_decompr_idx,
+        fc_cutoff=None,
+    )
+
+    mat = np.random.random((5, 5))
+    cp1 = np.random.random((5, 6))
+    cp2 = np.random.random((5, 3))
+    cp = np.hstack((cp1, cp2))
+    true = cp.T @ mat @ cp
+
+    mat = csr_array(mat)
+    cp1 = csr_array(cp1)
+    cp2 = csr_array(cp2)
+    perm4._cpt_array = [cp1, cp2]
+    mat = perm4.blocked_triple_product(mat)
+
+    np.testing.assert_allclose(mat.toarray(), true)

@@ -12,7 +12,7 @@ from symfc.utils.cutoff_tools import FCCutoff
 SCIPY_SPARSE_DATA_LIMIT = 2147483647
 
 
-def get_entire_combinations(n: int, r: int):
+def _get_entire_combinations(n: int, r: int):
     """Return numpy array of combinations.
 
     combinations = np.array(
@@ -31,12 +31,12 @@ def get_entire_combinations(n: int, r: int):
     return combs.T
 
 
-def get_combinations_indep_atoms(n: int, r: int, indep_atoms: list):
+def _get_combinations_indep_atoms(n: int, r: int, indep_atoms: list):
     """Return numpy array of combinations related to independent atoms."""
     first_indices = [i * 3 + j for i in indep_atoms for j in range(3)]
     combs_all = []
     for first in first_indices:
-        combs = get_entire_combinations(n - first, r - 1) + first
+        combs = _get_entire_combinations(n - first, r - 1) + first
         out = np.empty((combs.shape[0], r), dtype=combs.dtype)
         out[:, 0] = first
         out[:, 1:] = combs
@@ -52,10 +52,10 @@ def get_combinations(
 ):
     """Return numpy array of FC index combinations."""
     if fc_cutoff is None and indep_atoms is None:
-        return get_entire_combinations(3 * natom, order)
+        return _get_entire_combinations(3 * natom, order)
 
     if fc_cutoff is None and len(indep_atoms) < natom:
-        return get_combinations_indep_atoms(3 * natom, order, indep_atoms)
+        return _get_combinations_indep_atoms(3 * natom, order, indep_atoms)
 
     if fc_cutoff is not None:
         if order == 2:
@@ -70,7 +70,7 @@ def get_combinations(
                 "Combinations are implemented only for 2 <= order <= 4."
             )
     else:
-        combinations = get_entire_combinations(3 * natom, order)
+        combinations = _get_entire_combinations(3 * natom, order)
 
     if indep_atoms is not None:
         nonzero = np.zeros(combinations.shape[0], dtype=bool)
@@ -167,7 +167,7 @@ def get_combinations_stable(
 ):
     """Return numpy array of FC index combinations."""
     if fc_cutoff is None:
-        combinations = get_entire_combinations(3 * natom, order)
+        combinations = _get_entire_combinations(3 * natom, order)
     else:
         if order == 2:
             combinations = fc_cutoff.combinations2()

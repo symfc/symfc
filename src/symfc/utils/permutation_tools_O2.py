@@ -7,6 +7,7 @@ from numpy.typing import NDArray
 from scipy.sparse import csr_array
 
 from symfc.utils.cutoff_tools import FCCutoff
+from symfc.utils.matrix import blocked_triple_product
 from symfc.utils.permutation_tools import (
     construct_basis_from_perm_decompr_indices,
     get_combinations,
@@ -14,11 +15,6 @@ from symfc.utils.permutation_tools import (
 from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O2 import _get_atomic_lat_trans_decompr_indices
-
-try:
-    from symfc.utils.matrix import dot_product_sparse
-except ImportError:
-    pass
 
 
 def _N3N3_to_NNand33(combs: np.ndarray, N: int) -> tuple[np.ndarray, np.ndarray]:
@@ -185,8 +181,4 @@ class PermutationO2:
 
         Input matrix is overwritten.
         """
-        if len(self._cpt_array) == 1:
-            mat = dot_product_sparse(self.basis_set.T, mat, use_mkl=use_mkl)
-            mat = dot_product_sparse(mat, self.basis_set, use_mkl=use_mkl)
-            return mat
-        raise RuntimeError("Size of basis array is one.")
+        return blocked_triple_product(self._cpt_array, mat, use_mkl=use_mkl)

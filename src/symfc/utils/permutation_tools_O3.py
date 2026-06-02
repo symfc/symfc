@@ -4,9 +4,10 @@ from typing import Optional, Union
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import csr_array, hstack, vstack
+from scipy.sparse import csr_array, hstack
 
 from symfc.utils.cutoff_tools import FCCutoff
+from symfc.utils.matrix import blocked_triple_product
 from symfc.utils.permutation_tools import (
     construct_basis_from_perm_decompr_indices,
     get_combinations,
@@ -14,11 +15,6 @@ from symfc.utils.permutation_tools import (
 from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O3 import get_atomic_lat_trans_decompr_indices_O3
-
-try:
-    from symfc.utils.matrix import dot_product_sparse
-except ImportError:
-    pass
 
 
 def _N3N3N3_to_NNNand333(combs: np.ndarray, N: int) -> tuple[np.ndarray, np.ndarray]:
@@ -226,21 +222,4 @@ class PermutationO3:
 
         Input matrix is overwritten.
         """
-        if len(self._cpt_array) == 1:
-            mat = dot_product_sparse(self.basis_set.T, mat, use_mkl=use_mkl)
-            mat = dot_product_sparse(mat, self.basis_set, use_mkl=use_mkl)
-            return mat
-
-        rows = []
-        for i, c_pt1 in enumerate(self._cpt_array):
-            if self._verbose:
-                print("Block", i, flush=True)
-            blk_i = dot_product_sparse(c_pt1.T, mat, use_mkl=use_mkl)
-            row_blocks = [
-                dot_product_sparse(blk_i, c_pt2, use_mkl=use_mkl)
-                for c_pt2 in self._cpt_array
-            ]
-            rows.append(hstack(row_blocks))
-
-        blk_mat = vstack(rows).tocsr()
-        return blk_mat
+        return blocked_triple_product(self._cpt_array, mat, use_mkl=use_mkl)

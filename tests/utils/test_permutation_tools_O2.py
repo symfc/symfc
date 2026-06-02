@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from scipy.sparse import csr_array
 
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.permutation_tools_O2 import PermutationO2, _N3N3_to_NNand33
@@ -67,3 +68,28 @@ def test_permutationO2_2(cell_spg_reps_bcc):
     assert proj.trace() == pytest.approx(6.0)
     assert proj.shape == (18, 18)
     np.testing.assert_allclose(proj.toarray(), proj_ref_cutoff)
+
+
+def test_PermutationO2_methods(cell_spg_reps_bcc):
+    """Test methods in PermutationO2."""
+    _, trans_perms, _ = cell_spg_reps_bcc
+    atomic_decompr_idx = _get_atomic_lat_trans_decompr_indices(trans_perms)
+    perm2 = PermutationO2(
+        trans_perms,
+        atomic_decompr_idx=atomic_decompr_idx,
+        fc_cutoff=None,
+    )
+
+    mat = np.random.random((5, 5))
+    cp1 = np.random.random((5, 6))
+    cp2 = np.random.random((5, 3))
+    cp = np.hstack((cp1, cp2))
+    true = cp.T @ mat @ cp
+
+    mat = csr_array(mat)
+    cp1 = csr_array(cp1)
+    cp2 = csr_array(cp2)
+    perm2._cpt_array = [cp1, cp2]
+    mat = perm2.blocked_triple_product(mat)
+
+    np.testing.assert_allclose(mat.toarray(), true)
