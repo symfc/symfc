@@ -31,6 +31,8 @@ def _get_combinations_indep_atoms(n: int, r: int, indep_atoms: list):
     first_indices = [i * 3 + j for i in indep_atoms for j in range(3)]
     combs_all = []
     for first in first_indices:
+        if n - first < r - 1:
+            continue
         combs = _get_entire_combinations(n - first, r - 1) + first
         out = np.empty((combs.shape[0], r), dtype=combs.dtype)
         out[:, 0] = first
@@ -79,6 +81,8 @@ def _get_combinations_first_atom(n: int, r: int, first_atom: int):
     """Return numpy array of combinations related to independent atoms."""
     first_indices = [first_atom * 3 + i for i in range(3)]
     for first in first_indices:
+        if n - first < r - 1:
+            continue
         combs = _get_entire_combinations(n - first, r - 1) + first
         out = np.empty((combs.shape[0], r), dtype=combs.dtype)
         out[:, 0] = first
