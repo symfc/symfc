@@ -6,20 +6,10 @@ from symfc.spg_reps import SpgRepsBase
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O2 import (
     _get_atomic_lat_trans_decompr_indices,
-    _get_perm_compr_matrix_reference,
     get_lat_trans_compr_indices,
     get_lat_trans_compr_matrix,
     get_lat_trans_decompr_indices,
-    get_perm_compr_matrix,
 )
-
-
-def test_get_perm_compr_matrix():
-    """Test of get_perm_compr_matrix."""
-    C1 = get_perm_compr_matrix(8)
-    C2 = _get_perm_compr_matrix_reference(8)
-    np.testing.assert_array_almost_equal((C1 @ C1.T).toarray(), (C2 @ C2.T).toarray())
-    np.testing.assert_array_almost_equal((C1.T @ C1).toarray(), (C2.T @ C2).toarray())
 
 
 def test_get_lat_trans_decompr_indices(cell_nacl_111: SymfcAtoms):

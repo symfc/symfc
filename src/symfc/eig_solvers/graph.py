@@ -29,20 +29,25 @@ def dfs_tree_stack(p: csr_array, visited: np.ndarray, initial_node: int = 0):
     return visited, sorted(visited_nodes)
 
 
-def connected_components(p: csr_array):
+def connected_components(p: csr_array, verbose: bool = False):
     """Calculate connected components of graph p."""
     if not issparse(p):
         raise RuntimeError("Not sparse matrix.")
 
+    p.data[np.abs(p.data) < 1e-13] = 0
     p.eliminate_zeros()
-    visited = np.zeros(p.shape[0], dtype=bool)
 
+    visited = np.zeros(p.shape[0], dtype=bool)
     group, label = dict(), 0
     for node in range(p.shape[0]):
         if visited[node]:
             continue
 
         visited, visited_nodes = dfs_tree_stack(p, visited, initial_node=node)
+        if verbose:
+            size = len(visited_nodes)
+            if size > 10000:
+                print("- Size of component " + str(label + 1), ":", size, flush=True)
         group[label] = visited_nodes
         label += 1
 

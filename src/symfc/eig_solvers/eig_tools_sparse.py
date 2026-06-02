@@ -19,6 +19,7 @@ SPARSE_DATA_LIMIT = 2147483647
 
 # Tolerance constants
 DEFAULT_EIGVAL_TOL = 1e-8
+EIGSH_BLOCK_SIZE = 500_000_000
 
 
 def eigsh_projector(
@@ -43,15 +44,32 @@ def eigsh_projector(
     compr = CompressionProjector(p)
     cp = compr.compressed_projector
     group = find_projector_blocks(cp, verbose=verbose)
+    n_div = (len(cp.data) // EIGSH_BLOCK_SIZE) + 1
     if verbose:
         rank = matrix_rank(compr.compressed_projector)
-        print("Rank of projector:", rank, flush=True)
-        print("Number of blocks in projector:", len(group), flush=True)
+        print("Rank of projector:                ", rank, flush=True)
+        print("Number of blocks in projector:    ", len(group), flush=True)
+        print("Number of data in projector:      ", len(cp.data), flush=True)
+        print("Number of divisions for projector:", n_div, flush=True)
 
-    cp_data = _extract_sparse_projector_data(cp, group)
-    uniq_eigvecs = _solve_blocked_projector(
-        cp_data, atol=atol, rtol=rtol, verbose=verbose
-    )
+    if n_div == 1:
+        chunks = [group]
+    else:
+        items = list(group.items())
+        chunks = [dict(items[i::n_div]) for i in range(n_div)]
+
+    uniq_eigvecs: dict[str | tuple, tuple[NDArray | None, list]] = {
+        "one": (np.array([[1.0]]), [])
+    }
+    for i, group_batch in enumerate(chunks):
+        if verbose:
+            print("Extracting blocked projectors:", i + 1, flush=True)
+        cp_data = _extract_sparse_projector_data(cp, group_batch)
+        if verbose:
+            print("Solving blocked projector component.", flush=True)
+        uniq_eigvecs = _solve_blocked_projector(
+            uniq_eigvecs, cp_data, atol=atol, rtol=rtol, verbose=verbose
+        )
     eigvecs = _recover_eigvecs_from_uniq_eigvecs(uniq_eigvecs, group, cp.shape[0])  # type: ignore
     return compr.recover(eigvecs)
 
@@ -215,15 +233,13 @@ def _extract_sparse_projector_data(p: csr_array, group: dict) -> DataCSR:
 
 
 def _solve_blocked_projector(
+    uniq_eigvecs: dict,
     p_data: DataCSR,
     atol: float = DEFAULT_EIGVAL_TOL,
     rtol: float = 0.0,
     verbose: bool = True,
 ) -> dict:
     """Solve eigenvalue problem for grouped data of matrix p in DataCSR form."""
-    uniq_eigvecs: dict[str | tuple, tuple[NDArray | None, list]] = {
-        "one": (np.array([[1.0]]), [])
-    }
     for p_block, block_label, block_size in p_data:
         if block_size == 1 and not np.isclose(p_block[0], 0.0):
             uniq_eigvecs["one"][1].append(block_label)

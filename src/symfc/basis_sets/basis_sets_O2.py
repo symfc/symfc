@@ -17,13 +17,13 @@ try:
 except ImportError:
     pass
 
-from symfc.utils.permutation_tools_O2 import compr_permutation_lat_trans_O2
+from symfc.utils.coset_tools_O2 import get_compr_coset_projector_O2
+from symfc.utils.permutation_tools_O2 import PermutationO2
 from symfc.utils.rotation_tools_O2 import complementary_compr_projector_rot_sum_rules_O2
 from symfc.utils.translation_tools_O2 import compressed_projector_sum_rules_O2
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O2 import (
     _get_atomic_lat_trans_decompr_indices,
-    get_compr_coset_projector_O2,
     get_lat_trans_compr_matrix_O2,
 )
 
@@ -125,20 +125,22 @@ class FCBasisSetO2(FCBasisSetBase):
         """Compute compressed force constants basis set."""
         trans_perms = self._spg_reps.translation_permutations
 
-        c_pt = compr_permutation_lat_trans_O2(
+        perm2 = PermutationO2(
             trans_perms,
             atomic_decompr_idx=self._atomic_decompr_idx,
             fc_cutoff=self._fc_cutoff,
             verbose=self._log_level > 0,
-        )
+        ).run()
         proj_rpt = get_compr_coset_projector_O2(
             self._spg_reps,  # type: ignore
             fc_cutoff=self._fc_cutoff,
             atomic_decompr_idx=self._atomic_decompr_idx,
-            c_pt=c_pt,
+            permutation=perm2,
         )
         c_rpt = eigsh_projector(proj_rpt, verbose=self._log_level > 0)
-        n_a_compress_mat = dot_product_sparse(c_pt, c_rpt, use_mkl=self._use_mkl)
+        n_a_compress_mat = dot_product_sparse(
+            perm2.basis_set, c_rpt, use_mkl=self._use_mkl
+        )
         self._n_a_compression_matrix = n_a_compress_mat
 
         self.compute_blocked_basis_set()
@@ -185,12 +187,13 @@ class FCBasisSetO2(FCBasisSetBase):
             return int(np.round(basis_size_estimates).astype(int))
 
         trans_perms = self._spg_reps.translation_permutations
-        c_pt = compr_permutation_lat_trans_O2(
+        perm2 = PermutationO2(
             trans_perms,
             atomic_decompr_idx=self._atomic_decompr_idx,
             fc_cutoff=self._fc_cutoff,
-            verbose=False,
-        )
+            verbose=self._log_level > 0,
+        ).run()
+        c_pt = perm2.basis_set
         n_sym_prim = len(self._spg_reps._unique_rotations)
         basis_size_estimates = c_pt.shape[1] / n_sym_prim  # type: ignore
         return int(np.round(basis_size_estimates).astype(int))
