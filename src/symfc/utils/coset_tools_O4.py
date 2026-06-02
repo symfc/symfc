@@ -6,6 +6,7 @@ import numpy as np
 from scipy.sparse import csr_array, kron
 
 from symfc.spg_reps import SpgRepsO4
+from symfc.utils.coset_tools import kron_spg_reps
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.permutation_tools_O4 import PermutationO4
 from symfc.utils.utils import get_indep_atoms_by_lat_trans
@@ -39,34 +40,41 @@ def get_compr_coset_projector_O4(
     else:
         nonzero = fc_cutoff.nonzero_atomic_indices_fc4()
         nonzero = nonzero & nonzero_indep_atom
-    size_data = np.count_nonzero(nonzero)
-    col = atomic_decompr_idx[nonzero]
+    cols = atomic_decompr_idx[nonzero]
 
     n_cosets = min([int(np.sqrt(len(spg_reps.unique_rotation_indices))), 4])
     cosets = [csr_array(([], ([], [])), shape=(size, size), dtype="double")] * n_cosets
 
+    import time
+
     factor = 1 / len(spg_reps.unique_rotation_indices)
+    size_coset = N**4 // n_lp
     for i, _ in enumerate(spg_reps.unique_rotation_indices):
+        t1 = time.time()
+        """Calculate mat = C.T @ spg_reps.get_sigma3_rep(i) @ C
+            and mat = kron(mat, spg_reps.r_reps[i] * factor).tocsr().
+            C: atomic_lat_trans_compr_mat, shape=(NNN, NNN/n_lp).
+        """
         if verbose:
             n_rot = len(spg_reps.unique_rotation_indices)
             print("Coset sum:", i + 1, "/", n_rot, flush=True)
-
         perms = spg_reps.get_sigma4_rep(i, nonzero=nonzero)
-        """Equivalent to mat = C.T @ spg_reps.get_sigma4_rep(i) @ C
-        C: atomic_lat_trans_compr_mat, shape=(NNNN, NNNN/n_lp)"""
-        mat = csr_array(
-            (
-                np.ones(size_data, dtype="int_"),
-                (atomic_decompr_idx[perms], col),
-            ),
-            shape=(N**4 // n_lp, N**4 // n_lp),
-            dtype="int_",
+        mat = kron_spg_reps(
+            atomic_decompr_idx[perms],
+            cols,
+            spg_reps.r_reps[i],
+            factor,
+            size_coset,
         )
-        mat = kron(mat, spg_reps.r_reps[i] * factor).tocsr()
+        t2 = time.time()
+
         if permutation is not None:
             mat = permutation.blocked_triple_product(mat, use_mkl=use_mkl)
+        t3 = time.time()
 
         cosets[i % n_cosets] += mat
+        t4 = time.time()
+        print(t2 - t1, t3 - t2, t4 - t3)
     return sum(cosets)  # type: ignore
 
 

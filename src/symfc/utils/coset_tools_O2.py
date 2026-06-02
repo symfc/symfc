@@ -7,6 +7,7 @@ from numpy.typing import NDArray
 from scipy.sparse import csr_array, kron
 
 from symfc.spg_reps import SpgRepsO2
+from symfc.utils.coset_tools import kron_spg_reps
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.permutation_tools_O2 import PermutationO2
 from symfc.utils.utils_O2 import _get_atomic_lat_trans_decompr_indices
@@ -31,25 +32,22 @@ def get_compr_coset_projector_O2(
 
     if fc_cutoff is None:
         nonzero = None
-        size_data = N**2
-        col = _atomic_decompr_idx
+        cols = _atomic_decompr_idx
     else:
         nonzero = fc_cutoff.nonzero_atomic_indices_fc2()
-        size_data = np.count_nonzero(nonzero)
-        col = _atomic_decompr_idx[nonzero]
+        cols = _atomic_decompr_idx[nonzero]
 
     factor = 1 / n_lp / len(spg_reps.unique_rotation_indices)
+    size_coset = N**2 // n_lp
     for i, _ in enumerate(spg_reps.unique_rotation_indices):
         perms = spg_reps.get_sigma2_rep(i, nonzero=nonzero)
-        mat = csr_array(
-            (
-                np.ones(size_data, dtype="int_"),
-                (_atomic_decompr_idx[perms], col),  # type: ignore
-            ),
-            shape=(N**2 // n_lp, N**2 // n_lp),
-            dtype="int_",
+        mat = kron_spg_reps(
+            atomic_decompr_idx[perms],
+            cols,
+            spg_reps.r_reps[i],
+            factor,
+            size_coset,
         )
-        mat = kron(mat, spg_reps.r_reps[i] * factor)
         if permutation is not None:
             mat = permutation.blocked_triple_product(mat, use_mkl=False)
 
