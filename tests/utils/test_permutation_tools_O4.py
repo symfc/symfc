@@ -76,5 +76,36 @@ def test_PermutationO4_methods(cell_spg_reps_bcc):
     cp2 = csr_array(cp2)
     perm4._cpt_array = [cp1, cp2]
     mat = perm4.blocked_triple_product(mat)
-
     np.testing.assert_allclose(mat.toarray(), true)
+
+    assert perm4.col_shape == 9
+    assert perm4.basis_set.shape == (5, 9)
+    assert len(perm4.divided_basis_set) == 2
+
+
+def test_PermutationO4_methods_2(cell_spg_reps_bcc):
+    """Test methods in PermutationO4."""
+    _, trans_perms, _ = cell_spg_reps_bcc
+    atomic_decompr_idx = get_atomic_lat_trans_decompr_indices_O4(trans_perms)
+    perm4 = PermutationO4(
+        trans_perms,
+        atomic_decompr_idx=atomic_decompr_idx,
+        fc_cutoff=None,
+    )
+
+    mat = np.random.random((5, 3))
+    cp1 = np.random.random((6, 3))
+    cp2 = np.random.random((6, 2))
+    cp = np.hstack((cp1, cp2))
+    true = cp @ mat
+
+    mat = csr_array(mat)
+    cp1 = csr_array(cp1)
+    cp2 = csr_array(cp2)
+    perm4._cpt_array = [cp1, cp2]
+    mat = perm4.blocked_product(mat)
+    np.testing.assert_allclose(mat.toarray(), true)
+
+    assert perm4.col_shape == 5
+    assert perm4.basis_set.shape == (6, 5)
+    assert len(perm4.divided_basis_set) == 2

@@ -76,5 +76,8 @@ def test_PermutationO3_methods(cell_spg_reps_bcc):
     cp2 = csr_array(cp2)
     perm3._cpt_array = [cp1, cp2]
     mat = perm3.blocked_triple_product(mat)
-
     np.testing.assert_allclose(mat.toarray(), true)
+
+    assert perm3.col_shape == 9
+    assert perm3.basis_set.shape == (5, 9)
+    assert len(perm3.divided_basis_set) == 2

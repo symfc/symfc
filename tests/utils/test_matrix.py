@@ -5,7 +5,11 @@ from __future__ import annotations
 import numpy as np
 from scipy.sparse import csr_array
 
-from symfc.utils.matrix import blocked_triple_product, dot_product_sparse
+from symfc.utils.matrix import (
+    blocked_product,
+    blocked_triple_product,
+    dot_product_sparse,
+)
 
 
 def test_dot_product_sparse():
@@ -44,5 +48,22 @@ def test_blocked_triple_product():
     cp2 = csr_array(cp2)
     cpt_array = [cp1, cp2]
     mat = blocked_triple_product(cpt_array, mat)
+
+    np.testing.assert_allclose(mat.toarray(), true)
+
+
+def test_blocked_product():
+    """Test blocked_product."""
+    mat = np.random.random((5, 3))
+    cp1 = np.random.random((6, 3))
+    cp2 = np.random.random((6, 2))
+    cp = np.hstack((cp1, cp2))
+    true = cp @ mat
+
+    mat = csr_array(mat)
+    cp1 = csr_array(cp1)
+    cp2 = csr_array(cp2)
+    cpt_array = [cp1, cp2]
+    mat = blocked_product(cpt_array, mat)
 
     np.testing.assert_allclose(mat.toarray(), true)

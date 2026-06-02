@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 from scipy.sparse import csr_array, hstack
 
 from symfc.utils.cutoff_tools import FCCutoff
-from symfc.utils.matrix import blocked_triple_product
+from symfc.utils.matrix import blocked_product, blocked_triple_product
 from symfc.utils.permutation_tools import (
     construct_basis_from_perm_decompr_indices,
     find_groups_perm_decompr_indices,
@@ -17,11 +17,6 @@ from symfc.utils.permutation_tools import (
 from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O4 import get_atomic_lat_trans_decompr_indices_O4
-
-try:
-    from symfc.utils.matrix import dot_product_sparse
-except ImportError:
-    pass
 
 
 def _N3N3N3N3_to_NNNNand3333(
@@ -382,18 +377,6 @@ class PermutationO4:
         """
         return blocked_triple_product(self._cpt_array, mat, use_mkl=use_mkl)
 
-    def dot(self, mat: csr_array, use_mkl: bool = False):
+    def blocked_product(self, mat: csr_array, use_mkl: bool = False):
         """Calculate c_pt @ mat."""
-        if len(self._cpt_array) == 1:
-            return dot_product_sparse(self.basis_set, mat, use_mkl=use_mkl)
-
-        shape = (self._cpt_array[0].shape[0], mat.shape[1])
-        res = csr_array(shape, dtype="double")
-        start = 0
-        for i, c_pt1 in enumerate(self._cpt_array):
-            if self._verbose:
-                print("Dot: Block", i, flush=True)
-            end = start + c_pt1.shape[1]
-            res += dot_product_sparse(c_pt1, mat[start:end], use_mkl=use_mkl)
-            start = end
-        return res
+        return blocked_product(self._cpt_array, mat, use_mkl=use_mkl)

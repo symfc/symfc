@@ -155,10 +155,7 @@ class FCBasisSetO4(FCBasisSetBase):
             print(" c_rpt (size) :", c_rpt.shape, flush=True)
         tt4 = time.time()
 
-        n_a_compress_mat = perm4.dot(c_rpt, use_mkl=self._use_mkl)
-        # n_a_compress_mat = dot_product_sparse(
-        #     perm4.basis_set, c_rpt, use_mkl=self._use_mkl
-        # )
+        n_a_compress_mat = perm4.blocked_product(c_rpt, use_mkl=self._use_mkl)
         self._n_a_compression_matrix = n_a_compress_mat
         tt5 = time.time()
 

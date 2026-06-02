@@ -55,3 +55,24 @@ def blocked_triple_product(cpt_array: list, mat: csr_array, use_mkl: bool = Fals
 
     blk_mat = vstack(rows).tocsr()
     return blk_mat
+
+
+def blocked_product(cpt_array: list, mat: csr_array, use_mkl: bool = False):
+    """Calculate c_pt @ mat.
+
+    Input
+    -----
+    cpt_array: Column-stacked list of matrix, cpt_array = [c_pt1, c_pt2, ...].
+    mat: Central matrix for double product.
+    """
+    if len(cpt_array) == 1:
+        return dot_product_sparse(cpt_array[0], mat, use_mkl=use_mkl)
+
+    shape = (cpt_array[0].shape[0], mat.shape[1])
+    res = csr_array(shape, dtype="double")
+    start = 0
+    for c_pt1 in cpt_array:
+        end = start + c_pt1.shape[1]
+        res += dot_product_sparse(c_pt1, mat[start:end], use_mkl=use_mkl)
+        start = end
+    return res

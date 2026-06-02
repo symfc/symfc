@@ -4,7 +4,7 @@ from typing import Optional, Union
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import csr_array
+from scipy.sparse import csr_array, hstack
 
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.matrix import blocked_triple_product
@@ -169,7 +169,7 @@ class PermutationO2:
         """Return basis-set matrix for permutation compressed by lattice translation."""
         if len(self._cpt_array) == 1:
             return self._cpt_array[0]
-        raise RuntimeError("Size of basis array is one.")
+        return hstack(self._cpt_array)
 
     @property
     def divided_basis_set(self):

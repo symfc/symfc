@@ -91,5 +91,8 @@ def test_PermutationO2_methods(cell_spg_reps_bcc):
     cp2 = csr_array(cp2)
     perm2._cpt_array = [cp1, cp2]
     mat = perm2.blocked_triple_product(mat)
-
     np.testing.assert_allclose(mat.toarray(), true)
+
+    assert perm2.col_shape == 9
+    assert perm2.basis_set.shape == (5, 9)
+    assert len(perm2.divided_basis_set) == 2
