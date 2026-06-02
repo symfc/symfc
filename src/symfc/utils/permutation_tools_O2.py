@@ -43,6 +43,8 @@ def _update_perm_decompr_indices(
     perm_decompr_idx: Updated decompression indices of lattice translation basis
                       using permutations.
     """
+    if len(combinations) == 0:
+        return perm_decompr_idx
     n_lp, natom = trans_perms.shape
     n_comb = combinations.shape[0]
     n_perms = len(permutations)

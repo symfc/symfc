@@ -7,7 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_array, hstack
 
-from symfc.utils.combination_tools import get_combinations
+from symfc.utils.combination_tools import get_combinations, get_combinations_first_atom
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.matrix import blocked_product, blocked_triple_product
 from symfc.utils.permutation_tools import (
@@ -55,6 +55,8 @@ def _update_perm_decompr_indices(
     perm_decompr_idx: Updated decompression indices of lattice translation basis
                       using permutations.
     """
+    if len(combinations) == 0:
+        return perm_decompr_idx
     n_lp, natom = trans_perms.shape
     n_comb = combinations.shape[0]
     n_perms = len(permutations)
@@ -233,9 +235,6 @@ class PermutationO4:
     def _run_indep3(self, perm_decompr_idx: NDArray, n_batch: Optional[int] = None):
         """Construct basis for N3-IDs (i, i, j, k)."""
         _, natom = self._trans_perms.shape
-        combinations = get_combinations(
-            natom, order=3, fc_cutoff=self._fc_cutoff, indep_atoms=self._indep_atoms
-        )
         perms = [
             [0, 0, 1, 2],
             [0, 0, 2, 1],
@@ -274,35 +273,48 @@ class PermutationO4:
             [1, 0, 2, 2],
             [0, 1, 2, 2],
         ]
-        perm_decompr_idx = _update_perm_decompr_indices(
-            combinations,
-            perms,
-            self._atomic_decompr_idx,
-            self._trans_perms,
-            perm_decompr_idx,
-            n_perms_group=3,
-            n_batch=n_batch,
-            verbose=self._verbose,
-        )
+        for first_atom in self._indep_atoms:
+            if self._verbose:
+                print("Permutation - atom:", first_atom, flush=True)
+
+            combs_first_atom = get_combinations_first_atom(
+                natom, order=3, first_atom=first_atom, fc_cutoff=self._fc_cutoff
+            )
+            for combinations in combs_first_atom:
+                perm_decompr_idx = _update_perm_decompr_indices(
+                    combinations,
+                    perms,
+                    self._atomic_decompr_idx,
+                    self._trans_perms,
+                    perm_decompr_idx,
+                    n_perms_group=3,
+                    n_batch=n_batch,
+                    verbose=self._verbose,
+                )
         return perm_decompr_idx
 
     def _run_indep4(self, perm_decompr_idx: NDArray, n_batch: Optional[int] = None):
         """Construct basis for N3-IDs (i, j, k, l)."""
         _, natom = self._trans_perms.shape
-        combinations = get_combinations(
-            natom, order=4, fc_cutoff=self._fc_cutoff, indep_atoms=self._indep_atoms
-        )
         perms = np.array(list(itertools.permutations(range(4))))
-        perm_decompr_idx = _update_perm_decompr_indices(
-            combinations,
-            perms,
-            self._atomic_decompr_idx,
-            self._trans_perms,
-            perm_decompr_idx,
-            n_perms_group=1,
-            n_batch=n_batch,
-            verbose=self._verbose,
-        )
+        for first_atom in self._indep_atoms:
+            if self._verbose:
+                print("Permutation - atom:", first_atom, flush=True)
+
+            combs_first_atom = get_combinations_first_atom(
+                natom, order=4, first_atom=first_atom, fc_cutoff=self._fc_cutoff
+            )
+            for combinations in combs_first_atom:
+                perm_decompr_idx = _update_perm_decompr_indices(
+                    combinations,
+                    perms,
+                    self._atomic_decompr_idx,
+                    self._trans_perms,
+                    perm_decompr_idx,
+                    n_perms_group=1,
+                    n_batch=n_batch,
+                    verbose=self._verbose,
+                )
         return perm_decompr_idx
 
     def _initialize_perm_decompr_idx(self):
@@ -333,11 +345,11 @@ class PermutationO4:
         self._cpt_array = []
         n_lp, natom = self._trans_perms.shape
         if n_batch is None:
-            n_batch3 = 1 if natom <= 128 else int(round((natom / 128) ** 2))
+            n_batch3 = 1 if natom <= 256 else int(round((natom / 256) ** 2))
         else:
             n_batch3 = n_batch
         if n_batch is None:
-            n_batch4 = 1 if natom <= 16 else int(round((natom / 16) ** 2))
+            n_batch4 = 1 if natom <= 64 else int(round((natom / 64) ** 2))
         else:
             n_batch4 = n_batch
 

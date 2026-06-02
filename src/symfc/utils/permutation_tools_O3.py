@@ -46,6 +46,8 @@ def _update_perm_decompr_indices(
     perm_decompr_idx: Updated decompression indices of lattice translation basis
                       using permutations.
     """
+    if len(combinations) == 0:
+        return perm_decompr_idx
     _, natom = trans_perms.shape
     n_comb = combinations.shape[0]
     n_perms = len(permutations)
@@ -158,9 +160,11 @@ class PermutationO3:
         for first_atom in self._indep_atoms:
             if self._verbose:
                 print("Permutation - atom:", first_atom, flush=True)
-            for combinations in get_combinations_first_atom(
+
+            combs_first_atom = get_combinations_first_atom(
                 natom, order=3, first_atom=first_atom, fc_cutoff=self._fc_cutoff
-            ):
+            )
+            for combinations in combs_first_atom:
                 perm_decompr_idx = _update_perm_decompr_indices(
                     combinations,
                     perms,
@@ -172,36 +176,6 @@ class PermutationO3:
                     verbose=self._verbose,
                 )
         return perm_decompr_idx
-
-    #    def _run_indep3(
-    #    self, perm_decompr_idx: NDArray, n_batch: Optional[int] = None):
-    #        """Construct basis for N3-IDs (i, j, k)."""
-    #        _, natom = self._trans_perms.shape
-    #        for first_atom in self._indep_atoms:
-    #        combinations = get_combinations(
-    #            natom, order=3, fc_cutoff=self._fc_cutoff,
-    #            indep_atoms=self._indep_atoms
-    #        )
-    #        perms = [
-    #            [0, 1, 2],
-    #            [0, 2, 1],
-    #            [1, 0, 2],
-    #            [1, 2, 0],
-    #            [2, 0, 1],
-    #            [2, 1, 0],
-    #        ]
-    #        perm_decompr_idx = _update_perm_decompr_indices(
-    #            combinations,
-    #            perms,
-    #            self._atomic_decompr_idx,
-    #            self._trans_perms,
-    #            perm_decompr_idx,
-    #            n_perms_group=1,
-    #            n_batch=n_batch,
-    #            verbose=self._verbose,
-    #        )
-    #        return perm_decompr_idx
-    #
 
     def _initialize_perm_decompr_idx(self):
         """Initialize permutation IDs."""
@@ -222,7 +196,7 @@ class PermutationO3:
         self._cpt_array = []
         _, natom = self._trans_perms.shape
         if n_batch is None:
-            n_batch = 1 if natom <= 128 else int(round((natom / 128) ** 2))
+            n_batch = 1 if natom <= 256 else int(round((natom / 256) ** 2))
 
         perm_decompr_idx = self._initialize_perm_decompr_idx()
         perm_decompr_idx = self._run_indep1(perm_decompr_idx)
