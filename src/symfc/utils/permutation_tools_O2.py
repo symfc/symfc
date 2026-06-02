@@ -6,12 +6,10 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_array, hstack
 
+from symfc.utils.combination_tools import get_combinations
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.matrix import blocked_triple_product
-from symfc.utils.permutation_tools import (
-    construct_basis_from_perm_decompr_indices,
-    get_combinations,
-)
+from symfc.utils.permutation_tools import construct_basis_from_perm_decompr_indices
 from symfc.utils.solver_funcs import get_batch_slice
 from symfc.utils.utils import get_indep_atoms_by_lat_trans
 from symfc.utils.utils_O2 import _get_atomic_lat_trans_decompr_indices
