@@ -6,7 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_array, hstack
 
-from symfc.utils.combination_tools import get_combinations
+from symfc.utils.combination_tools import get_combinations, get_combinations_first_atom
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.matrix import blocked_triple_product
 from symfc.utils.permutation_tools import construct_basis_from_perm_decompr_indices
@@ -147,9 +147,6 @@ class PermutationO3:
     def _run_indep3(self, perm_decompr_idx: NDArray, n_batch: Optional[int] = None):
         """Construct basis for N3-IDs (i, j, k)."""
         _, natom = self._trans_perms.shape
-        combinations = get_combinations(
-            natom, order=3, fc_cutoff=self._fc_cutoff, indep_atoms=self._indep_atoms
-        )
         perms = [
             [0, 1, 2],
             [0, 2, 1],
@@ -158,17 +155,53 @@ class PermutationO3:
             [2, 0, 1],
             [2, 1, 0],
         ]
-        perm_decompr_idx = _update_perm_decompr_indices(
-            combinations,
-            perms,
-            self._atomic_decompr_idx,
-            self._trans_perms,
-            perm_decompr_idx,
-            n_perms_group=1,
-            n_batch=n_batch,
-            verbose=self._verbose,
-        )
+        for first_atom in self._indep_atoms:
+            if self._verbose:
+                print("Permutation - atom:", first_atom, flush=True)
+            for combinations in get_combinations_first_atom(
+                natom, order=3, first_atom=first_atom, fc_cutoff=self._fc_cutoff
+            ):
+                perm_decompr_idx = _update_perm_decompr_indices(
+                    combinations,
+                    perms,
+                    self._atomic_decompr_idx,
+                    self._trans_perms,
+                    perm_decompr_idx,
+                    n_perms_group=1,
+                    n_batch=n_batch,
+                    verbose=self._verbose,
+                )
         return perm_decompr_idx
+
+    #    def _run_indep3(
+    #    self, perm_decompr_idx: NDArray, n_batch: Optional[int] = None):
+    #        """Construct basis for N3-IDs (i, j, k)."""
+    #        _, natom = self._trans_perms.shape
+    #        for first_atom in self._indep_atoms:
+    #        combinations = get_combinations(
+    #            natom, order=3, fc_cutoff=self._fc_cutoff,
+    #            indep_atoms=self._indep_atoms
+    #        )
+    #        perms = [
+    #            [0, 1, 2],
+    #            [0, 2, 1],
+    #            [1, 0, 2],
+    #            [1, 2, 0],
+    #            [2, 0, 1],
+    #            [2, 1, 0],
+    #        ]
+    #        perm_decompr_idx = _update_perm_decompr_indices(
+    #            combinations,
+    #            perms,
+    #            self._atomic_decompr_idx,
+    #            self._trans_perms,
+    #            perm_decompr_idx,
+    #            n_perms_group=1,
+    #            n_batch=n_batch,
+    #            verbose=self._verbose,
+    #        )
+    #        return perm_decompr_idx
+    #
 
     def _initialize_perm_decompr_idx(self):
         """Initialize permutation IDs."""
