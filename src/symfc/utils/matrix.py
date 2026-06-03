@@ -41,8 +41,8 @@ def blocked_triple_product(cpt_array: list, mat: csr_array, use_mkl: bool = Fals
     """
     if len(cpt_array) == 1:
         basis = cpt_array[0]
-        mat = dot_product_sparse(basis.T, mat, use_mkl=use_mkl)
-        mat = dot_product_sparse(mat, basis, use_mkl=use_mkl)
+        temp = dot_product_sparse(mat, basis, use_mkl=use_mkl)
+        mat = dot_product_sparse(basis.T, temp, use_mkl=use_mkl)
         return mat
 
     rows = []

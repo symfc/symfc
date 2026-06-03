@@ -6,6 +6,7 @@ import numpy as np
 from scipy.sparse import csr_array, kron
 
 from symfc.spg_reps.spg_reps_O3 import SpgRepsO3
+from symfc.utils.coset_tools import kron_spg_reps
 from symfc.utils.cutoff_tools import FCCutoff
 from symfc.utils.permutation_tools_O3 import PermutationO3
 from symfc.utils.utils import get_indep_atoms_by_lat_trans
@@ -39,30 +40,29 @@ def get_compr_coset_projector_O3(
     else:
         nonzero = fc_cutoff.nonzero_atomic_indices_fc3()
         nonzero = nonzero & nonzero_indep_atom
-    size_data = np.count_nonzero(nonzero)
-    col = atomic_decompr_idx[nonzero]
+    cols = atomic_decompr_idx[nonzero]
 
     n_cosets = min([int(np.sqrt(len(spg_reps.unique_rotation_indices))), 4])
     cosets = [csr_array(([], ([], [])), shape=(size, size), dtype="double")] * n_cosets
 
     factor = 1 / len(spg_reps.unique_rotation_indices)
+    size_coset = N**3 // n_lp
     for i, _ in enumerate(spg_reps.unique_rotation_indices):
+        """Calculate mat = C.T @ spg_reps.get_sigma3_rep(i) @ C
+            and mat = kron(mat, spg_reps.r_reps[i] * factor).tocsr().
+            C: atomic_lat_trans_compr_mat, shape=(NNN, NNN/n_lp).
+        """
         if verbose:
             n_rot = len(spg_reps.unique_rotation_indices)
             print("Coset sum:", i + 1, "/", n_rot, flush=True)
-
         perms = spg_reps.get_sigma3_rep(i, nonzero=nonzero)
-        """Equivalent to mat = C.T @ spg_reps.get_sigma3_rep(i) @ C
-           C: atomic_lat_trans_compr_mat, shape=(NNN, NNN/n_lp)"""
-        mat = csr_array(
-            (
-                np.ones(size_data, dtype="int_"),
-                (atomic_decompr_idx[perms], col),
-            ),
-            shape=(N**3 // n_lp, N**3 // n_lp),
-            dtype="int_",
+        mat = kron_spg_reps(
+            atomic_decompr_idx[perms],
+            cols,
+            spg_reps.r_reps[i],
+            factor,
+            size_coset,
         )
-        mat = kron(mat, spg_reps.r_reps[i] * factor).tocsr()
         if permutation is not None:
             mat = permutation.blocked_triple_product(mat, use_mkl=use_mkl)
 
