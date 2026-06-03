@@ -45,12 +45,9 @@ def get_compr_coset_projector_O4(
     n_cosets = min([int(np.sqrt(len(spg_reps.unique_rotation_indices))), 4])
     cosets = [csr_array(([], ([], [])), shape=(size, size), dtype="double")] * n_cosets
 
-    import time
-
     factor = 1 / len(spg_reps.unique_rotation_indices)
     size_coset = N**4 // n_lp
     for i, _ in enumerate(spg_reps.unique_rotation_indices):
-        t1 = time.time()
         """Calculate mat = C.T @ spg_reps.get_sigma3_rep(i) @ C
             and mat = kron(mat, spg_reps.r_reps[i] * factor).tocsr().
             C: atomic_lat_trans_compr_mat, shape=(NNN, NNN/n_lp).
@@ -66,15 +63,9 @@ def get_compr_coset_projector_O4(
             factor,
             size_coset,
         )
-        t2 = time.time()
-
         if permutation is not None:
             mat = permutation.blocked_triple_product(mat, use_mkl=use_mkl)
-        t3 = time.time()
-
         cosets[i % n_cosets] += mat
-        t4 = time.time()
-        print(t2 - t1, t3 - t2, t4 - t3)
     return sum(cosets)  # type: ignore
 
 
