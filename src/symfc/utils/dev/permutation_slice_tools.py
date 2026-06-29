@@ -1,7 +1,10 @@
 """Permutation utility functions."""
 
+from dataclasses import dataclass
+
 import numpy as np
 import scipy
+from numpy.typing import NDArray
 from scipy.sparse import csr_array
 
 from symfc.eig_solvers.graph import connected_components
@@ -46,16 +49,44 @@ def find_groups_perm_decompr_indices(
             print("Use symfc connected_components.", flush=True)
         perm_lat_trans_graph += perm_lat_trans_graph.T
         group = connected_components(perm_lat_trans_graph, verbose=verbose)
-        n_col = len(group)
         cols = np.ones(perm_decompr_idx.shape, dtype="int_") * -1
         cnt = []
         for col_id, v in group.items():
             cols[v] = col_id
             cnt.append(len(v))
 
-    values = np.reciprocal(np.sqrt(cnt))
     rows = np.where(nonzero)[0]
-    return (rows, cols, values, n_col)
+    uniq_cnt, indices = np.unique(cnt[cols], return_inverse=True)
+
+    permutation_matrices = [
+        PermutationMatrix(value=np.reciprocal(np.sqrt(cnt))) for cnt in uniq_cnt
+    ]
+    for i, idx in enumerate(indices):
+        permutation_matrices[idx].rows.append(rows[i])
+        permutation_matrices[idx].cols.append(cols[i])
+
+    for mat in permutation_matrices:
+        mat.rows = np.array(mat.rows)
+        mat.cols = np.array(mat.cols)
+        mat.n_cols = len(np.unique(mat.cols))
+        print(len(mat.rows), len(mat.cols), mat.value)
+
+    return permutation_matrices
+
+
+@dataclass
+class PermutationMatrix:
+    """Dataclass for permutation matrix."""
+
+    rows: list | NDArray | None = None
+    cols: list | NDArray | None = None
+    value: float = 1.0
+    n_cols: int = 0
+
+    def __post_init__(self):
+        """Init method."""
+        self.rows = []
+        self.cols = []
 
 
 def construct_basis_from_perm_decompr_indices(
@@ -75,13 +106,7 @@ def construct_basis_from_perm_decompr_indices(
     if verbose:
         print("Construct permutation basis matrix.", flush=True)
 
-    size_full = len(perm_decompr_idx)
-    rows, cols, values, n_col = find_groups_perm_decompr_indices(
+    permutation_matrices = find_groups_perm_decompr_indices(
         perm_decompr_idx, verbose=verbose
     )
-    c_pt = csr_array(
-        (values[cols], (rows, cols)),
-        shape=(size_full, n_col),
-        dtype="double",
-    )
-    return c_pt
+    return permutation_matrices
