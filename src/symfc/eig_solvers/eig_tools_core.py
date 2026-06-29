@@ -173,6 +173,6 @@ def find_projector_blocks(p: csr_array, verbose: bool = False) -> dict:
     else:
         if verbose:
             print("Using symfc connected_components with DFS.", flush=True)
-        group = connected_components(p)
+        group = connected_components(p, verbose=verbose)
 
     return group

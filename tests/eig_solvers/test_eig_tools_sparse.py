@@ -47,6 +47,16 @@ def test_eigsh_projector():
     _assert_eigvecs(eigvecs.toarray())
 
 
+def test_eigsh_projector_partition(monkeypatch):
+    """Test eigsh_projector."""
+    import symfc.eig_solvers.eig_tools_sparse as mod
+
+    monkeypatch.setattr(mod, "EIGSH_BLOCK_SIZE", 3)
+    proj = _set_projector()
+    eigvecs = eigsh_projector(proj, verbose=False)
+    _assert_eigvecs(eigvecs.toarray())
+
+
 def test_compression_projector1():
     """Test CompressionProjector."""
     row = np.repeat(np.arange(4, 12, 4), 6)
@@ -96,7 +106,9 @@ def test_solve_blocked_projector():
     proj = _set_projector()
     group = find_projector_blocks(proj)
     data = _extract_sparse_projector_data(proj, group)
-    uniq_eigvecs = _solve_blocked_projector(data)
+
+    uniq_eigvecs = {"one": (np.array([[1.0]]), [])}
+    uniq_eigvecs = _solve_blocked_projector(uniq_eigvecs, data)
     for i, (eigvecs, labels) in enumerate(uniq_eigvecs.values()):
         if i == 0:
             assert len(labels) == 0

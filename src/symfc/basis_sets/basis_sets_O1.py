@@ -9,10 +9,10 @@ from scipy.sparse import csr_array
 
 from symfc.eig_solvers.api_eig_tools import eigsh_projector
 from symfc.spg_reps import SpgRepsO1
+from symfc.utils.coset_tools_O1 import get_compr_coset_projector_O1
 from symfc.utils.translation_tools_O1 import compressed_projector_sum_rules
 from symfc.utils.utils import SymfcAtoms
 from symfc.utils.utils_O1 import (
-    get_compr_coset_reps_sum,
     get_lat_trans_compr_matrix,
     get_lat_trans_decompr_indices,
 )
@@ -70,6 +70,7 @@ class FCBasisSetO1(FCBasisSetBase):
 
         # Unused in O1, just dummy variable to satisfy the base class
         self._atomic_decompr_idx: np.ndarray
+        self._full_basis_set = None
 
     @property
     def full_basis_set(self) -> Optional[csr_array]:
@@ -102,7 +103,7 @@ class FCBasisSetO1(FCBasisSetBase):
     def run(self) -> FCBasisSetO1:
         """Compute compressed force constants basis set."""
         c_trans = self._get_c_trans()
-        coset_reps_sum = get_compr_coset_reps_sum(self._spg_reps)  # type: ignore
+        coset_reps_sum = get_compr_coset_projector_O1(self._spg_reps)  # type: ignore
         proj_rt = coset_reps_sum
 
         if len(proj_rt.data) == 0:
