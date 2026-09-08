@@ -2,6 +2,10 @@
 
 # Change Log
 
+## Jun-29-2026: Version 1.7.3
+
+- Maintenance release with minor performance improvements.
+
 ## May-27-2026: Version 1.7.2
 
 - Add gradient-based iterative solvers for FC2 and FC3.
