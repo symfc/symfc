@@ -162,6 +162,68 @@ class FCCutoff:
             return np.hstack([combs, np.full((combs.shape[0], 1), ld)])
         return []
 
+    def combinations3_first_atom(self, first_atom: int) -> Union[list, np.ndarray]:
+        """Return combinations with three distinguished indices (ia,jb,kc).
+
+        Return only combinations with given first atom.
+        """
+        ia = first_atom * 3
+        neighbors_N3 = [
+            j * 3 + b
+            for j in self.neighbors[first_atom]
+            for b in range(3)
+            if j * 3 + b > ia
+        ]
+        combs = np.array(list(itertools.combinations(neighbors_N3, 2)))
+        if len(combs) == 0:
+            return [[]]
+
+        match = self.distances[(combs[:, 0] // 3, combs[:, 1] // 3)] < self._cutoff
+        combs = combs[match]
+
+        for a in range(3):
+            ia = first_atom * 3 + a
+            combs_match = combs[np.all(combs > ia, axis=1)]
+            if len(combs_match) == 0:
+                continue
+            out = np.empty((combs_match.shape[0], 3), dtype=combs_match.dtype)
+            out[:, 0] = ia
+            out[:, 1:] = combs_match
+            yield out
+
+    def combinations4_first_atom(self, first_atom: int) -> Union[list, np.ndarray]:
+        """Return combinations with three distinguished indices (ia,jb,kc,ld).
+
+        Return only combinations with given first atom.
+        """
+        ia = first_atom * 3
+        neighbors_N3 = [
+            j * 3 + b
+            for j in self.neighbors[first_atom]
+            for b in range(3)
+            if j * 3 + b > ia
+        ]
+        combs = np.array(list(itertools.combinations(neighbors_N3, 3)))
+        if len(combs) == 0:
+            return [[]]
+
+        match = (
+            (self.distances[(combs[:, 0] // 3, combs[:, 1] // 3)] < self._cutoff)
+            & (self.distances[(combs[:, 0] // 3, combs[:, 2] // 3)] < self._cutoff)
+            & (self.distances[(combs[:, 1] // 3, combs[:, 2] // 3)] < self._cutoff)
+        )
+        combs = combs[match]
+
+        for a in range(3):
+            ia = first_atom * 3 + a
+            combs_match = combs[np.all(combs > ia, axis=1)]
+            if len(combs_match) == 0:
+                continue
+            out = np.empty((combs_match.shape[0], 4), dtype=combs_match.dtype)
+            out[:, 0] = ia
+            out[:, 1:] = combs_match
+            yield out
+
     def nonzero_atomic_indices_fc2(self) -> np.ndarray:
         """Return atomic indices of nonzero FC2.
 

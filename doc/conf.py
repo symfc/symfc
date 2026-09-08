@@ -11,7 +11,7 @@ copyright = "2024, symfc project"
 author = "Atsuto Seko"
 
 version = "1.7"
-release = "1.7.2"
+release = "1.7.3"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
