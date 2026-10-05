@@ -378,7 +378,7 @@ class Symfc:
                     basis_set_o2,
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
-                ).solve(self._displacements, self._forces)
+                ).solve(self._displacements, self._forces, batch_size=batch_size)
 
             if is_compact_fc:
                 fc = solver_o2.compact_fc
@@ -396,7 +396,7 @@ class Symfc:
                 basis_set_o3,
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
-            ).solve(self._displacements, self._forces)
+            ).solve(self._displacements, self._forces, batch_size=batch_size)
             if is_compact_fc:
                 fc = solver_o3.compact_fc
             else:
@@ -413,7 +413,7 @@ class Symfc:
                 basis_set_o4,
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
-            ).solve(self._displacements, self._forces)
+            ).solve(self._displacements, self._forces, batch_size=batch_size)
             if is_compact_fc:
                 fc = solver_o4.compact_fc
             else:
