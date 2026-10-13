@@ -81,11 +81,15 @@ class FCBasisSetO2(FCBasisSetBase):
 
         """
         super().__init__(
-            supercell, cutoff=cutoff, use_mkl=use_mkl, log_level=log_level,
+            supercell,
+            cutoff=cutoff,
+            use_mkl=use_mkl,
+            log_level=log_level,
             symprec=symprec,
         )
         self._spg_reps = SpgRepsO2(
-            supercell, spacegroup_operations=spacegroup_operations,
+            supercell,
+            spacegroup_operations=spacegroup_operations,
             symprec=symprec,
         )
 
