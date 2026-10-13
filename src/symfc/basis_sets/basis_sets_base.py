@@ -74,10 +74,7 @@ class FCBasisSetBase(ABC):
         """
         if self._blocked_basis_set is None:
             raise ValueError("Basis set is not computed yet.")
-        try:
-            return self._blocked_basis_set.recover()
-        except:
-            return self._blocked_basis_set
+        return self._blocked_basis_set.recover()
 
     @property
     def blocked_basis_set(self) -> BlockMatrixNode | None:

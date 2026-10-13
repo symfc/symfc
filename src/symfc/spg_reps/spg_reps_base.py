@@ -81,9 +81,6 @@ class SpgRepsBase:
         self._unique_rotation_indices, self._unique_rotations = (
             self._get_unique_rotation_indices(rotations)
         )
-        print(self._positions.shape)
-        print(rotations.shape)
-        print(translations.shape)
         self._permutations = compute_sg_permutations(
             self._positions, rotations, translations, self._lattice.T, self._symprec
         )
