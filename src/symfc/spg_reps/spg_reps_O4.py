@@ -15,7 +15,9 @@ class SpgRepsO4(SpgRepsBase):
     """Class of reps of space group operations for fc4."""
 
     def __init__(
-        self, supercell: SymfcAtoms, spacegroup_operations: Optional[dict] = None,
+        self,
+        supercell: SymfcAtoms,
+        spacegroup_operations: Optional[dict] = None,
         symprec: float = 1e-5,
     ):
         """Init method.
@@ -34,7 +36,9 @@ class SpgRepsO4(SpgRepsBase):
 
         """
         self._r4_reps: list[csr_array]
-        super().__init__(supercell, spacegroup_operations=spacegroup_operations, symprec=symprec)
+        super().__init__(
+            supercell, spacegroup_operations=spacegroup_operations, symprec=symprec
+        )
 
     @property
     def r_reps(self) -> list[csr_array]:

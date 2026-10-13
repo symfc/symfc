@@ -82,9 +82,17 @@ class FCBasisSetO4(FCBasisSetBase):
         symprec: Precision for finding symmetry operations.
 
         """
-        super().__init__(supercell, cutoff=cutoff, use_mkl=use_mkl, log_level=log_level, symprec=symprec,)
+        super().__init__(
+            supercell,
+            cutoff=cutoff,
+            use_mkl=use_mkl,
+            log_level=log_level,
+            symprec=symprec,
+        )
         self._spg_reps = SpgRepsO4(
-            supercell, spacegroup_operations=spacegroup_operations, symprec=symprec,
+            supercell,
+            spacegroup_operations=spacegroup_operations,
+            symprec=symprec,
         )
 
         trans_perms = self._spg_reps.translation_permutations
