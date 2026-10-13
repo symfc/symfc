@@ -16,7 +16,8 @@ class SpgRepsO2(SpgRepsBase):
     """Class of reps of space group operations for fc2."""
 
     def __init__(
-        self, supercell: SymfcAtoms, spacegroup_operations: Optional[dict] = None
+        self, supercell: SymfcAtoms, spacegroup_operations: Optional[dict] = None,
+        symprec: float = 1e-5,
     ):
         """Init method.
 
@@ -30,10 +31,11 @@ class SpgRepsO2(SpgRepsBase):
             symmetry dataset:
                 rotations : array_like
                 translations : array_like
+        symprec: Precision for finding symmetry operations.
 
         """
         self._r2_reps: list[csr_array]
-        super().__init__(supercell, spacegroup_operations=spacegroup_operations)
+        super().__init__(supercell, spacegroup_operations=spacegroup_operations, symprec=symprec)
 
     @property
     def r_reps(self) -> list[csr_array]:

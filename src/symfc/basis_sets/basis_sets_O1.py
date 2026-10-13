@@ -44,6 +44,7 @@ class FCBasisSetO1(FCBasisSetBase):
         spacegroup_operations: Optional[dict] = None,
         use_mkl: bool = False,
         log_level: int = 0,
+        symprec: float = 1e-5,
     ):
         """Init method.
 
@@ -59,11 +60,12 @@ class FCBasisSetO1(FCBasisSetBase):
                 translations : array_like
         log_level : int, optional
             Log level. Default is 0.
+        symprec: Precision for finding symmetry operations.
 
         """
-        super().__init__(supercell, use_mkl=use_mkl, log_level=log_level)
+        super().__init__(supercell, use_mkl=use_mkl, log_level=log_level, symprec=symprec,)
         self._spg_reps = SpgRepsO1(
-            supercell, spacegroup_operations=spacegroup_operations
+            supercell, spacegroup_operations=spacegroup_operations, symprec=symprec,
         )
         self._n_a_compression_matrix: Optional[csr_array] = None
         self._basis_set: Optional[np.ndarray] = None

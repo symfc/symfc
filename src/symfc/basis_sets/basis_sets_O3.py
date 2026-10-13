@@ -64,6 +64,7 @@ class FCBasisSetO3(FCBasisSetBase):
         spacegroup_operations: Optional[dict] = None,
         use_mkl: bool = False,
         log_level: int = 0,
+        symprec: float = 1e-5,
     ):
         """Init method.
 
@@ -83,11 +84,12 @@ class FCBasisSetO3(FCBasisSetBase):
             Use MKL or not. Default is False.
         log_level : int, optional
             Log level. Default is 0.
+        symprec: Precision for finding symmetry operations.
 
         """
-        super().__init__(supercell, cutoff=cutoff, use_mkl=use_mkl, log_level=log_level)
+        super().__init__(supercell, cutoff=cutoff, use_mkl=use_mkl, log_level=log_level, symprec=symprec,)
         self._spg_reps = SpgRepsO3(
-            supercell, spacegroup_operations=spacegroup_operations
+            supercell, spacegroup_operations=spacegroup_operations, symprec=symprec,
         )
 
         trans_perms = self._spg_reps.translation_permutations

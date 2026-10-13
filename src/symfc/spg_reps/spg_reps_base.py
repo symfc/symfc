@@ -23,7 +23,10 @@ class SpgRepsBase:
     """Base class of reps of space group operations."""
 
     def __init__(
-        self, supercell: SymfcAtoms, spacegroup_operations: Optional[dict] = None
+        self, 
+        supercell: SymfcAtoms, 
+        spacegroup_operations: Optional[dict] = None,
+        symprec: float = 1e-5,
     ):
         """Init method.
 
@@ -37,8 +40,9 @@ class SpgRepsBase:
             symmetry dataset:
                 rotations : array_like
                 translations : array_like
-
+        symprec: Precision for finding symmetry operations.
         """
+        self._symprec = symprec
         self._lattice = np.array(supercell.cell, dtype="double", order="C")
         self._positions = np.array(
             supercell.scaled_positions, dtype="double", order="C"
@@ -77,8 +81,11 @@ class SpgRepsBase:
         self._unique_rotation_indices, self._unique_rotations = (
             self._get_unique_rotation_indices(rotations)
         )
+        print(self._positions.shape)
+        print(rotations.shape)
+        print(translations.shape)
         self._permutations = compute_sg_permutations(
-            self._positions, rotations, translations, self._lattice.T, 1e-5
+            self._positions, rotations, translations, self._lattice.T, self._symprec
         )
         self._translation_permutations = self._get_translation_permutations(rotations)
         self._p2s_map = get_indep_atoms_by_lat_trans(self._translation_permutations)
@@ -133,7 +140,8 @@ class SpgRepsBase:
         """
         if spacegroup_operations is None:
             symops = spglib.get_symmetry(  # type: ignore
-                (self._lattice, self._positions, self._numbers)  # type: ignore
+                (self._lattice, self._positions, self._numbers), 
+                symprec=self._symprec,  # type: ignore
             )
         else:
             symops = spacegroup_operations
