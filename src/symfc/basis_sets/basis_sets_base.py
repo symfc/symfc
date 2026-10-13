@@ -21,6 +21,7 @@ class FCBasisSetBase(ABC):
         cutoff: float | None = None,
         use_mkl: bool = False,
         log_level: int = 0,
+        symprec: float = 1e-5,
     ):
         """Init method.
 
@@ -34,12 +35,15 @@ class FCBasisSetBase(ABC):
             Use MKL or not. Default is False.
         log_level : int, optional
             Log level. Default is 0.
+        symprec: float, optional
+            Precision for finding symmetry operations.
 
         """
         self._supercell = supercell
         self._natom = len(supercell)
         self._use_mkl = use_mkl
         self._log_level = log_level
+        self._symprec = symprec
         self._spg_reps: SpgRepsBase
         self._atomic_decompr_idx: NDArray
         self._basis_set: NDArray | None

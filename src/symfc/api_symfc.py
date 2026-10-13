@@ -43,6 +43,7 @@ class Symfc:
         cutoff: dict[int, float] | None = None,
         use_mkl: bool = False,
         log_level: int = 0,
+        symprec: float = 1e-5,
     ):
         """Init method.
 
@@ -68,6 +69,8 @@ class Symfc:
             Use MKL library, by default False.
         log_level : int, optional
             Log level, by default 0.
+        symprec: float, optional
+            Precision for finding symmetry operations.
 
         """
         self._supercell = supercell
@@ -94,6 +97,7 @@ class Symfc:
         self._spacegroup_operations = spacegroup_operations
         self._use_mkl = use_mkl
         self._log_level = log_level
+        self._symprec = symprec
 
         self._basis_set: dict[int, FCBasisSetBase] = {}
         self._force_constants: dict[int, NDArray] = {}
@@ -519,6 +523,7 @@ class Symfc:
                     cutoff=self._cutoff[2],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
+                    symprec=self._symprec,
                 ).run()
                 self._basis_set[2] = basis_set_o2
             elif order == 3:
@@ -528,6 +533,7 @@ class Symfc:
                     cutoff=self._cutoff[3],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
+                    symprec=self._symprec,
                 ).run(apply_sum_rule=apply_sum_rule)
                 self._basis_set[3] = basis_set_o3
             elif order == 4:
@@ -537,6 +543,7 @@ class Symfc:
                     cutoff=self._cutoff[4],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
+                    symprec=self._symprec,
                 ).run(apply_sum_rule=apply_sum_rule)
                 self._basis_set[4] = basis_set_o4
         return self
@@ -575,6 +582,7 @@ class Symfc:
                     cutoff=self._cutoff[2],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
+                    symprec=self._symprec,
                 ).estimate_basis_size()
             elif order == 3:
                 basis_size_estimates[order] = FCBasisSetO3(
@@ -583,6 +591,7 @@ class Symfc:
                     cutoff=self._cutoff[3],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
+                    symprec=self._symprec,
                 ).estimate_basis_size()
             elif order == 4:
                 basis_size_estimates[order] = FCBasisSetO4(
@@ -591,6 +600,7 @@ class Symfc:
                     cutoff=self._cutoff[4],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
+                    symprec=self._symprec,
                 ).estimate_basis_size()
 
         return basis_size_estimates
