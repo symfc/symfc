@@ -35,7 +35,8 @@ class FCBasisSetBase(ABC):
             Use MKL or not. Default is False.
         log_level : int, optional
             Log level. Default is 0.
-        symprec: Precision for finding symmetry operations.
+        symprec: float, optional
+            Precision for finding symmetry operations.
 
         """
         self._supercell = supercell

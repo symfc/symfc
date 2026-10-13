@@ -69,7 +69,8 @@ class Symfc:
             Use MKL library, by default False.
         log_level : int, optional
             Log level, by default 0.
-        symprec: Precision for finding symmetry operations.
+        symprec: float, optional
+            Precision for finding symmetry operations.
 
         """
         self._supercell = supercell

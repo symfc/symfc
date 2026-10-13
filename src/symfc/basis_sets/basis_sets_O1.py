@@ -60,7 +60,8 @@ class FCBasisSetO1(FCBasisSetBase):
                 translations : array_like
         log_level : int, optional
             Log level. Default is 0.
-        symprec: Precision for finding symmetry operations.
+        symprec: float, optional
+            Precision for finding symmetry operations.
 
         """
         super().__init__(

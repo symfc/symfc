@@ -32,7 +32,8 @@ class SpgRepsO4(SpgRepsBase):
             symmetry dataset:
                 rotations : array_like
                 translations : array_like
-        symprec: Precision for finding symmetry operations.
+        symprec: float, optional
+            Precision for finding symmetry operations.
 
         """
         self._r4_reps: list[csr_array]
