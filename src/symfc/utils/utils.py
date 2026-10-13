@@ -154,7 +154,6 @@ def compute_sg_permutations(
         diffs -= np.rint(diffs)
         dists = np.linalg.norm(diffs @ lattice.T, axis=2)
         rows, cols = np.where(dists < symprec)
-        tmp_match = np.where((dists > symprec) & (dists < symprec * 1e1))
         assert len(positions) == len(np.unique(rows)) == len(np.unique(cols))
         unique_rotation_perms.append(cols[np.argsort(rows)])
     unique_rotation_perms = np.array(unique_rotation_perms, dtype=int)
