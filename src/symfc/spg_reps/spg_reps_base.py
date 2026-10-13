@@ -23,8 +23,8 @@ class SpgRepsBase:
     """Base class of reps of space group operations."""
 
     def __init__(
-        self, 
-        supercell: SymfcAtoms, 
+        self,
+        supercell: SymfcAtoms,
         spacegroup_operations: Optional[dict] = None,
         symprec: float = 1e-5,
     ):
@@ -137,7 +137,7 @@ class SpgRepsBase:
         """
         if spacegroup_operations is None:
             symops = spglib.get_symmetry(  # type: ignore
-                (self._lattice, self._positions, self._numbers), 
+                (self._lattice, self._positions, self._numbers),
                 symprec=self._symprec,  # type: ignore
             )
         else:
