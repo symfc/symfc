@@ -42,6 +42,7 @@ class FCSolverO2(FCSolverBase):
         forces: NDArray,
         batch_size: int = 100,
         use_sparse_disps: bool = False,
+        use_stable_solver: bool = False,
     ) -> FCSolverO2:
         """Solve coefficients of basis set from displacements and forces.
 
@@ -64,8 +65,8 @@ class FCSolverO2(FCSolverBase):
         d = displacements.reshape(n_data, -1)
 
         fc2_basis = self._basis_set
-        if n_data < 2000:
-            XTX, XTy = prepare_normal_equation_O2(
+        if use_stable_solver:
+            XTX, XTy = prepare_normal_equation_O2_stable(
                 d,
                 f,
                 fc2_basis,
@@ -75,7 +76,7 @@ class FCSolverO2(FCSolverBase):
                 verbose=self._log_level > 0,
             )
         else:
-            XTX, XTy = prepare_normal_equation_O2_use_disp_dot(
+            XTX, XTy = prepare_normal_equation_O2(
                 d,
                 f,
                 fc2_basis,
@@ -132,7 +133,7 @@ class FCSolverO2(FCSolverBase):
         return fc2
 
 
-def prepare_normal_equation_O2_use_disp_dot(
+def prepare_normal_equation_O2(
     disps: NDArray,
     forces: NDArray,
     fc2_basis: FCBasisSetO2,
@@ -216,7 +217,7 @@ def prepare_normal_equation_O2_use_disp_dot(
     return XTX, XTy
 
 
-def prepare_normal_equation_O2(
+def prepare_normal_equation_O2_stable(
     disps: NDArray,
     forces: NDArray,
     fc2_basis: FCBasisSetO2,
@@ -313,7 +314,7 @@ def run_solver_O2(
     verbose: bool = False,
 ):
     """Run FC solver for O2."""
-    XTX, XTy = prepare_normal_equation_O2(
+    XTX, XTy = prepare_normal_equation_O2_stable(
         disps,
         forces,
         fc2_basis,
