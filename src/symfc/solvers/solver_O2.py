@@ -177,7 +177,6 @@ def prepare_normal_equation_O2_for_large_basis(
     const_fc2 = -1.0
     compact_compress_mat_fc2 *= const_fc2
 
-    verbose = True
     prod_disps = (disps.T @ disps).reshape(-1)
     prod_forces_disps = forces.T @ disps
 
@@ -198,7 +197,6 @@ def prepare_normal_equation_O2_for_large_basis(
 
         forces_disps_batch = prod_forces_disps[begin_i * 3 : end_i * 3].reshape(-1)
         mat2y += forces_disps_batch @ mat_batch.reshape((-1, n_compr_fc2))
-
         t2 = time.time()
         if verbose and t2 - t1 > 1.0:
             print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
