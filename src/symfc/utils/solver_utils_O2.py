@@ -9,6 +9,28 @@ from scipy.sparse import csr_array
 from symfc.utils.solver_funcs import get_batch_slice
 
 
+def reshape_N3nx_N3nx_to_nxnx_N3N3_and_dot_disps(
+    mat: csr_array, N: int, disps: NDArray
+) -> NDArray:
+    """Reorder and reshape matrix.
+
+    After reshaping given matrix, reshaped_mat @ disps (N3N3 vector) is then calculated.
+    """
+    _, nx = mat.shape
+    N3 = N * 3
+    nx = mat.shape[0] // N3
+    mat = mat.tocoo(copy=False)
+
+    ia, i_basis = np.divmod(mat.row, nx)
+    jb, j_basis = np.divmod(mat.col, nx)
+    row = i_basis * nx + j_basis
+    col = ia * N3 + jb
+
+    prod_vec = np.zeros(nx * nx)
+    np.add.at(prod_vec, row, mat.data * disps[col])
+    return prod_vec.reshape((nx, nx))
+
+
 def _reshape_nN33_nx_to_N3_n3nx(mat, N: int, n: int, n_batch: int = 1) -> csr_array:
     """Reorder and reshape a sparse matrix (nN33,nx)->(N3,n3nx).
 
@@ -34,50 +56,6 @@ def _reshape_nN33_nx_to_N3_n3nx(mat, N: int, n: int, n_batch: int = 1) -> csr_ar
     mat.resize((N3, n3nx))
     mat = mat.tocsr(copy=False)
     return mat
-
-
-def reshape_N3nx_N3nx_to_nxnx_N3N3(
-    mat: csr_array, N: int, n_batch: int = 1
-) -> csr_array:
-    """Reorder and reshape matrix.
-
-    mat.row[begin:end] += i_basis * nx + j_basis
-    mat.col[begin:end] += i * (N3 * 3) + a * N3 + j * 3 + b
-    """
-    _, nx = mat.shape
-    N3 = N * 3
-    nx = mat.shape[0] // N3
-    mat = mat.tocoo(copy=False)
-
-    ia, i_basis = np.divmod(mat.row, nx)
-    jb, j_basis = np.divmod(mat.col, nx)
-    mat.row = i_basis * nx + j_basis
-    mat.col = ia * N3 + jb
-    mat.resize((nx * nx, N3 * N3))
-    mat = mat.tocsr(copy=False)
-    return mat
-
-
-def reshape_N3nx_N3nx_to_nxnx_N3N3_and_dot_disps(
-    mat: csr_array, N: int, disps: NDArray
-) -> NDArray:
-    """Reorder and reshape matrix.
-
-    After reshaping given matrix, reshaped_mat @ disps (N3N3 vector) is then calculated.
-    """
-    _, nx = mat.shape
-    N3 = N * 3
-    nx = mat.shape[0] // N3
-    mat = mat.tocoo(copy=False)
-
-    ia, i_basis = np.divmod(mat.row, nx)
-    jb, j_basis = np.divmod(mat.col, nx)
-    row = i_basis * nx + j_basis
-    col = ia * N3 + jb
-
-    prod_vec = np.zeros(nx * nx)
-    np.add.at(prod_vec, row, mat.data * disps[col])
-    return prod_vec.reshape((nx, nx))
 
 
 def reshape_compr_mat_O2(
