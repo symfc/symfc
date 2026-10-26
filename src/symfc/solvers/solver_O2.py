@@ -189,6 +189,7 @@ def prepare_normal_equation_O2(
 
     force_disp_vec = (forces.T @ disps).reshape(-1)
     mat2y = force_disp_vec @ compr_mat_fc2.reshape((-1, n_compr_fc2))
+    del compr_mat_fc2
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
