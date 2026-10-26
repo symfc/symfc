@@ -13,6 +13,7 @@ from symfc.eig_solvers.matrix import block_matrix_sandwich_sym
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 from symfc.utils.solver_utils_O2 import (
     reshape_compr_mat_O2,
+    reshape_compr_mat_O2_for_large_basis,
     reshape_N3nx_N3nx_to_nxnx_N3N3_and_dot_disps,
 )
 
@@ -45,7 +46,7 @@ class FCSolverO2(FCSolverBase):
         forces: NDArray,
         batch_size: int = 100,
         use_sparse_disps: bool = False,
-        use_stable_solver: bool = False,
+        use_large_basis_solver: bool = False,
     ) -> FCSolverO2:
         """Solve coefficients of basis set from displacements and forces.
 
@@ -68,13 +69,16 @@ class FCSolverO2(FCSolverBase):
         d = displacements.reshape(n_data, -1)
 
         fc2_basis = self._basis_set
-        if use_stable_solver:
-            XTX, XTy = prepare_normal_equation_O2_stable(
+
+        N = d.shape[1] // 3
+        compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
+        n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
+
+        if use_large_basis_solver or N / 3 < n_compr_fc2:
+            XTX, XTy = prepare_normal_equation_O2_for_large_basis(
                 d,
                 f,
                 fc2_basis,
-                batch_size=batch_size,
-                use_sparse_disps=False,
                 use_mkl=self._use_mkl,
                 verbose=self._log_level > 0,
             )
@@ -84,6 +88,7 @@ class FCSolverO2(FCSolverBase):
                 f,
                 fc2_basis,
                 batch_size=batch_size,
+                use_sparse_disps=False,
                 use_mkl=self._use_mkl,
                 verbose=self._log_level > 0,
             )
@@ -135,11 +140,10 @@ class FCSolverO2(FCSolverBase):
         return fc2
 
 
-def prepare_normal_equation_O2(
+def prepare_normal_equation_O2_for_large_basis(
     disps: NDArray,
     forces: NDArray,
     fc2_basis: FCBasisSetO2,
-    batch_size: int = 100,
     use_mkl: bool = False,
     verbose: bool = False,
 ):
@@ -160,38 +164,44 @@ def prepare_normal_equation_O2(
     atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
 
-    n_batch = max(N // 10, 1)
+    if N > 400:
+        n_batch = N
+    elif N > 200:
+        n_batch = N // 5
+    else:
+        n_batch = max(N // 10, 1)
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
 
     t_all1 = time.time()
 
     const_fc2 = -1.0
     compact_compress_mat_fc2 *= const_fc2
-    compr_mat_fc2 = reshape_compr_mat_O2(
-        compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, 0, N
-    )
 
+    verbose = True
     prod_disps = (disps.T @ disps).reshape(-1)
+    prod_forces_disps = forces.T @ disps
+
     mat22 = np.zeros((n_compr_fc2, n_compr_fc2), dtype=float)
+    mat2y = np.zeros(n_compr_fc2, dtype=float)
     for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
         if verbose:
-            print("-----", flush=True)
             print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
 
         t1 = time.time()
-        mat_batch = compr_mat_fc2[begin_i * 3 : end_i * 3]
-        mat_batch = mat_batch.T @ mat_batch
-        mat22 += reshape_N3nx_N3nx_to_nxnx_N3N3_and_dot_disps(mat_batch, N, prod_disps)
+        mat_batch = reshape_compr_mat_O2_for_large_basis(
+            compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, begin_i, end_i
+        )
+        # TODO: bottleneck part
+        mat22 += reshape_N3nx_N3nx_to_nxnx_N3N3_and_dot_disps(
+            mat_batch.T @ mat_batch, N, prod_disps
+        )
+
+        forces_disps_batch = prod_forces_disps[begin_i * 3 : end_i * 3].reshape(-1)
+        mat2y += forces_disps_batch @ mat_batch.reshape((-1, n_compr_fc2))
+
         t2 = time.time()
-        if verbose:
+        if verbose and t2 - t1 > 1.0:
             print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
-
-    force_disp_vec = (forces.T @ disps).reshape(-1)
-    mat2y = force_disp_vec @ compr_mat_fc2.reshape((-1, n_compr_fc2))
-    del compr_mat_fc2
-
-    if verbose:
-        print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
 
     compress_eigvecs_fc2 = fc2_basis.blocked_basis_set
     XTX = block_matrix_sandwich_sym(compress_eigvecs_fc2, mat22)
@@ -205,7 +215,7 @@ def prepare_normal_equation_O2(
     return XTX, XTy
 
 
-def prepare_normal_equation_O2_stable(
+def prepare_normal_equation_O2(
     disps: NDArray,
     forces: NDArray,
     fc2_basis: FCBasisSetO2,
@@ -273,12 +283,9 @@ def prepare_normal_equation_O2_stable(
             mat22 += X2.T @ X2
             mat2y += X2.T @ y
             t2 = time.time()
-            if verbose:
+            if verbose and t2 - t1 > 1.0:
                 print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
             del X2
-
-    if verbose:
-        print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
 
     compress_eigvecs_fc2 = fc2_basis.blocked_basis_set
     XTX = block_matrix_sandwich_sym(compress_eigvecs_fc2, mat22)
@@ -290,6 +297,29 @@ def prepare_normal_equation_O2_stable(
         header = " (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):"
         print(header, "{:.3f}".format(t_all2 - t_all1), flush=True)
     return XTX, XTy
+
+
+def run_solver_O2(
+    disps: NDArray,
+    forces: NDArray,
+    fc2_basis: FCBasisSetO2,
+    batch_size: int = 100,
+    use_sparse_disps: bool = False,
+    use_mkl: bool = False,
+    verbose: bool = False,
+):
+    """Run FC solver for O2."""
+    XTX, XTy = prepare_normal_equation_O2(
+        disps,
+        forces,
+        fc2_basis,
+        batch_size=batch_size,
+        use_sparse_disps=use_sparse_disps,
+        use_mkl=use_mkl,
+        verbose=verbose,
+    )
+    coefs = solve_linear_equation(XTX, XTy)
+    return coefs
 
 
 def prepare_normal_equation_O2_algorithm2(
@@ -370,26 +400,3 @@ def prepare_normal_equation_O2_algorithm2(
         header = " (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):"
         print(header, "{:.3f}".format(t_all2 - t_all1), flush=True)
     return XTX, XTy
-
-
-def run_solver_O2(
-    disps: NDArray,
-    forces: NDArray,
-    fc2_basis: FCBasisSetO2,
-    batch_size: int = 100,
-    use_sparse_disps: bool = False,
-    use_mkl: bool = False,
-    verbose: bool = False,
-):
-    """Run FC solver for O2."""
-    XTX, XTy = prepare_normal_equation_O2_stable(
-        disps,
-        forces,
-        fc2_basis,
-        batch_size=batch_size,
-        use_sparse_disps=use_sparse_disps,
-        use_mkl=use_mkl,
-        verbose=verbose,
-    )
-    coefs = solve_linear_equation(XTX, XTy)
-    return coefs
