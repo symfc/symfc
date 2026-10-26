@@ -7,13 +7,13 @@ from typing import Literal
 
 import numpy as np
 import scipy
-from scipy.sparse import csr_array
 
 from symfc.basis_sets import FCBasisSetO2
 from symfc.eig_solvers.matrix import block_matrix_sandwich_sym
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 from symfc.utils.solver_utils_O2 import (
     reshape_compr_mat_O2,
+    reshape_N3nx_N3nx_to_nxnx_N3N3,
 )
 
 try:
@@ -135,27 +135,6 @@ class FCSolverO2(FCSolverBase):
         return fc2
 
 
-def _reshape(mat: csr_array, N: int, n_batch: int = 1) -> csr_array:
-    """Reorder and reshape matrix."""
-    _, nx = mat.shape
-    N3 = N * 3
-    nx = mat.shape[0] // N3
-    mat = mat.tocoo(copy=False)
-
-    i, rem_row = np.divmod(mat.row, 3 * nx)
-    a, i_basis = np.divmod(rem_row, nx)
-
-    j, rem_col = np.divmod(mat.col, 3 * nx)
-    b, j_basis = np.divmod(rem_col, nx)
-
-    mat.row = i_basis * nx + j_basis
-    mat.col = i * (N3 * 3) + a * N3 + j * 3 + b
-
-    mat.resize((nx * nx, N3 * N3))
-    mat = mat.tocsr(copy=False)
-    return mat
-
-
 def prepare_normal_equation_O2(
     disps: NDArray,
     forces: NDArray,
@@ -186,108 +165,15 @@ def prepare_normal_equation_O2(
 
     t_all1 = time.time()
 
-    prod_disps = disps.T @ disps
-    # eigvals, eigvecs = scipy.linalg.eigh(prod_disps)
-    # tol = 1e-8
-    # eigvals[np.abs(eigvals) < tol] = 0
-    # disp_eigvecs = eigvecs * np.sqrt(eigvals)[None, :]
-
     const_fc2 = -1.0
     compact_compress_mat_fc2 *= const_fc2
     compr_mat_fc2 = reshape_compr_mat_O2(
         compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, 0, N
     )
 
-    compr_sym = compr_mat_fc2.T @ compr_mat_fc2
-    compr_sym = _reshape(compr_sym, N)
-    print(compr_sym.shape)
-    compr_sym = compr_sym @ prod_disps.reshape(-1)
-    print(compr_sym.shape)
-    mat22 = compr_sym.reshape((n_compr_fc2, n_compr_fc2))
-
-    force_disp_vec = (forces.T @ disps).reshape(-1)
-    mat2y = force_disp_vec @ compr_mat_fc2.reshape((-1, n_compr_fc2))
-
-    #    mat22 = np.zeros((n_compr_fc2, n_compr_fc2), dtype=float)
-    #    for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
-    #        if verbose:
-    #            print("-----", flush=True)
-    #            print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
-    #
-    #        t1 = time.time()
-    #        X2 = dot_product_sparse(
-    #            disp_eigvecs.T[begin_i * 3 : end_i * 3],
-    #            compr_mat_fc2,
-    #            use_mkl=use_mkl,
-    #            dense=True,
-    #        ).reshape((-1, n_compr_fc2))
-    #
-    #        mat22 += X2.T @ X2
-    #        t2 = time.time()
-    #        if verbose:
-    #            print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
-    #        del X2
-
-    if verbose:
-        print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
-
-    compress_eigvecs_fc2 = fc2_basis.blocked_basis_set
-    XTX = block_matrix_sandwich_sym(compress_eigvecs_fc2, mat22)
-    XTy = compress_eigvecs_fc2.T @ mat2y
-
-    compact_compress_mat_fc2 /= const_fc2
-    t_all2 = time.time()
-    if verbose:
-        header = " (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):"
-        print(header, "{:.3f}".format(t_all2 - t_all1), flush=True)
-    return XTX, XTy
-
-
-def prepare_normal_equation_O2_current(
-    disps: NDArray,
-    forces: NDArray,
-    fc2_basis: FCBasisSetO2,
-    batch_size: int = 100,
-    use_mkl: bool = False,
-    verbose: bool = False,
-):
-    r"""Calculate X.T @ X and X.T @ y.
-
-    X = displacements @ compress_mat @ compress_eigvecs
-
-    displacements (fc2): (n_samples, N3)
-    compact_compress_mat_fc2: (n_aN33, n_compr)
-    compress_eigvecs_fc2: (n_compr_fc2, n_basis_fc2)
-    Matrix reshapings are appropriately applied to compress_mat
-    and its products.
-    """
-    N3 = disps.shape[1]
-    N = N3 // 3
-
-    compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
-    atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
-    n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
-
-    n_batch = max(N // 5, 1)
-    begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
-
-    t_all1 = time.time()
-
-    prod_disps = disps.T @ disps
-    eigvals, eigvecs = scipy.linalg.eigh(prod_disps)
-    tol = 1e-8
-    eigvals[np.abs(eigvals) < tol] = 0
-    disp_eigvecs = eigvecs * np.sqrt(eigvals)[None, :]
-
-    const_fc2 = -1.0
-    compact_compress_mat_fc2 *= const_fc2
-    compr_mat_fc2 = reshape_compr_mat_O2(
-        compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, 0, N
-    )
-
-    force_disp_vec = (forces.T @ disps).reshape(-1)
-    mat2y = force_disp_vec @ compr_mat_fc2.reshape((-1, n_compr_fc2))
-
+    # n_batch = min(mat.shape[0] // 5000, 10)
+    verbose = True
+    prod_disps = (disps.T @ disps).reshape(-1)
     mat22 = np.zeros((n_compr_fc2, n_compr_fc2), dtype=float)
     for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
         if verbose:
@@ -295,18 +181,16 @@ def prepare_normal_equation_O2_current(
             print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
 
         t1 = time.time()
-        X2 = dot_product_sparse(
-            disp_eigvecs.T[begin_i * 3 : end_i * 3],
-            compr_mat_fc2,
-            use_mkl=use_mkl,
-            dense=True,
-        ).reshape((-1, n_compr_fc2))
-
-        mat22 += X2.T @ X2
+        mat_batch = compr_mat_fc2[begin_i * 3 : end_i * 3]
+        mat_batch = mat_batch.T @ mat_batch
+        mat_batch = reshape_N3nx_N3nx_to_nxnx_N3N3(mat_batch, N, n_batch=5)
+        mat22 += (mat_batch @ prod_disps).reshape((n_compr_fc2, n_compr_fc2))
         t2 = time.time()
         if verbose:
             print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
-        del X2
+
+    force_disp_vec = (forces.T @ disps).reshape(-1)
+    mat2y = force_disp_vec @ compr_mat_fc2.reshape((-1, n_compr_fc2))
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
@@ -394,6 +278,86 @@ def prepare_normal_equation_O2_stable(
             if verbose:
                 print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
             del X2
+
+    if verbose:
+        print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)
+
+    compress_eigvecs_fc2 = fc2_basis.blocked_basis_set
+    XTX = block_matrix_sandwich_sym(compress_eigvecs_fc2, mat22)
+    XTy = compress_eigvecs_fc2.T @ mat2y
+
+    compact_compress_mat_fc2 /= const_fc2
+    t_all2 = time.time()
+    if verbose:
+        header = " (disp @ compr @ eigvecs).T @ (disp @ compr @ eigvecs):"
+        print(header, "{:.3f}".format(t_all2 - t_all1), flush=True)
+    return XTX, XTy
+
+
+def prepare_normal_equation_O2_algorithm2(
+    disps: NDArray,
+    forces: NDArray,
+    fc2_basis: FCBasisSetO2,
+    batch_size: int = 100,
+    use_mkl: bool = False,
+    verbose: bool = False,
+):
+    r"""Calculate X.T @ X and X.T @ y.
+
+    X = displacements @ compress_mat @ compress_eigvecs
+
+    displacements (fc2): (n_samples, N3)
+    compact_compress_mat_fc2: (n_aN33, n_compr)
+    compress_eigvecs_fc2: (n_compr_fc2, n_basis_fc2)
+    Matrix reshapings are appropriately applied to compress_mat
+    and its products.
+    """
+    N3 = disps.shape[1]
+    N = N3 // 3
+
+    compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
+    atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
+    n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
+
+    n_batch = max(N // 5, 1)
+    begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
+
+    t_all1 = time.time()
+
+    prod_disps = disps.T @ disps
+    eigvals, eigvecs = scipy.linalg.eigh(prod_disps)
+    tol = 1e-8
+    eigvals[np.abs(eigvals) < tol] = 0
+    disp_eigvecs = eigvecs * np.sqrt(eigvals)[None, :]
+
+    const_fc2 = -1.0
+    compact_compress_mat_fc2 *= const_fc2
+    compr_mat_fc2 = reshape_compr_mat_O2(
+        compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, 0, N
+    )
+
+    force_disp_vec = (forces.T @ disps).reshape(-1)
+    mat2y = force_disp_vec @ compr_mat_fc2.reshape((-1, n_compr_fc2))
+
+    mat22 = np.zeros((n_compr_fc2, n_compr_fc2), dtype=float)
+    for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
+        if verbose:
+            print("-----", flush=True)
+            print("Solver_atoms:", begin_i + 1, "--", end_i, "/", N, flush=True)
+
+        t1 = time.time()
+        X2 = dot_product_sparse(
+            disp_eigvecs.T[begin_i * 3 : end_i * 3],
+            compr_mat_fc2,
+            use_mkl=use_mkl,
+            dense=True,
+        ).reshape((-1, n_compr_fc2))
+
+        mat22 += X2.T @ X2
+        t2 = time.time()
+        if verbose:
+            print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)
+        del X2
 
     if verbose:
         print("Solver:", "Calculate X.T @ X and X.T @ y", flush=True)

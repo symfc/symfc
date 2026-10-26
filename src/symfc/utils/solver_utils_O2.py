@@ -36,6 +36,37 @@ def _reshape_nN33_nx_to_N3_n3nx(mat, N: int, n: int, n_batch: int = 1) -> csr_ar
     return mat
 
 
+def reshape_N3nx_N3nx_to_nxnx_N3N3(
+    mat: csr_array, N: int, n_batch: int = 1
+) -> csr_array:
+    """Reorder and reshape matrix.
+
+    mat.row[begin:end] += i_basis * nx + j_basis
+    mat.col[begin:end] += i * (N3 * 3) + a * N3 + j * 3 + b
+    """
+    _, nx = mat.shape
+    N3 = N * 3
+    nx = mat.shape[0] // N3
+    mat = mat.tocoo(copy=False)
+
+    begin_batch, end_batch = get_batch_slice(len(mat.row), len(mat.row) // n_batch)
+    for begin, end in zip(begin_batch, end_batch, strict=True):
+        i, rem_col = np.divmod(mat.col[begin:end], 3 * nx)
+        j, rem_row = np.divmod(mat.row[begin:end], 3 * nx)
+        mat.col[begin:end] = i * (N3 * 3) + j * 3
+
+        i, rem = np.divmod(rem_row, nx)
+        mat.row[begin:end] = rem * nx
+        mat.col[begin:end] += i * N3
+        i, rem = np.divmod(rem_col, nx)
+        mat.row[begin:end] += rem
+        mat.col[begin:end] += i
+
+    mat.resize((nx * nx, N3 * N3))
+    mat = mat.tocsr(copy=False)
+    return mat
+
+
 def reshape_compr_mat_O2(
     compact_compress_mat_fc2: csr_array,
     atomic_decompr_idx_fc2: NDArray,
