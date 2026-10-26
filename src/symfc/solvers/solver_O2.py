@@ -171,7 +171,6 @@ def prepare_normal_equation_O2(
         compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, 0, N
     )
 
-    verbose = True
     prod_disps = (disps.T @ disps).reshape(-1)
     mat22 = np.zeros((n_compr_fc2, n_compr_fc2), dtype=float)
     for begin_i, end_i in zip(begin_batch_atom, end_batch_atom, strict=True):
