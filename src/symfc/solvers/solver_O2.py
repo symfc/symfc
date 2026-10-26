@@ -13,7 +13,7 @@ from symfc.eig_solvers.matrix import block_matrix_sandwich_sym
 from symfc.utils.solver_funcs import get_batch_slice, solve_linear_equation
 from symfc.utils.solver_utils_O2 import (
     reshape_compr_mat_O2,
-    reshape_N3nx_N3nx_to_nxnx_N3N3,
+    reshape_N3nx_N3nx_to_nxnx_N3N3_and_dot_disps,
 )
 
 try:
@@ -160,7 +160,7 @@ def prepare_normal_equation_O2(
     atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
 
-    n_batch = max(N // 5, 1)
+    n_batch = max(N // 20, 1)
     begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
 
     t_all1 = time.time()
@@ -171,7 +171,6 @@ def prepare_normal_equation_O2(
         compact_compress_mat_fc2, atomic_decompr_idx_fc2, N, 0, N
     )
 
-    # n_batch = min(mat.shape[0] // 5000, 10)
     verbose = True
     prod_disps = (disps.T @ disps).reshape(-1)
     mat22 = np.zeros((n_compr_fc2, n_compr_fc2), dtype=float)
@@ -183,8 +182,7 @@ def prepare_normal_equation_O2(
         t1 = time.time()
         mat_batch = compr_mat_fc2[begin_i * 3 : end_i * 3]
         mat_batch = mat_batch.T @ mat_batch
-        mat_batch = reshape_N3nx_N3nx_to_nxnx_N3N3(mat_batch, N, n_batch=5)
-        mat22 += (mat_batch @ prod_disps).reshape((n_compr_fc2, n_compr_fc2))
+        mat22 += reshape_N3nx_N3nx_to_nxnx_N3N3_and_dot_disps(mat_batch, N, prod_disps)
         t2 = time.time()
         if verbose:
             print(" - Time:", "{:.3f}".format(t2 - t1), flush=True)

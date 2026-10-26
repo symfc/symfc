@@ -49,22 +49,35 @@ def reshape_N3nx_N3nx_to_nxnx_N3N3(
     nx = mat.shape[0] // N3
     mat = mat.tocoo(copy=False)
 
-    begin_batch, end_batch = get_batch_slice(len(mat.row), len(mat.row) // n_batch)
-    for begin, end in zip(begin_batch, end_batch, strict=True):
-        i, rem_col = np.divmod(mat.col[begin:end], 3 * nx)
-        j, rem_row = np.divmod(mat.row[begin:end], 3 * nx)
-        mat.col[begin:end] = i * (N3 * 3) + j * 3
-
-        i, rem = np.divmod(rem_row, nx)
-        mat.row[begin:end] = rem * nx
-        mat.col[begin:end] += i * N3
-        i, rem = np.divmod(rem_col, nx)
-        mat.row[begin:end] += rem
-        mat.col[begin:end] += i
-
+    ia, i_basis = np.divmod(mat.row, nx)
+    jb, j_basis = np.divmod(mat.col, nx)
+    mat.row = i_basis * nx + j_basis
+    mat.col = ia * N3 + jb
     mat.resize((nx * nx, N3 * N3))
     mat = mat.tocsr(copy=False)
     return mat
+
+
+def reshape_N3nx_N3nx_to_nxnx_N3N3_and_dot_disps(
+    mat: csr_array, N: int, disps: NDArray
+) -> NDArray:
+    """Reorder and reshape matrix.
+
+    After reshaping given matrix, reshaped_mat @ disps (N3N3 vector) is then calculated.
+    """
+    _, nx = mat.shape
+    N3 = N * 3
+    nx = mat.shape[0] // N3
+    mat = mat.tocoo(copy=False)
+
+    ia, i_basis = np.divmod(mat.row, nx)
+    jb, j_basis = np.divmod(mat.col, nx)
+    row = i_basis * nx + j_basis
+    col = ia * N3 + jb
+
+    prod_vec = np.zeros(nx * nx)
+    np.add.at(prod_vec, row, mat.data * disps[col])
+    return prod_vec.reshape((nx, nx))
 
 
 def reshape_compr_mat_O2(
