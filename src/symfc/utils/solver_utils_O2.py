@@ -13,7 +13,7 @@ def reshape_N3nx_N3nx_to_nxnx_N3N3_and_dot_disps(
     mat: csr_array,
     N: int,
     disps: NDArray,
-    n_batch: int = 5,
+    n_batch: int = 3,
 ) -> NDArray:
     """Reorder and reshape matrix.
 

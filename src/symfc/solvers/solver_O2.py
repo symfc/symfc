@@ -163,14 +163,12 @@ def prepare_normal_equation_O2_for_large_basis(
     atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
 
-    if N > 400:
-        n_batch = N
-    elif N > 200:
-        n_batch = N // 5
-    else:
-        n_batch = max(N // 10, 1)
-    begin_batch_atom, end_batch_atom = get_batch_slice(N, N // n_batch)
+    n_lp = N // (compact_compress_mat_fc2.shape[0] // (N3 * 3))
+    nnz = compact_compress_mat_fc2.nnz * n_lp
+    n_batch_size = min(max(5000000 // nnz, 1), N)
+    begin_batch_atom, end_batch_atom = get_batch_slice(N, n_batch_size)
 
+    verbose = True
     t_all1 = time.time()
 
     const_fc2 = -1.0
