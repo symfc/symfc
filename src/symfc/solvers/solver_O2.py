@@ -70,11 +70,10 @@ class FCSolverO2(FCSolverBase):
 
         fc2_basis = self._basis_set
 
-        N = d.shape[1] // 3
         compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
         n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
 
-        if use_large_basis_solver or N / 3 < n_compr_fc2:
+        if use_large_basis_solver or n_compr_fc2 > 300:
             XTX, XTy = prepare_normal_equation_O2_for_large_basis(
                 d,
                 f,

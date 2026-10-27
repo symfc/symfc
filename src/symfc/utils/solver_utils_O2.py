@@ -26,8 +26,11 @@ def reshape_N3nx_N3nx_to_nxnx_N3N3_and_dot_disps(
     row = i_basis * nx + j_basis
     col = ia * N3 + jb
 
-    prod_vec = np.zeros(nx * nx)
-    np.add.at(prod_vec, row, mat.data * disps[col])
+    prod_vec = np.bincount(
+        row,
+        weights=mat.data * disps[col],
+        minlength=nx * nx,
+    )
     return prod_vec.reshape((nx, nx))
 
 
