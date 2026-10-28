@@ -21,18 +21,12 @@ def test_api_NaCl_222_with_dataset_fd(
     symfc = Symfc(
         supercell,
     )
-    symfc.displacements = displacements
-    symfc.forces = forces
     symfc.compute_basis_set(orders=(2,))
-
-    n_data, n_atom, _ = forces.shape
-    f = forces.reshape(n_data, -1)
-    d = displacements.reshape(n_data, -1)
 
     fc2_basis = symfc.basis_set[2]
 
     solver = FCSolverO2(fc2_basis)
-    solver.solve(d, f, use_large_basis_solver=True)
+    solver.solve(displacements, forces, use_large_basis_solver=True)
     fc = solver.compact_fc
 
     fc_ref = np.loadtxt(cwd / "compact_fc_NaCl_222.xz").reshape(fc.shape)

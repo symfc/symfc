@@ -10,7 +10,10 @@ from symfc.utils.solver_funcs import get_batch_slice
 
 
 def reshape_N3nx_N3nx_to_nxnx_N3N3_and_dot_disps(
-    mat: csr_array, N: int, disps: NDArray
+    mat: csr_array,
+    N: int,
+    disps: NDArray,
+    n_batch: int = 3,
 ) -> NDArray:
     """Reorder and reshape matrix.
 
@@ -21,16 +24,19 @@ def reshape_N3nx_N3nx_to_nxnx_N3N3_and_dot_disps(
     nx = mat.shape[0] // N3
     mat = mat.tocoo(copy=False)
 
-    ia, i_basis = np.divmod(mat.row, nx)
-    jb, j_basis = np.divmod(mat.col, nx)
-    row = i_basis * nx + j_basis
-    col = ia * N3 + jb
+    prod_vec = np.zeros(nx * nx)
+    begin_batch, end_batch = get_batch_slice(len(mat.row), len(mat.row) // n_batch)
+    for begin, end in zip(begin_batch, end_batch, strict=True):
+        ia, i_basis = np.divmod(mat.row[begin:end], nx)
+        jb, j_basis = np.divmod(mat.col[begin:end], nx)
+        row = i_basis * nx + j_basis
+        col = ia * N3 + jb
 
-    prod_vec = np.bincount(
-        row,
-        weights=mat.data * disps[col],
-        minlength=nx * nx,
-    )
+        prod_vec += np.bincount(
+            row,
+            weights=mat.data[begin:end] * disps[col],
+            minlength=nx * nx,
+        )
     return prod_vec.reshape((nx, nx))
 
 
