@@ -64,7 +64,7 @@ class FCSolverO2(FCSolverBase):
         self : FCSolverO2
 
         """
-        n_data = forces.shape[0]
+        n_data, N, _ = forces.shape
         f = forces.reshape(n_data, -1)
         d = displacements.reshape(n_data, -1)
 
@@ -73,7 +73,8 @@ class FCSolverO2(FCSolverBase):
         compact_compress_mat_fc2 = fc2_basis.compact_compression_matrix
         n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
 
-        if use_large_basis_solver or n_compr_fc2 > 300:
+        score = float(n_compr_fc2 * n_data) / N
+        if use_large_basis_solver or score > 10000:
             XTX, XTy = prepare_normal_equation_O2_for_large_basis(
                 d,
                 f,
@@ -163,12 +164,11 @@ def prepare_normal_equation_O2_for_large_basis(
     atomic_decompr_idx_fc2 = fc2_basis.atomic_decompr_idx
     n_compr_fc2 = compact_compress_mat_fc2.shape[1]  # type: ignore
 
-    n_lp = N // (compact_compress_mat_fc2.shape[0] // (N3 * 3))
+    n_lp = (N3 * N3) // compact_compress_mat_fc2.shape[0]
     nnz = compact_compress_mat_fc2.nnz * n_lp
-    n_batch_size = min(max(5000000 // nnz, 1), N)
+    n_batch_size = min(N, max(1, 5_000_000 // nnz))
     begin_batch_atom, end_batch_atom = get_batch_slice(N, n_batch_size)
 
-    verbose = True
     t_all1 = time.time()
 
     const_fc2 = -1.0
