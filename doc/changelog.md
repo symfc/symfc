@@ -2,6 +2,18 @@
 
 # Change Log
 
+## Nov-06-2026: Version 1.8.0
+
+- Add the `symprec` parameter to the `Symfc` class and to the basis set classes.
+  It sets the tolerance for finding symmetry operations. The default value is
+  1e-5, which is the value that was fixed in the code before.
+- Add a solver of FC2 for large basis sets. `FCSolverO2.solve` selects this
+  solver automatically when the basis set is large. It can also be selected with
+  `use_large_basis_solver=True`.
+- The `batch_size` parameter of `Symfc.solve` is now passed to the dense solvers
+  of FC2, FC3 and FC4. As a result, the default batch size of FC4 through
+  `Symfc.solve` changes from 36 to 100.
+
 ## Jun-29-2026: Version 1.7.3
 
 - Maintenance release with minor performance improvements.
@@ -24,7 +36,7 @@
 ## Jan-29-2026: Version 1.6.1
 
 - Refactored `matrix.py` and `eig_tools*.py`.
-A- dded dependency constraint to exclude scipy 1.7.0.
+- Added dependency constraint to exclude scipy 1.17.0.
 
 ## Nov-30-2025: Version 1.6.0
 

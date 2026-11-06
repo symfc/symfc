@@ -58,6 +58,18 @@ class FCSolverO2(FCSolverBase):
         forces : ndarray
             Forces of atoms in Cartesian coordinates.
             shape=(n_snapshot, N, 3), dtype='double'
+        batch_size : int, optional
+            Number of snapshots processed at a time, by default 100. The solver
+            for large basis sets does not use this value.
+        use_sparse_disps : bool, optional
+            This parameter is not used. The displacements are always treated as
+            a dense array in this method. Default is False.
+        use_large_basis_solver : bool, optional
+            Use the solver for large basis sets, by default False. When False,
+            this solver is still used if
+            n_compr * n_snapshot / N > 10000,
+            where n_compr is the number of columns of the compact compression
+            matrix.
 
         Returns
         -------
