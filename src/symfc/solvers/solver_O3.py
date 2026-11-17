@@ -41,6 +41,7 @@ class FCSolverO3(FCSolverBase):
         displacements: np.ndarray,
         forces: np.ndarray,
         batch_size: int = 100,
+        penalty: float | None = None,
     ) -> FCSolverO3:
         """Solve force constants.
 
@@ -229,6 +230,7 @@ def run_solver_O3(
     atomic_decompr_idx_fc3,
     batch_size=100,
     use_mkl=False,
+    penalty: float | None = None,
     verbose=False,
 ):
     """Estimate coeffs. in X @ coeffs = y.
@@ -250,5 +252,10 @@ def run_solver_O3(
         use_mkl=use_mkl,
         verbose=verbose,
     )
+
+    if penalty is not None:
+        idx = np.arange(XTX.shape[0])
+        XTX[idx, idx] += penalty
+
     coefs = solve_linear_equation(XTX, XTy)
     return coefs

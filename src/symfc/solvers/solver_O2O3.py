@@ -66,6 +66,7 @@ class FCSolverO2O3(FCSolverBase):
         displacements: np.ndarray,
         forces: np.ndarray,
         batch_size: int = 100,
+        penalty: float | None = None,
     ) -> FCSolverO2O3:
         """Solve force constants.
 
@@ -105,6 +106,11 @@ class FCSolverO2O3(FCSolverBase):
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )
+
+        if penalty is not None:
+            idx = np.arange(XTX.shape[0])
+            XTX[idx, idx] += penalty
+
         coefs = solve_linear_equation(XTX, XTy)
         n_basis_fc2 = fc2_basis.blocked_basis_set.shape[1]
         self._coefs = coefs[:n_basis_fc2], coefs[n_basis_fc2:]
