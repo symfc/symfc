@@ -41,6 +41,7 @@ class FCSolverO4(FCSolverBase):
         displacements: np.ndarray,
         forces: np.ndarray,
         batch_size: int = 36,
+        penalty: float | None = None,
     ) -> FCSolverO4:
         """Solve force constants.
 
@@ -56,6 +57,10 @@ class FCSolverO4(FCSolverBase):
         forces : ndarray
             Forces of atoms in Cartesian coordinates.
             shape=(n_snapshot, N, 3), dtype='double'
+        penalty: float, optional
+            Penalty magnitude.
+            Enable ridge regression when using dense standard solver.
+            Use X.T @ X + penalty * I instead of X.T @ X.
 
         Returns
         -------
@@ -230,6 +235,7 @@ def run_solver_O4(
     atomic_decompr_idx_fc4,
     batch_size=36,
     use_mkl=False,
+    penalty: float | None = None,
     verbose=False,
 ):
     """Estimate coeffs. in X @ coeffs = y.
@@ -251,5 +257,5 @@ def run_solver_O4(
         use_mkl=use_mkl,
         verbose=verbose,
     )
-    coefs = solve_linear_equation(XTX, XTy)
+    coefs = solve_linear_equation(XTX, XTy, penalty=penalty)
     return coefs

@@ -14,7 +14,10 @@ from symfc.utils.utils import SymfcAtoms
 cwd = Path(__file__).parent
 
 
-def test_api_NaCl_222(ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
+@pytest.mark.parametrize("penalty", [None, 1e-30])
+def test_api_NaCl_222(
+    ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray], penalty: float | None
+):
     """Test Symfc class."""
     supercell, displacements, forces = ph_nacl_222
     symfc = Symfc(supercell)
@@ -25,14 +28,16 @@ def test_api_NaCl_222(ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray]):
     symfc.forces = forces
     assert symfc.forces is not None
     np.testing.assert_array_almost_equal(symfc.forces, forces)  # type: ignore
-    symfc.solve(2)
+    symfc.solve(2, penalty=penalty)
     fc = symfc.force_constants[2]
     fc_ref = np.loadtxt(cwd / "compact_fc_NaCl_222.xz").reshape(fc.shape)
     np.testing.assert_allclose(fc, fc_ref)
 
 
+@pytest.mark.parametrize("penalty", [None, 1e-30])
 def test_api_NaCl_222_with_dataset(
     ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray],
+    penalty: float | None,
 ):
     """Test Symfc class with displacements and forces as input.
 
@@ -46,7 +51,7 @@ def test_api_NaCl_222_with_dataset(
     symfc = Symfc(supercell)
     symfc.displacements = displacements
     symfc.forces = forces
-    symfc.run(max_order=2)
+    symfc.run(max_order=2, penalty=penalty)
     fc = symfc.force_constants[2]
     fc_ref = np.loadtxt(cwd / "compact_fc_NaCl_222.xz").reshape(fc.shape)
     np.testing.assert_allclose(fc, fc_ref)
@@ -57,7 +62,7 @@ def test_api_NaCl_222_with_dataset(
     new_symfc.displacements = displacements
     new_symfc.forces = forces
     new_symfc.basis_set = symfc.basis_set
-    new_symfc.solve(max_order=2)
+    new_symfc.solve(max_order=2, penalty=penalty)
     np.testing.assert_allclose(new_symfc.force_constants[2], fc_ref)
 
 
@@ -71,15 +76,18 @@ def test_api_NaCl_222_exception(ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.nd
 
 
 @pytest.mark.parametrize("is_compact_fc", [True, False])
+@pytest.mark.parametrize("penalty", [None, 1e-30])
 def test_api_si_111_fc3(
-    ph3_si_111_fc3: tuple[SymfcAtoms, np.ndarray, np.ndarray], is_compact_fc: bool
+    ph3_si_111_fc3: tuple[SymfcAtoms, np.ndarray, np.ndarray],
+    is_compact_fc: bool,
+    penalty: float | None,
 ):
     """Test Symfc class with displacements and forces as input."""
     supercell, displacements, forces = ph3_si_111_fc3
     symfc = Symfc(supercell)
     symfc.displacements = displacements
     symfc.forces = forces
-    symfc.run(max_order=3, is_compact_fc=is_compact_fc)
+    symfc.run(max_order=3, is_compact_fc=is_compact_fc, penalty=penalty)
     fc2 = symfc.force_constants[2]
     fc3 = symfc.force_constants[3]
 
@@ -98,15 +106,18 @@ def test_api_si_111_fc3(
 
 
 @pytest.mark.parametrize("is_compact_fc", [True, False])
+@pytest.mark.parametrize("penalty", [None, 1e-30])
 def test_api_si_111_fc4(
-    ph3_si_111_fc3: tuple[SymfcAtoms, np.ndarray, np.ndarray], is_compact_fc: bool
+    ph3_si_111_fc3: tuple[SymfcAtoms, np.ndarray, np.ndarray],
+    is_compact_fc: bool,
+    penalty: float | None,
 ):
     """Test Symfc class with displacements and forces as input."""
     supercell, displacements, forces = ph3_si_111_fc3
     symfc = Symfc(supercell)
     symfc.displacements = displacements
     symfc.forces = forces
-    symfc.run(orders=[2, 3, 4], is_compact_fc=is_compact_fc)
+    symfc.run(orders=[2, 3, 4], is_compact_fc=is_compact_fc, penalty=penalty)
     fc2 = symfc.force_constants[2]
     fc3 = symfc.force_constants[3]
     fc4 = symfc.force_constants[4]
@@ -131,15 +142,18 @@ def test_api_si_111_fc4(
 
 
 @pytest.mark.parametrize("is_compact_fc", [False])
+@pytest.mark.parametrize("penalty", [None, 1e-30])
 def test_api_si_111_fc4_step(
-    ph3_si_111_fc3: tuple[SymfcAtoms, np.ndarray, np.ndarray], is_compact_fc: bool
+    ph3_si_111_fc3: tuple[SymfcAtoms, np.ndarray, np.ndarray],
+    is_compact_fc: bool,
+    penalty: float | None,
 ):
     """Test Symfc class with displacements and forces as input."""
     supercell, displacements, forces = ph3_si_111_fc3
     symfc = Symfc(supercell)
     symfc.displacements = displacements
     symfc.forces = forces
-    symfc.run(orders=[2], is_compact_fc=is_compact_fc)
+    symfc.run(orders=[2], is_compact_fc=is_compact_fc, penalty=penalty)
     fc2 = symfc.force_constants[2]
 
     natom = fc2.shape[0]
@@ -154,7 +168,7 @@ def test_api_si_111_fc4_step(
     symfc = Symfc(supercell)
     symfc.displacements = displacements
     symfc.forces = forces
-    symfc.run(orders=[3, 4], is_compact_fc=is_compact_fc)
+    symfc.run(orders=[3, 4], is_compact_fc=is_compact_fc, penalty=penalty)
     fc3 = symfc.force_constants[3]
     fc4 = symfc.force_constants[4]
 

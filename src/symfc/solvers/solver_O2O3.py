@@ -66,6 +66,7 @@ class FCSolverO2O3(FCSolverBase):
         displacements: np.ndarray,
         forces: np.ndarray,
         batch_size: int = 100,
+        penalty: float | None = None,
     ) -> FCSolverO2O3:
         """Solve force constants.
 
@@ -81,6 +82,10 @@ class FCSolverO2O3(FCSolverBase):
         forces : ndarray
             Forces of atoms in Cartesian coordinates. shape=(n_snapshot, N, 3),
             dtype='double'
+        penalty: float, optional
+            Penalty magnitude.
+            Enable ridge regression when using dense standard solver.
+            Use X.T @ X + penalty * I instead of X.T @ X.
 
         Returns
         -------
@@ -105,7 +110,7 @@ class FCSolverO2O3(FCSolverBase):
             use_mkl=self._use_mkl,
             verbose=self._log_level > 0,
         )
-        coefs = solve_linear_equation(XTX, XTy)
+        coefs = solve_linear_equation(XTX, XTy, penalty=penalty)
         n_basis_fc2 = fc2_basis.blocked_basis_set.shape[1]
         self._coefs = coefs[:n_basis_fc2], coefs[n_basis_fc2:]
 

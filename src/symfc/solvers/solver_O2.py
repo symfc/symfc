@@ -47,6 +47,7 @@ class FCSolverO2(FCSolverBase):
         batch_size: int = 100,
         use_sparse_disps: bool = False,
         use_large_basis_solver: bool = False,
+        penalty: float | None = None,
     ) -> FCSolverO2:
         """Solve coefficients of basis set from displacements and forces.
 
@@ -70,6 +71,10 @@ class FCSolverO2(FCSolverBase):
             n_compr * n_snapshot / N > 10000,
             where n_compr is the number of columns of the compact compression
             matrix.
+        penalty: float, optional
+            Penalty magnitude.
+            Enable ridge regression when using dense standard solver.
+            Use X.T @ X + penalty * I instead of X.T @ X.
 
         Returns
         -------
@@ -104,7 +109,7 @@ class FCSolverO2(FCSolverBase):
                 use_mkl=self._use_mkl,
                 verbose=self._log_level > 0,
             )
-        self._coefs = solve_linear_equation(XTX, XTy)
+        self._coefs = solve_linear_equation(XTX, XTy, penalty=penalty)
         return self
 
     @property
