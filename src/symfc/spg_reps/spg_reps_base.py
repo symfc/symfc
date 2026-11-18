@@ -42,6 +42,7 @@ class SpgRepsBase:
                 translations : array_like
         symprec: float, optional
             Precision for finding symmetry operations.
+
         """
         self._symprec = symprec
         self._lattice = np.array(supercell.cell, dtype="double", order="C")
