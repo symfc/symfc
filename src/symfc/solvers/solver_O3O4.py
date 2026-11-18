@@ -79,6 +79,10 @@ class FCSolverO3O4(FCSolverBase):
         forces : ndarray
             Forces of atoms in Cartesian coordinates. shape=(n_snapshot, N, 3),
             dtype='double'
+        penalty: float, optional
+            Penalty magnitude.
+            Enable ridge regression when using dense standard solver.
+            Use X.T @ X + penalty * I instead of X.T @ X.
 
         Returns
         -------
@@ -336,12 +340,7 @@ def run_solver_O3O4(
         use_mkl=use_mkl,
         verbose=verbose,
     )
-
-    if penalty is not None:
-        idx = np.arange(XTX.shape[0])
-        XTX[idx, idx] += penalty
-
-    coefs = solve_linear_equation(XTX, XTy)
+    coefs = solve_linear_equation(XTX, XTy, penalty=penalty)
     n_basis_fc3 = compress_eigvecs_fc3.shape[1]
     coefs_fc3, coefs_fc4 = coefs[:n_basis_fc3], coefs[n_basis_fc3:]
 

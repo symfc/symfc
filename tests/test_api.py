@@ -14,7 +14,7 @@ from symfc.utils.utils import SymfcAtoms
 cwd = Path(__file__).parent
 
 
-@pytest.mark.parametrize("penalty", [None, 1e-15])
+@pytest.mark.parametrize("penalty", [None, 1e-30])
 def test_api_NaCl_222(
     ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray], penalty: float | None
 ):
@@ -34,7 +34,7 @@ def test_api_NaCl_222(
     np.testing.assert_allclose(fc, fc_ref)
 
 
-@pytest.mark.parametrize("penalty", [None, 1e-15])
+@pytest.mark.parametrize("penalty", [None, 1e-30])
 def test_api_NaCl_222_with_dataset(
     ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.ndarray],
     penalty: float | None,
@@ -76,7 +76,7 @@ def test_api_NaCl_222_exception(ph_nacl_222: tuple[SymfcAtoms, np.ndarray, np.nd
 
 
 @pytest.mark.parametrize("is_compact_fc", [True, False])
-@pytest.mark.parametrize("penalty", [None, 1e-15])
+@pytest.mark.parametrize("penalty", [None, 1e-30])
 def test_api_si_111_fc3(
     ph3_si_111_fc3: tuple[SymfcAtoms, np.ndarray, np.ndarray],
     is_compact_fc: bool,
@@ -106,7 +106,7 @@ def test_api_si_111_fc3(
 
 
 @pytest.mark.parametrize("is_compact_fc", [True, False])
-@pytest.mark.parametrize("penalty", [None, 1e-15])
+@pytest.mark.parametrize("penalty", [None, 1e-30])
 def test_api_si_111_fc4(
     ph3_si_111_fc3: tuple[SymfcAtoms, np.ndarray, np.ndarray],
     is_compact_fc: bool,
@@ -142,7 +142,7 @@ def test_api_si_111_fc4(
 
 
 @pytest.mark.parametrize("is_compact_fc", [False])
-@pytest.mark.parametrize("penalty", [None, 1e-15])
+@pytest.mark.parametrize("penalty", [None, 1e-30])
 def test_api_si_111_fc4_step(
     ph3_si_111_fc3: tuple[SymfcAtoms, np.ndarray, np.ndarray],
     is_compact_fc: bool,

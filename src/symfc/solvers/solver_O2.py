@@ -59,8 +59,10 @@ class FCSolverO2(FCSolverBase):
         forces : ndarray
             Forces of atoms in Cartesian coordinates.
             shape=(n_snapshot, N, 3), dtype='double'
-        penalty: float
-            Penalty magnitude. Enable ridge regression.
+        penalty: float, optional
+            Penalty magnitude.
+            Enable ridge regression when using dense standard solver.
+            Use X.T @ X + penalty * I instead of X.T @ X.
 
         Returns
         -------
@@ -95,12 +97,7 @@ class FCSolverO2(FCSolverBase):
                 use_mkl=self._use_mkl,
                 verbose=self._log_level > 0,
             )
-
-        if penalty is not None:
-            idx = np.arange(XTX.shape[0])
-            XTX[idx, idx] += penalty
-
-        self._coefs = solve_linear_equation(XTX, XTy)
+        self._coefs = solve_linear_equation(XTX, XTy, penalty=penalty)
         return self
 
     @property

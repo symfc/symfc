@@ -224,9 +224,10 @@ class Symfc:
             Return compact force constants.
         batch_size : int, optional
             Batch size in solvers, by default 100.
-        penalty: float
+        penalty: float, optional
             Penalty magnitude.
             Enable ridge regression when using dense standard solver.
+            Use X.T @ X + penalty * I instead of X.T @ X.
         """
         if (
             self._displacements is not None and self._forces is not None
@@ -274,19 +275,24 @@ class Symfc:
             Batch size in solvers, by default 100.
         use_gradient_solver: bool
             Use gradient-based solver.
-        penalty: float
+        penalty: float, optional
             Penalty magnitude.
             Enable ridge regression when using dense standard solver.
+            Use X.T @ X + penalty * I instead of X.T @ X.
         """
         if self.use_fd:
             if use_gradient_solver:
-                raise RuntimeError("Gradient-based solver not implemented.")
+                raise NotImplementedError("Gradient-based solver not implemented.")
+            if penalty is not None:
+                raise NotImplementedError("Ridge regression not implemented.")
             self.solve_sparse(
                 max_order=max_order,
                 orders=orders,
                 is_compact_fc=is_compact_fc,
             )
         else:
+            if use_gradient_solver and penalty is not None:
+                raise NotImplementedError("Ridge gradient solver not implemented.")
             self.solve_dense(
                 max_order=max_order,
                 orders=orders,
@@ -372,7 +378,9 @@ class Symfc:
         use_gradient_solver: bool
             Use gradient-based solver.
         penalty: float, optional
-            Penalty magnitude. Enable ridge regression.
+            Penalty magnitude.
+            Enable ridge regression when using dense standard solver.
+            Use X.T @ X + penalty * I instead of X.T @ X.
         """
         self._check_dataset()
         _orders = self._check_orders(max_order, orders)
@@ -418,7 +426,12 @@ class Symfc:
                 basis_set_o3,
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
-            ).solve(self._displacements, self._forces, batch_size=batch_size)
+            ).solve(
+                self._displacements,
+                self._forces,
+                batch_size=batch_size,
+                penalty=penalty,
+            )
             if is_compact_fc:
                 fc = solver_o3.compact_fc
             else:
@@ -435,7 +448,12 @@ class Symfc:
                 basis_set_o4,
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
-            ).solve(self._displacements, self._forces, batch_size=batch_size)
+            ).solve(
+                self._displacements,
+                self._forces,
+                batch_size=batch_size,
+                penalty=penalty,
+            )
             if is_compact_fc:
                 fc = solver_o4.compact_fc
             else:
@@ -451,13 +469,23 @@ class Symfc:
                     [basis_set_o2, basis_set_o3],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
-                ).solve(self._displacements, self._forces, batch_size=batch_size)
+                ).solve(
+                    self._displacements,
+                    self._forces,
+                    batch_size=batch_size,
+                    penalty=penalty,
+                )
             else:
                 solver_o2o3 = FCSolverO2O3(
                     [basis_set_o2, basis_set_o3],
                     use_mkl=self._use_mkl,
                     log_level=self._log_level,
-                ).solve(self._displacements, self._forces, batch_size=batch_size)
+                ).solve(
+                    self._displacements,
+                    self._forces,
+                    batch_size=batch_size,
+                    penalty=penalty,
+                )
 
             if is_compact_fc:
                 fc_tuple = solver_o2o3.compact_fc
@@ -478,7 +506,12 @@ class Symfc:
                 [basis_set_o3, basis_set_o4],
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
-            ).solve(self._displacements, self._forces, batch_size=batch_size)
+            ).solve(
+                self._displacements,
+                self._forces,
+                batch_size=batch_size,
+                penalty=penalty,
+            )
 
             if is_compact_fc:
                 fc_tuple = solver_o3o4.compact_fc
@@ -500,7 +533,12 @@ class Symfc:
                 [basis_set_o2, basis_set_o3, basis_set_o4],
                 use_mkl=self._use_mkl,
                 log_level=self._log_level,
-            ).solve(self._displacements, self._forces, batch_size=batch_size)
+            ).solve(
+                self._displacements,
+                self._forces,
+                batch_size=batch_size,
+                penalty=penalty,
+            )
 
             if is_compact_fc:
                 fc_tuple = solver_o2o3o4.compact_fc

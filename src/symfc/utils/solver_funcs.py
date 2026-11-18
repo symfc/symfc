@@ -8,7 +8,9 @@ from scipy.linalg.lapack import get_lapack_funcs
 from scipy.sparse import csr_array
 
 
-def solve_linear_equation(A: NDArray, b: NDArray) -> NDArray:
+def solve_linear_equation(
+    A: NDArray, b: NDArray, penalty: float | None = None
+) -> NDArray:
     """Solve linear equation using lapack in scipy.
 
     numpy and scipy implementations
@@ -16,8 +18,19 @@ def solve_linear_equation(A: NDArray, b: NDArray) -> NDArray:
     x = scipy.linalg.solve(A, b, check_finite=False, assume_a='pos')
 
     """
+    if penalty is not None:
+        if penalty < 0.0:
+            raise ValueError("Set positive penalty.")
+        idx = np.arange(A.shape[0])
+        A[idx, idx] += penalty
+
     (posv,) = get_lapack_funcs(("posv",), (A, b))
     _, x, _ = posv(A, b, lower=False, overwrite_a=False, overwrite_b=False)
+
+    if penalty is not None:
+        idx = np.arange(A.shape[0])
+        A[idx, idx] -= penalty
+
     return x
 
 
